@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}New Poll — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <h1>Create a Poll</h1>
+    <form method="post" class="auth-form">
+        <label for="question">Question</label>
+        <input type="text" id="question" name="question" placeholder="What do you think about...?" required>
+
+        <label for="options">Options (one per line, min 2)</label>
+        <textarea id="options" name="options" rows="6" placeholder="Option A&#10;Option B&#10;Option C" required
+                  style="padding:0.65rem 0.75rem; border-radius:var(--radius); border:1px solid var(--color-border);
+                         background:var(--color-bg); color:var(--color-text); font-size:1rem; resize:vertical;"></textarea>
+
+        <button type="submit" class="btn">Create Poll</button>
+    </form>
+    <div class="auth-alt">
+        <a href="{{ url_for('pulse.index') }}">&larr; Back to The Pulse</a>
+    </div>
+</div>
+{% endblock %}

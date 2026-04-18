@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}High Scores — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="scores-header">
+    <h1>High Scores</h1>
+</div>
+
+<div class="video-filters">
+    <a href="{{ url_for('scores.index') }}"
+       class="filter-tag {% if not active_game %}active{% endif %}">All Games</a>
+    {% for g in games %}
+        <a href="{{ url_for('scores.index', game=g.key) }}"
+           class="filter-tag {% if active_game == g.key %}active{% endif %}">{{ g.title }}</a>
+    {% endfor %}
+</div>
+
+{% if scores %}
+<div class="scores-table-wrap">
+    <table class="scores-table">
+        <thead>
+            <tr>
+                <th class="col-rank">#</th>
+                <th class="col-player">Player</th>
+                <th class="col-game">Game</th>
+                <th class="col-score">Score</th>
+                <th class="col-detail">Detail</th>
+                <th class="col-date">Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in scores %}
+            <tr class="{% if current_user.is_authenticated and s.username == current_user.username %}score-mine{% endif %}
+                       {% if loop.index <= 3 %}score-top{{ loop.index }}{% endif %}">
+                <td class="col-rank">
+                    {% if loop.index == 1 %}🥇
+                    {% elif loop.index == 2 %}🥈
+                    {% elif loop.index == 3 %}🥉
+                    {% else %}{{ loop.index }}{% endif %}
+                </td>
+                <td class="col-player">{{ s.username }}</td>
+                <td class="col-game">{{ s.game }}</td>
+                <td class="col-score">{{ "{:,}".format(s.score) }}</td>
+                <td class="col-detail">{{ s.detail }}</td>
+                <td class="col-date">{{ s.achieved_at[:10] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="empty-state">No scores recorded yet{% if active_game %} for this game{% endif %}. Go play something!</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Ronpon.com{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Welcome to Ronpon.com</h1>
+    <p>Games, videos, and more.</p>
+    <div class="hero-links">
+        <a href="{{ url_for('games.index') }}" class="btn">Play Games</a>
+        <a href="{{ url_for('videos.index') }}" class="btn btn-secondary">Watch Videos</a>
+        <a href="{{ url_for('pulse.index') }}" class="btn btn-secondary">The Pulse</a>
+    </div>
+</section>
+{% endblock %}

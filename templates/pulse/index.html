@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}The Pulse — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="pulse-header">
+    <div>
+        <h1>The Pulse</h1>
+        <p class="pulse-subtitle">The game show. Cast your vote — results are hidden until the poll closes.</p>
+    </div>
+    {% if is_admin %}
+        <a href="{{ url_for('pulse.create') }}" class="btn btn-small">+ New Poll</a>
+    {% endif %}
+</div>
+
+{% if not polls %}
+    <p class="empty-state">No polls yet. Check back soon!</p>
+{% endif %}
+
+{% for poll in polls %}
+<div class="poll-card {% if not poll.is_active %}poll-closed{% endif %}">
+    <div class="poll-header-row">
+        <h2 class="poll-question">{{ poll.question }}</h2>
+        <div class="poll-meta">
+            {% if poll.is_active %}
+                <span class="poll-badge poll-badge-live">Live</span>
+            {% else %}
+                <span class="poll-badge poll-badge-closed">Closed</span>
+            {% endif %}
+            <span class="poll-vote-count">{{ poll.total_votes }} vote{{ 's' if poll.total_votes != 1 }}</span>
+        </div>
+    </div>
+
+    {# ── Active poll: voting form (logged-in, hasn't voted) ── #}
+    {% if poll.is_active and current_user.is_authenticated and not poll.user_vote %}
+        <form method="post" action="{{ url_for('pulse.vote', poll_id=poll.id) }}" class="poll-options">
+            {% for opt in poll.options %}
+            <label class="poll-option poll-option-selectable">
+                <input type="radio" name="option_id" value="{{ opt.id }}" required>
+                <span class="poll-option-label">{{ opt.label }}</span>
+            </label>
+            {% endfor %}
+            <button type="submit" class="btn btn-small poll-vote-btn">Vote</button>
+        </form>
+
+    {# ── Active poll: already voted ── #}
+    {% elif poll.is_active and poll.user_vote %}
+        <div class="poll-options">
+            {% for opt in poll.options %}
+            <div class="poll-option {% if opt.id == poll.user_vote %}poll-option-voted{% endif %}">
+                <span class="poll-option-label">{{ opt.label }}</span>
+                {% if opt.id == poll.user_vote %}
+                    <span class="poll-your-vote">Your vote ✓</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+            <p class="poll-hidden-note">Results hidden until the poll closes.</p>
+        </div>
+
+    {# ── Active poll: not logged in ── #}
+    {% elif poll.is_active %}
+        <div class="poll-options">
+            {% for opt in poll.options %}
+            <div class="poll-option">
+                <span class="poll-option-label">{{ opt.label }}</span>
+            </div>
+            {% endfor %}
+            <p class="poll-hidden-note"><a href="{{ url_for('auth.login') }}">Log in</a> to vote.</p>
+        </div>
+
+    {# ── Closed poll: show results to everyone ── #}
+    {% else %}
+        <div class="poll-options">
+            {% for opt in poll.options %}
+            {% set pct = ((opt.votes / poll.total_votes * 100) | round(1)) if poll.total_votes > 0 else 0 %}
+            <div class="poll-option poll-option-result {% if opt.id == poll.user_vote %}poll-option-voted{% endif %}">
+                <div class="poll-bar" style="width: {{ pct }}%"></div>
+                <span class="poll-option-label">{{ opt.label }}</span>
+                <span class="poll-option-pct">{{ opt.votes }} ({{ pct }}%)</span>
+                {% if opt.id == poll.user_vote %}
+                    <span class="poll-your-vote">✓</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {# ── Admin: always show results + controls ── #}
+    {% if is_admin %}
+    <details class="poll-admin-section">
+        <summary>Admin — Results & Controls</summary>
+        <div class="poll-admin-results">
+            {% for opt in poll.options %}
+            {% set pct = ((opt.votes / poll.total_votes * 100) | round(1)) if poll.total_votes > 0 else 0 %}
+            <div class="poll-option poll-option-result">
+                <div class="poll-bar" style="width: {{ pct }}%"></div>
+                <span class="poll-option-label">{{ opt.label }}</span>
+                <span class="poll-option-pct">{{ opt.votes }} ({{ pct }}%)</span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="poll-admin-actions">
+            {% if poll.is_active %}
+            <form method="post" action="{{ url_for('pulse.close', poll_id=poll.id) }}">
+                <button type="submit" class="btn btn-small btn-secondary">Close Poll</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('pulse.reopen', poll_id=poll.id) }}">
+                <button type="submit" class="btn btn-small btn-secondary">Reopen</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('pulse.delete', poll_id=poll.id) }}"
+                  onsubmit="return confirm('Delete this poll and all its votes?')">
+                <button type="submit" class="btn btn-small btn-danger">Delete</button>
+            </form>
+        </div>
+    </details>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

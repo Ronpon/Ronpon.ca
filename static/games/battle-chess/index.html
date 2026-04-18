@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battle Chess</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♚</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="info-panel">
+            <span id="turn-indicator">Battle Chess</span>
+            <span id="next-minigame" class="info-next-mg" style="display:none"></span>
+        </div>
+        <div id="canvas-container">
+            <canvas id="game-canvas" width="640" height="640"></canvas>
+        </div>
+        <div id="overlay-container"></div>
+    </div>
+
+    <script src="lib/chess.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

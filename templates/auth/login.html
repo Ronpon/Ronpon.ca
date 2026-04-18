@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Login — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <h1>Login</h1>
+    <form method="POST" class="auth-form">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username"
+               value="{{ username|default('') }}" required autofocus>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+
+        <button type="submit" class="btn">Login</button>
+    </form>
+    <p class="auth-alt">Don't have an account? <a href="{{ url_for('auth.register') }}">Register</a></p>
+</div>
+{% endblock %}

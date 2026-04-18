@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Werblers — Ronpon.com</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/style.css') }}">
+</head>
+<body>
+
+<!-- Back to Games link -->
+<a id="back-to-games" href="{{ url_for('games.index') }}" title="Back to Games">&larr; Games</a>
+
+<!-- Options button (always visible) -->
+<button id="options-btn" onclick="openOptionsModal()" title="Options">&#x2699;</button>
+
+<!-- In-game side buttons (below gear) -->
+<div id="game-side-buttons" class="hidden">
+  <button id="saveload-btn" onclick="openSaveLoadModal()" title="Save / Load">💾</button>
+  <button id="achievements-btn-ingame" onclick="openAchievementsModal()" title="Achievements">🏆</button>
+</div>
+
+<!-- Options modal -->
+<div id="options-modal" class="hidden">
+  <div class="options-modal-content">
+    <h2 class="offer-title">Options</h2>
+    <div class="options-row">
+      <label class="options-label" for="vol-master">Master Volume</label>
+      <input type="range" id="vol-master" class="vol-slider" min="0" max="100" value="80"
+        oninput="setMasterVolume(this.value)">
+      <span class="vol-val" id="vol-master-val">80</span>
+    </div>
+    <div class="options-row">
+      <label class="options-label" for="vol-music">Music Volume</label>
+      <input type="range" id="vol-music" class="vol-slider" min="0" max="100" value="80"
+        oninput="setMusicVolume(this.value)">
+      <span class="vol-val" id="vol-music-val">80</span>
+    </div>
+    <div class="offer-actions" style="margin-top:20px">
+      <button class="btn-secondary" onclick="closeOptionsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ PROFILE -->
+<div id="profile-screen">
+  <div class="setup-box">
+    <h1 class="game-title">WERBLERS</h1>
+    <p class="game-subtitle">A Game of Greed, Glory &amp; Questionable Decisions</p>
+    <div id="profile-create-section">
+      <h2 class="menu-heading">Create a Profile</h2>
+      <input type="text" id="profile-name-input" class="profile-input" placeholder="Enter your name..." maxlength="24">
+      <button class="btn-primary" onclick="createProfile()">Create</button>
+    </div>
+    <div id="profile-select-section" class="hidden">
+      <h2 class="menu-heading">Select a Profile</h2>
+      <div id="profile-list"></div>
+      <button class="btn-secondary" style="margin-top:14px" onclick="showCreateProfile()">+ New Profile</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ MAIN MENU -->
+<div id="main-menu-screen" class="hidden">
+  <div class="setup-box">
+    <h1 class="game-title">WERBLERS</h1>
+    <p class="game-subtitle" id="menu-profile-name"></p>
+    <div class="main-menu-btns">
+      <button class="btn-primary btn-menu" onclick="goToNewGame()">New Game</button>
+      <button class="btn-primary btn-menu" onclick="openLoadFromMenu()">Load Game</button>
+      <button class="btn-primary btn-menu" onclick="openOptionsModal()">Settings</button>
+      <button class="btn-primary btn-menu" onclick="openAchievementsModal()">Achievements</button>
+      <button class="btn-secondary btn-menu" onclick="changeProfile()">Change Profile</button>
+      <button class="btn-secondary btn-menu" onclick="exitGame()">Exit Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ SETUP -->
+<div id="setup-screen" class="hidden">
+  <div class="setup-box">
+    <h1 class="game-title">WERBLERS</h1>
+    <p class="game-subtitle">A Game of Greed, Glory &amp; Questionable Decisions</p>
+
+    <div class="setup-row">
+      <span class="setup-label">Number of Players</span>
+      <div class="player-count-btns">
+        <button class="count-btn active" data-n="1" onclick="setNumPlayers(1)">1</button>
+        <button class="count-btn" data-n="2" onclick="setNumPlayers(2)">2</button>
+        <button class="count-btn" data-n="3" onclick="setNumPlayers(3)">3</button>
+        <button class="count-btn" data-n="4" onclick="setNumPlayers(4)">4</button>
+      </div>
+    </div>
+
+    <div id="hero-selectors"></div>
+
+    <button id="start-btn" class="btn-primary" onclick="startGame()" disabled>
+      Begin Adventure
+    </button>
+  </div>
+</div>
+
+<!-- ================================================================ GAME -->
+<div id="game-screen" class="hidden">
+  <div id="main-layout">
+
+    <!-- Board area -->
+    <div id="board-area">
+      <div id="board-legend">
+        <span class="legend-l1">● Level 1</span>
+        <span class="legend-l2">● Level 2</span>
+        <span class="legend-l3">● Level 3</span>
+        <span id="time-indicator" class="day">☀ Day</span>
+      </div>
+      <div id="board-grid"></div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+
+      <div id="turn-banner">
+        <span id="turn-number">Turn 0</span>
+        <span id="active-player-name">—</span>
+      </div>
+
+      <div id="player-tabs"></div>
+
+      <div id="player-stats"></div>
+
+      <div id="view-sheet-row">
+        <button class="btn-view-sheet" onclick="openPlayerSheet()">View Player Sheet</button>
+      </div>
+
+      <!-- Abilities panel: shown before card play when "you may" options exist -->
+      <div id="abilities-section" class="hidden">
+        <div class="section-header">Available Abilities</div>
+        <div id="abilities-list"></div>
+      </div>
+
+      <div id="movement-section">
+        <div class="section-header">
+          <span>Movement Cards</span>
+          <label id="flee-label" class="hidden">
+            <input type="checkbox" id="flee-toggle"> Flee
+          </label>
+        </div>
+        <div id="movement-hand"></div>
+      </div>
+
+      <div id="log-section">
+        <div class="section-header">Turn Log</div>
+        <div id="turn-log"></div>
+      </div>
+
+    </div>
+
+    <!-- Hero card panel (3rd column) -->
+    <div id="hero-panel">
+      <div id="main-hero-card"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Winner modal -->
+<div id="winner-modal" class="hidden">
+  <div class="modal-box">
+    <h2 id="winner-text"></h2>
+    <button class="btn-primary" onclick="location.reload()">Play Again</button>
+  </div>
+</div>
+
+<!-- Offer modal: chest or shop -->
+<div id="offer-modal" class="hidden">
+  <div class="offer-modal-content">
+    <div id="offer-modal-body"></div>
+  </div>
+</div>
+
+<!-- Inventory modal: equip/pack placement -->
+<div id="inventory-modal" class="hidden">
+  <div class="inventory-modal-content">
+    <div id="inventory-modal-body"></div>
+  </div>
+</div>
+
+<!-- Player sheet overlay -->
+<div id="player-sheet-overlay" class="hidden"></div>
+
+<!-- Direction choice modal -->
+<div id="direction-modal" class="hidden">
+  <div class="direction-modal-content">
+    <h2 class="offer-title">Choose Direction</h2>
+    <p id="direction-desc" class="offer-sub"></p>
+    <div class="direction-btns">
+      <button class="btn-primary direction-btn" id="dir-forward" onclick="confirmDirection('forward')">&#x2191; Forward</button>
+      <button class="btn-secondary direction-btn" id="dir-backward" onclick="confirmDirection('backward')">&#x2193; Backward</button>
+      <button class="btn-secondary direction-btn" onclick="cancelDirection()">&#x2715; Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Battle scene overlay -->
+<div id="battle-overlay" class="hidden"></div>
+
+<!-- Post-battle gain modal -->
+<div id="gain-modal" class="hidden">
+  <div id="gain-modal-content">
+    <!-- video injected here by JS (top-left grid cell) -->
+    <div id="gain-modal-right">
+      <div id="gain-modal-monster-card"></div>
+      <div id="gain-modal-body"></div>
+    </div>
+    <button id="gain-modal-continue" class="btn-primary" onclick="closeGainModal()">Continue</button>
+  </div>
+</div>
+
+<!-- Movement deck/discard viewer modal -->
+<div id="deck-viewer-modal" class="hidden" onclick="if(event.target===this)closeDeckViewer()">
+  <div id="deck-viewer-panel">
+    <div id="deck-viewer-header">
+      <span id="deck-viewer-title">Movement Deck</span>
+      <button class="btn-secondary" onclick="closeDeckViewer()">&#x2715; Close</button>
+    </div>
+    <div id="deck-viewer-grid"></div>
+  </div>
+</div>
+
+<!-- Card zoom lightbox -->
+<div id="card-zoom-modal" class="hidden" onclick="this.classList.add('hidden')">
+  <img src="" alt="Card zoom">
+</div>
+
+<!-- Save/Load modal -->
+<div id="saveload-modal" class="hidden">
+  <div class="options-modal-content saveload-modal-content">
+    <h2 class="offer-title">Save / Load</h2>
+    <div class="saveload-tabs">
+      <button class="saveload-tab active" data-mode="save" onclick="setSaveLoadMode('save')">Save</button>
+      <button class="saveload-tab" data-mode="load" onclick="setSaveLoadMode('load')">Load</button>
+    </div>
+    <div id="saveload-slots"></div>
+    <div class="saveload-actions">
+      <button id="saveload-confirm-btn" class="btn-primary" disabled onclick="confirmSaveLoad()">Save</button>
+      <button class="btn-secondary" onclick="closeSaveLoadModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overwrite confirm modal -->
+<div id="overwrite-modal" class="hidden">
+  <div class="modal-box">
+    <h2 class="offer-title">Overwrite Save?</h2>
+    <p class="modal-desc">This slot already has a save. Overwrite it?</p>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="confirmOverwrite(true)">Yes</button>
+      <button class="btn-secondary" onclick="confirmOverwrite(false)">No</button>
+    </div>
+  </div>
+</div>
+
+<!-- Load from main menu modal -->
+<div id="menu-load-modal" class="hidden">
+  <div class="options-modal-content saveload-modal-content">
+    <h2 class="offer-title">Load Game</h2>
+    <div id="menu-load-slots"></div>
+    <div class="saveload-actions">
+      <button id="menu-load-btn" class="btn-primary" disabled onclick="menuLoadGame()">Load</button>
+      <button class="btn-secondary" onclick="closeMenuLoadModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Achievements modal -->
+<div id="achievements-modal" class="hidden">
+  <div class="options-modal-content achievements-modal-content">
+    <h2 class="offer-title">🏆 Achievements</h2>
+    <div id="achievements-list"></div>
+    <div class="offer-actions" style="margin-top:16px">
+      <button class="btn-secondary" onclick="closeAchievementsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Achievement popup -->
+<div id="achievement-popup" class="hidden">
+  <div class="achievement-popup-content">
+    <div class="achievement-popup-icon">🏆</div>
+    <div class="achievement-popup-title">Achievement Complete!</div>
+    <div class="achievement-popup-name" id="achievement-popup-name"></div>
+    <button class="btn-primary" onclick="dismissAchievementPopup()">Nice!</button>
+  </div>
+</div>
+
+<!-- Rake It In modal -->
+<div id="rake-it-in-modal" class="hidden">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-title">🎰 Rake It In!</div>
+    <div class="rake-desc modal-desc"></div>
+    <div class="modal-section-label" style="margin-top:10px">Choose an equipped item to discard:</div>
+    <div class="rake-equips-row" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0"></div>
+    <div class="rake-shop-section"></div>
+    <div class="modal-btns">
+      <button id="rake-confirm-btn" class="btn-primary" disabled onclick="resolveRakeItIn(true)">Rake It In!</button>
+      <button class="btn-secondary" onclick="resolveRakeItIn(false)">No Thanks</button>
+    </div>
+  </div>
+</div>
+
+<!-- No More Charlie Work decision modal -->
+<div id="charlie-work-modal" class="hidden">
+  <div class="modal-box">
+    <div class="modal-title">No More Charlie Work!</div>
+    <div class="modal-desc"></div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="resolveCharlieWork(true)">Use It (Fight Tier +1)</button>
+      <button class="btn-secondary" onclick="resolveCharlieWork(false)">Skip (Fight Normal)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Occupied slot modal -->
+<div id="occupied-slot-modal" class="hidden">
+  <div class="modal-box">
+    <div class="modal-title">Slot Occupied</div>
+    <div class="modal-desc"></div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="_occupiedSlotAction('to_pack')">Move to Pack</button>
+      <button class="btn-danger" onclick="_occupiedSlotAction('discard')">Discard</button>
+      <button class="btn-secondary" onclick="_occupiedSlotAction('cancel')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='games/werblers/js/game.js') }}?v=20260418"></script>
+</body>
+</html>

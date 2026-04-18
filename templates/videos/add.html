@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Add Video — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <h1>Add Video</h1>
+    <form method="post" class="auth-form">
+        <label for="youtube_url">YouTube URL or Video ID</label>
+        <input type="text" id="youtube_url" name="youtube_url" placeholder="https://www.youtube.com/watch?v=..." required>
+
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" placeholder="Video title" required>
+
+        <label for="category">Category</label>
+        <input type="text" id="category" name="category" placeholder="e.g. Gaming, Music, Dev Logs"
+               list="cat-list" autocomplete="off">
+        <datalist id="cat-list">
+            {% for cat in categories %}
+                <option value="{{ cat }}">
+            {% endfor %}
+        </datalist>
+
+        <button type="submit" class="btn">Add Video</button>
+    </form>
+    <div class="auth-alt">
+        <a href="{{ url_for('videos.index') }}">&larr; Back to Videos</a>
+    </div>
+</div>
+{% endblock %}

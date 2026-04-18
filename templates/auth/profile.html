@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Profile — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <h1>{{ current_user.username }}</h1>
+    <div class="profile-card">
+        <div class="profile-field">
+            <span class="label">Email</span>
+            <span>{{ current_user.email }}</span>
+        </div>
+        <div class="profile-field">
+            <span class="label">Member since</span>
+            <span>{{ current_user.created_at[:10] }}</span>
+        </div>
+        {% if current_user.is_admin %}
+        <div class="profile-field">
+            <span class="label">Role</span>
+            <span class="badge-admin">Admin</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

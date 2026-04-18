@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Games — Ronpon.com{% endblock %}
+
+{% block content %}
+<h1>Games</h1>
+<div class="game-grid">
+    {% for game in games %}
+    <a href="{{ url_for('games.' + game.id|replace('-', '_')) }}" class="game-card">
+        <div class="game-card-thumb">
+            {% if game.thumbnail %}
+                <img src="{{ url_for('static', filename=game.thumbnail) }}"
+                     alt="{{ game.title }}"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                <div class="game-card-placeholder" style="display:none">{{ game.title[0] }}</div>
+            {% else %}
+                <div class="game-card-placeholder">{{ game.title[0] }}</div>
+            {% endif %}
+        </div>
+        <div class="game-card-body">
+            <h3>{{ game.title }}</h3>
+            <p>{{ game.description }}</p>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Videos — Ronpon.com{% endblock %}
+
+{% block content %}
+<div class="videos-header">
+    <h1>Videos</h1>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+        <a href="{{ url_for('videos.add') }}" class="btn btn-small">+ Add Video</a>
+    {% endif %}
+</div>
+
+{% if categories %}
+<div class="video-filters">
+    <a href="{{ url_for('videos.index') }}"
+       class="filter-tag {% if not active_cat %}active{% endif %}">All</a>
+    {% for cat in categories %}
+        <a href="{{ url_for('videos.index', cat=cat) }}"
+           class="filter-tag {% if active_cat == cat %}active{% endif %}">{{ cat }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if videos %}
+<div class="video-grid">
+    {% for v in videos %}
+    <div class="video-card">
+        <div class="video-embed">
+            <iframe src="https://www.youtube-nocookie.com/embed/{{ v['youtube_id'] }}"
+                    title="{{ v['title'] }}"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                    loading="lazy"></iframe>
+        </div>
+        <div class="video-card-body">
+            <h3>{{ v['title'] }}</h3>
+            <span class="video-cat-badge">{{ v['category'] }}</span>
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <form action="{{ url_for('videos.delete', video_id=v['id']) }}" method="post" class="video-delete-form">
+                <button type="submit" class="btn-icon" title="Delete" onclick="return confirm('Delete this video?')">&#x2715;</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty-state">No videos yet{% if active_cat %} in "{{ active_cat }}"{% endif %}.</p>
+{% endif %}
+{% endblock %}

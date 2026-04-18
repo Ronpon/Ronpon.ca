@@ -1,0 +1,31 @@
+{
+    "name": "Classic",
+    "author": "Battle Chess",
+    "description": "Classic wooden board with standard pieces",
+    "boardColors": {
+        "light": "#F0D9B5",
+        "dark": "#B58863",
+        "selected": "rgba(255, 255, 0, 0.5)",
+        "validMove": "rgba(0, 0, 0, 0.25)",
+        "lastMove": "rgba(255, 255, 0, 0.2)",
+        "check": "rgba(255, 0, 0, 0.5)"
+    },
+    "pieceStyle": "default",
+
+    "_comment_pieceStyle": "Use 'default' for built-in Unicode pieces, or 'images' to load piece files.",
+    "_comment_pieces": "When pieceStyle is 'images', provide a 'pieces' object mapping piece keys to image filenames:",
+    "_example_pieces": {
+        "wK": "wK.png",
+        "wQ": "wQ.png",
+        "wR": "wR.png",
+        "wB": "wB.png",
+        "wN": "wN.png",
+        "wP": "wP.png",
+        "bK": "bK.png",
+        "bQ": "bQ.png",
+        "bR": "bR.png",
+        "bB": "bB.png",
+        "bN": "bN.png",
+        "bP": "bP.png"
+    }
+}
