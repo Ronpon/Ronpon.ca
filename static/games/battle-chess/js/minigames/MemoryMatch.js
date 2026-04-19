@@ -105,7 +105,7 @@ export class MemoryMatch extends BaseMinigame {
             const el = document.createElement('div');
             el.className = 'hc-card hc-card-back';
             el.dataset.index = i;
-            el.innerHTML = '<span class="hc-card-inner">🂠</span>';
+            el.innerHTML = '<img class="hc-card-img" src="Images/Battle%20Chess%20Card%20back.png" alt="card" draggable="false">';
             this._grid.appendChild(el);
             this._cardEls.push(el);
         }
@@ -240,7 +240,7 @@ export class MemoryMatch extends BaseMinigame {
 
         if (state === 'down') {
             el.className = 'hc-card hc-card-back';
-            el.innerHTML = '<span class="hc-card-inner">🂠</span>';
+            el.innerHTML = '<img class="hc-card-img" src="Images/Battle%20Chess%20Card%20back.png" alt="card" draggable="false">';
             el.style.borderColor = '';
             el.style.boxShadow = '';
         } else if (state === 'up') {

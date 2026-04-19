@@ -91,7 +91,7 @@ export class HighestCard extends BaseMinigame {
             const el = document.createElement('div');
             el.className = 'hc-card hc-card-back';
             el.dataset.index = i;
-            el.innerHTML = '<span class="hc-card-inner">🂠</span>';
+            el.innerHTML = '<img class="hc-card-img" src="Images/Battle%20Chess%20Card%20back.png" alt="card" draggable="false">';
             this._grid.appendChild(el);
             this._cardEls.push(el);
         }
@@ -135,14 +135,9 @@ export class HighestCard extends BaseMinigame {
             }
 
             // Advance phase
-            if (this.phase === 'p1-pick' && pickerIsP1) {
-                // First pick done → second picker
+            if (this.phase === 'p1-pick') {
+                // First pick (attacker) done → defender picks next
                 this.currentPicker = this.defenderIdx;
-                this.phase = 'p2-pick';
-                this._updateTurnLabel();
-            } else if (this.phase === 'p1-pick' && !pickerIsP1) {
-                // Shouldn't happen in normal flow
-                this.currentPicker = this.attackerIdx;
                 this.phase = 'p2-pick';
                 this._updateTurnLabel();
             } else if (this.phase === 'p2-pick') {
@@ -166,7 +161,7 @@ export class HighestCard extends BaseMinigame {
     _clearSelection(idx) {
         const el = this._cardEls[idx];
         el.classList.remove('hc-card-selected');
-        el.innerHTML = '<span class="hc-card-inner">🂠</span>';
+        el.innerHTML = '<img class="hc-card-img" src="Images/Battle%20Chess%20Card%20back.png" alt="card" draggable="false">';
         el.style.borderColor = '';
         el.style.boxShadow = '';
     }
