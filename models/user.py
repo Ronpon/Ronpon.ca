@@ -47,6 +47,13 @@ class User(UserMixin):
             row = cur.fetchone()
         return User._from_row(row) if row else None
 
+    @staticmethod
+    def count() -> int:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM users")
+            return cur.fetchone()[0]
+
     # ── Create ──────────────────────────────────────────────────
 
     @staticmethod
