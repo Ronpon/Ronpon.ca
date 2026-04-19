@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Optional
+from flask import current_app
 from flask_login import UserMixin
 from flask_bcrypt import generate_password_hash, check_password_hash
 
@@ -51,12 +52,14 @@ class User(UserMixin):
     @staticmethod
     def create(username: str, email: str, password: str) -> "User":
         pw_hash = generate_password_hash(password).decode("utf-8")
+        admin_username = current_app.config.get("ADMIN_USERNAME", "")
+        is_admin = bool(admin_username and username == admin_username)
         with get_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO users (username, email, pw_hash) "
-                f"VALUES ({ph(3)})",
-                (username, email, pw_hash),
+                f"INSERT INTO users (username, email, pw_hash, is_admin) "
+                f"VALUES ({ph(4)})",
+                (username, email, pw_hash, is_admin),
             )
             conn.commit()
         return User.get_by_username(username)
