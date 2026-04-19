@@ -1,4 +1,6 @@
 """Videos section routes."""
+from __future__ import annotations
+
 import re
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import current_user
