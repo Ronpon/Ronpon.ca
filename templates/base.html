@@ -31,9 +31,7 @@
                 <a href="{{ url_for('pulse.index') }}"
                    class="nav-tab {% if request.path.startswith('/the-pulse') %}active{% endif %}">
                     <span class="nav-icon">📊</span> The Pulse</a>
-                <a href="{{ url_for('scores.index') }}"
-                   class="nav-tab {% if request.path.startswith('/scores') %}active{% endif %}">
-                    <span class="nav-icon">🏆</span> High Scores</a>
+
             </div>
             <div class="nav-auth">
                 {% if current_user is defined and current_user.is_authenticated %}

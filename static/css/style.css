@@ -288,11 +288,18 @@ a:hover { color: var(--color-primary-hover); }
 
 /* ── Game grid ──────────────────────────────────────────────────── */
 
+.game-row-title {
+    font-size: 1.25rem;
+    margin-top: 2rem;
+    margin-bottom: 0;
+    color: var(--color-text);
+}
+
 .game-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.5rem;
-    margin-top: 1.5rem;
+    margin-top: 1rem;
 }
 
 .game-card {

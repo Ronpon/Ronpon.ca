@@ -27,9 +27,9 @@ GAMES = [
     {
         "id": "werblers-mobile",
         "title": "Werblers Mobile",
-        "description": "The mobile edition of Werblers — coming to iOS.",
+        "description": "The mobile edition of Werblers — play on any device.",
         "thumbnail": "games/thumbnails/Werblers Thumbnail.png",
-        "type": "coming_soon",
+        "type": "flask",
         "platform": "Mobile",
     },
 ]
@@ -37,12 +37,10 @@ GAMES = [
 
 @games_bp.route("/")
 def index():
-    platform = request.args.get("platform", "").strip()
-    if platform not in PLATFORMS:
-        platform = ""
-    filtered = [g for g in GAMES if not platform or g["platform"] == platform]
-    return render_template("games/index.html", games=filtered,
-                           platforms=PLATFORMS, active_platform=platform)
+    pc_games = [g for g in GAMES if g["platform"] == "PC"]
+    mobile_games = [g for g in GAMES if g["platform"] == "Mobile"]
+    return render_template("games/index.html",
+                           pc_games=pc_games, mobile_games=mobile_games)
 
 
 @games_bp.route("/battle-chess")
@@ -59,5 +57,4 @@ def werblers():
 
 @games_bp.route("/werblers-mobile")
 def werblers_mobile():
-    return render_template("games/coming_soon.html",
-                           game_title="Werblers Mobile")
+    return render_template("games/werblers.html")

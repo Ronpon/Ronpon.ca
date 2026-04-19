@@ -6,17 +6,32 @@
     <h1>Games</h1>
 </div>
 
-<div class="video-filters">
-    <a href="{{ url_for('games.index') }}"
-       class="filter-tag {% if not active_platform %}active{% endif %}">All</a>
-    {% for p in platforms %}
-        <a href="{{ url_for('games.index', platform=p) }}"
-           class="filter-tag {% if active_platform == p %}active{% endif %}">{{ p }}</a>
+<h2 class="game-row-title">PC Games</h2>
+<div class="game-grid">
+    {% for game in pc_games %}
+    <a href="{{ url_for('games.' + game.id|replace('-', '_')) }}" class="game-card">
+        <div class="game-card-thumb">
+            {% if game.thumbnail %}
+                <img src="{{ url_for('static', filename=game.thumbnail) }}"
+                     alt="{{ game.title }}"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                <div class="game-card-placeholder" style="display:none">{{ game.title[0] }}</div>
+            {% else %}
+                <div class="game-card-placeholder">{{ game.title[0] }}</div>
+            {% endif %}
+        </div>
+        <div class="game-card-body">
+            <h3>{{ game.title }}</h3>
+            <p>{{ game.description }}</p>
+            <span class="game-platform-badge">{{ game.platform }}</span>
+        </div>
+    </a>
     {% endfor %}
 </div>
 
+<h2 class="game-row-title">Mobile Games</h2>
 <div class="game-grid">
-    {% for game in games %}
+    {% for game in mobile_games %}
     <a href="{{ url_for('games.' + game.id|replace('-', '_')) }}" class="game-card">
         <div class="game-card-thumb">
             {% if game.thumbnail %}
