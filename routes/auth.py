@@ -1,8 +1,10 @@
 """Auth routes — register, login, logout, profile."""
 from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_user, logout_user, login_required, current_user
+from flask_bcrypt import generate_password_hash
 
 from models.user import User
+from models.db import get_conn, ph
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -91,3 +93,55 @@ def social_login(provider):
 @login_required
 def profile():
     return render_template("auth/profile.html")
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+@login_required
+def change_password():
+    current_pw = request.form.get("current_password", "")
+    new_pw = request.form.get("new_password", "")
+    confirm_pw = request.form.get("confirm_password", "")
+
+    if not current_user.check_password(current_pw):
+        flash("Current password is incorrect.", "error")
+        return redirect(url_for("auth.profile"))
+
+    if len(new_pw) < 6:
+        flash("New password must be at least 6 characters.", "error")
+        return redirect(url_for("auth.profile"))
+
+    if new_pw != confirm_pw:
+        flash("New passwords do not match.", "error")
+        return redirect(url_for("auth.profile"))
+
+    pw_hash = generate_password_hash(new_pw).decode("utf-8")
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE users SET pw_hash = {ph()} WHERE id = {ph()}",
+            (pw_hash, current_user.id),
+        )
+
+    flash("Password updated successfully.", "success")
+    return redirect(url_for("auth.profile"))
+
+
+@auth_bp.route("/delete-account", methods=["POST"])
+@login_required
+def delete_account():
+    password = request.form.get("password", "")
+
+    if not current_user.check_password(password):
+        flash("Incorrect password.", "error")
+        return redirect(url_for("auth.profile"))
+
+    user_id = current_user.id
+    logout_user()
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM poll_votes WHERE user_id = {ph()}", (user_id,))
+        cur.execute(f"DELETE FROM users WHERE id = {ph()}", (user_id,))
+
+    flash("Your account has been deleted.", "success")
+    return redirect(url_for("main.home"))

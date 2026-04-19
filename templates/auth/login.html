@@ -17,18 +17,33 @@
         </a>
     </div>
 
-    <div class="auth-divider"><span>or sign in with username</span></div>
+    <div class="auth-divider">
+        <span><a href="#" id="admin-signin-toggle" class="admin-signin-link">Admin Sign-in</a></span>
+    </div>
 
-    <form method="POST" class="auth-form">
-        <label for="username">Username</label>
-        <input type="text" id="username" name="username"
-               value="{{ username|default('') }}" required autofocus>
+    <div id="admin-signin-form" class="admin-signin-hidden">
+        <form method="POST" class="auth-form">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username"
+                   value="{{ username|default('') }}" {% if username %}autofocus{% endif %}>
 
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
 
-        <button type="submit" class="btn">Login</button>
-    </form>
+            <button type="submit" class="btn">Login</button>
+        </form>
+    </div>
+
+    <script>
+    document.getElementById('admin-signin-toggle').addEventListener('click', function(e) {
+        e.preventDefault();
+        var form = document.getElementById('admin-signin-form');
+        form.classList.toggle('admin-signin-hidden');
+        if (!form.classList.contains('admin-signin-hidden')) {
+            document.getElementById('username').focus();
+        }
+    });
+    </script>
 
 </div>
 {% endblock %}

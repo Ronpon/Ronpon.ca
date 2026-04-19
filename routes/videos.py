@@ -20,30 +20,25 @@ def _extract_youtube_id(url_or_id: str) -> str | None:
 
 @videos_bp.route("/")
 def index():
-    cat = request.args.get("cat", "").strip()
-
     with get_conn() as conn:
         cur = conn.cursor()
 
         cur.execute("SELECT DISTINCT category FROM videos ORDER BY category")
         categories = [row[0] for row in cur.fetchall()]
 
-        if cat and cat in categories:
-            cur.execute(
-                f"SELECT id, youtube_id, title, category FROM videos WHERE category = {ph()} ORDER BY added_at DESC",
-                (cat,),
-            )
-        else:
-            cat = ""
-            cur.execute("SELECT id, youtube_id, title, category FROM videos ORDER BY added_at DESC")
+        cur.execute("SELECT id, youtube_id, title, category FROM videos ORDER BY category, added_at DESC")
+        all_videos = cur.fetchall()
 
-        videos = cur.fetchall()
+    # Group videos by category
+    grouped = {}
+    for v in all_videos:
+        cat = v[3] if not hasattr(v, 'keys') else v['category']
+        grouped.setdefault(cat, []).append(v)
 
     return render_template(
         "videos/index.html",
-        videos=videos,
+        grouped=grouped,
         categories=categories,
-        active_cat=cat,
     )
 
 

@@ -20,5 +20,35 @@
         </div>
         {% endif %}
     </div>
+
+    {# ── Change Password ── #}
+    <details class="profile-section">
+        <summary class="profile-section-toggle">Change Password</summary>
+        <form method="POST" action="{{ url_for('auth.change_password') }}" class="auth-form profile-form">
+            <label for="current_password">Current Password</label>
+            <input type="password" id="current_password" name="current_password" required>
+
+            <label for="new_password">New Password</label>
+            <input type="password" id="new_password" name="new_password" required>
+
+            <label for="confirm_password">Confirm New Password</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
+
+            <button type="submit" class="btn">Update Password</button>
+        </form>
+    </details>
+
+    {# ── Delete Account ── #}
+    <details class="profile-section profile-section-danger">
+        <summary class="profile-section-toggle profile-section-toggle-danger">Delete Account</summary>
+        <p class="profile-danger-text">This will permanently delete your account and all associated data. This cannot be undone.</p>
+        <form method="POST" action="{{ url_for('auth.delete_account') }}" class="auth-form profile-form"
+              onsubmit="return confirm('Are you sure you want to permanently delete your account? This cannot be undone.')">
+            <label for="delete_password">Enter your password to confirm</label>
+            <input type="password" id="delete_password" name="password" required>
+
+            <button type="submit" class="btn btn-danger">Delete My Account</button>
+        </form>
+    </details>
 </div>
 {% endblock %}
