@@ -30,6 +30,13 @@ export const MinigameMode = Object.freeze({
     SET_ORDER: 'setOrder'
 });
 
+// ── Minigame Advantage Setting ───────────────────────────
+export const MinigameAdvantage = Object.freeze({
+    ATTACKER: 'attacker',
+    DEFENDER: 'defender',
+    NONE: 'none'
+});
+
 // ── Board Dimensions ─────────────────────────────────────
 export const BOARD_SIZE = 640;
 export const SQUARE_COUNT = 8;

@@ -10,8 +10,21 @@
 </div>
 
 {% if grouped %}
+    {% if categories|length > 1 %}
+    <div class="video-filters">
+        <button class="filter-tag active" data-cat="all">All</button>
+        {% for cat in categories %}
+        <button class="filter-tag" data-cat="{{ cat }}">{{ cat }}</button>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% for cat, vids in grouped.items() %}
-    <h2 class="game-row-title">{{ cat }}</h2>
+    <section class="video-category-section" data-cat="{{ cat }}">
+    <div class="video-category-header">
+        <span class="video-category-label">{{ cat }}</span>
+        <span class="video-category-count">{{ vids|length }}</span>
+    </div>
     <div class="video-grid">
         {% for v in vids %}
         <div class="video-card">
@@ -34,7 +47,21 @@
         </div>
         {% endfor %}
     </div>
+    </section>
     {% endfor %}
+
+<script>
+document.querySelectorAll('.video-filters .filter-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.video-filters .filter-tag').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const cat = btn.dataset.cat;
+        document.querySelectorAll('.video-category-section').forEach(sec => {
+            sec.style.display = (cat === 'all' || sec.dataset.cat === cat) ? '' : 'none';
+        });
+    });
+});
+</script>
 {% else %}
 <p class="empty-state">No videos yet.</p>
 {% endif %}

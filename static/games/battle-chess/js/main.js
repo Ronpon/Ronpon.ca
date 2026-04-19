@@ -16,6 +16,8 @@ import { GameEvent, BOARD_SIZE } from './Constants.js';
 import { DodgingBattle } from './minigames/DodgingBattle.js';
 import { MashingBattle } from './minigames/MashingBattle.js';
 import { TimingBattle } from './minigames/TimingBattle.js';
+import { HighestCard } from './minigames/HighestCard.js';
+import { MemoryMatch } from './minigames/MemoryMatch.js';
 
 /**
  * Application entry point.
@@ -39,6 +41,8 @@ class App {
         this.minigameManager.register(DodgingBattle);
         this.minigameManager.register(MashingBattle);
         this.minigameManager.register(TimingBattle);
+        this.minigameManager.register(HighestCard);
+        this.minigameManager.register(MemoryMatch);
         this.inputHandler = null;
         this.checkWarning = null;
         this.promotionDialog = null;

@@ -37,6 +37,7 @@ export class MinigameManager {
             thumbnail: instance.thumbnail,
             description: instance.description,
             controls: instance.controls,
+            category: instance.category || 'Other',
             GameClass: MinigameClass
         });
         console.log(`[MinigameManager] Registered: ${instance.name}`);
@@ -55,12 +56,13 @@ export class MinigameManager {
         return '?';
     }
 
-    /** Returns array of { id, name, thumbnail } for the setup wizard. */
+    /** Returns array of { id, name, thumbnail, category } for the setup wizard. */
     getRegistryList() {
         return [...this._registry.values()].map(r => ({
             id: r.id,
             name: r.name,
-            thumbnail: r.thumbnail
+            thumbnail: r.thumbnail,
+            category: r.category
         }));
     }
 
@@ -114,6 +116,7 @@ export class MinigameManager {
             captureCtx: this._captureCtx,
             players: config.players,
             attackerColor: this._captureCtx.attackerColor,
+            advantage: config.minigameAdvantage || 'attacker',
             isFirstTime,
             onReady: () => {
                 mgState.firstTimePlayed.add(gameId);

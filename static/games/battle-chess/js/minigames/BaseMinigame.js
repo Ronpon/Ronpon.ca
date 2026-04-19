@@ -17,6 +17,7 @@ export class BaseMinigame {
         this.name = 'Base Minigame';   // display name
         this.thumbnail = '🎮';         // emoji or image path
         this.description = '';          // first-time explanation text
+        this.category = 'Other';       // category for setup grouping
         this.controls = {
             player1: '',               // e.g. "WASD to move"
             player2: ''                // e.g. "IJKL to move"
@@ -26,6 +27,7 @@ export class BaseMinigame {
         this.container = null;         // DOM element to render into
         this.players = null;           // [{ name, icon, color }, { name, icon, color }]
         this.attackerColor = null;     // 'w' or 'b'
+        this.advantage = 'attacker';   // 'attacker' | 'defender' | 'none'
         this.onEnd = null;             // callback: ({ attackerWins: bool, tie: bool }) => void
         this._animFrameId = null;
         this._destroyed = false;
@@ -38,12 +40,14 @@ export class BaseMinigame {
      * @param {Object} config
      * @param {Array} config.players - [player1, player2] objects
      * @param {string} config.attackerColor - 'w' or 'b'
+     * @param {string} config.advantage - 'attacker', 'defender', or 'none'
      * @param {Function} config.onEnd - callback when game ends
      */
-    init(container, { players, attackerColor, onEnd }) {
+    init(container, { players, attackerColor, advantage, onEnd }) {
         this.container = container;
         this.players = players;
         this.attackerColor = attackerColor;
+        this.advantage = advantage || 'attacker';
         this.onEnd = onEnd;
         this._destroyed = false;
     }

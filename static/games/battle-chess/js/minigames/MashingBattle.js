@@ -15,7 +15,8 @@ export class MashingBattle extends BaseMinigame {
         this.id = 'mashing-battle';
         this.name = 'Mashing Battle';
         this.thumbnail = '💪';
-        this.description = 'Mash your button as fast as you can! Every 5 presses moves the icon one notch toward your opponent. Closest side after 20 seconds wins. Attacker starts with a slight disadvantage.';
+        this.category = 'Skill';
+        this.description = 'Mash your button as fast as you can! Every 5 presses moves the icon one notch toward your opponent. Closest side after 20 seconds wins.';
         this.controls = {
             player1: 'Mash A',
             player2: 'Mash L'
@@ -29,10 +30,28 @@ export class MashingBattle extends BaseMinigame {
         this.PRESSES_PER_NOTCH = 5;
         this.DURATION = 20;         // seconds
 
-        // Icon position: 0 = P1 side (left), 8 = P2 side (right).
-        // Start 1 notch closer to whichever player is the attacker.
+        // Determine starting position based on advantage setting
+        // 0 = P1 side (left), 8 = P2 side (right), 4 = center
         const p1IsAttacker = this.attackerColor === 'w';
-        this.position = p1IsAttacker ? 3 : 5;
+        if (this.advantage === 'none') {
+            this.position = 4; // center — no advantage
+        } else {
+            const advantagedIsAttacker = this.advantage === 'attacker';
+            if (p1IsAttacker === advantagedIsAttacker) {
+                this.position = 3; // closer to P1 (left) side
+            } else {
+                this.position = 5; // closer to P2 (right) side
+            }
+        }
+
+        // Update description based on advantage
+        if (this.advantage === 'attacker') {
+            this.description = 'Mash your button as fast as you can! Every 5 presses moves the icon one notch toward your opponent. Closest side after 20 seconds wins. Attacker starts with a slight advantage.';
+        } else if (this.advantage === 'defender') {
+            this.description = 'Mash your button as fast as you can! Every 5 presses moves the icon one notch toward your opponent. Closest side after 20 seconds wins. Defender starts with a slight advantage.';
+        } else {
+            this.description = 'Mash your button as fast as you can! Every 5 presses moves the icon one notch toward your opponent. Closest side after 20 seconds wins. No starting advantage — icon begins at the center.';
+        }
 
         // Press counts (accumulated, resets every 5)
         this.p1Presses = 0;

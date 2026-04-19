@@ -1,4 +1,4 @@
-import { GameState, GameEvent, MinigameMode } from './Constants.js';
+import { GameState, GameEvent, MinigameMode, MinigameAdvantage } from './Constants.js';
 
 /**
  * Central game state machine. Owns the chess.js instance and all game config.
@@ -21,6 +21,7 @@ export class GameManager {
             ],
             selectedMinigames: [],
             minigameMode: MinigameMode.RANDOM,
+            minigameAdvantage: MinigameAdvantage.ATTACKER,
             attackerLosesPiece: false
         };
 

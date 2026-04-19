@@ -21,13 +21,20 @@ export class MinigameScreen {
         this.eventBus.on('minigameTie', (ctx) => this._showTie(ctx));
     }
 
-    _show({ gameEntry, captureCtx, players, attackerColor, isFirstTime, onReady, onEnd }) {
-        this._currentCtx = { gameEntry, players, attackerColor, onEnd };
+    _show({ gameEntry, captureCtx, players, attackerColor, advantage, isFirstTime, onReady, onEnd }) {
+        this._currentCtx = { gameEntry, players, attackerColor, advantage, onEnd };
 
         const p1 = players[0];
         const p2 = players[1];
         const p1Role = attackerColor === 'w' ? 'Attacker' : 'Defender';
         const p2Role = attackerColor === 'b' ? 'Attacker' : 'Defender';
+
+        // Determine which player has the advantage
+        const p1HasAdv = (advantage === 'attacker' && p1Role === 'Attacker') ||
+                         (advantage === 'defender' && p1Role === 'Defender');
+        const p2HasAdv = (advantage === 'attacker' && p2Role === 'Attacker') ||
+                         (advantage === 'defender' && p2Role === 'Defender');
+        const advBadge = '<div class="mg-advantage-badge">★ Advantage</div>';
 
         const panel = document.createElement('div');
         panel.className = 'mg-screen';
@@ -36,6 +43,7 @@ export class MinigameScreen {
                 <div class="mg-player-icon">${p1.icon || '⚔️'}</div>
                 <div class="mg-player-name">${this._escapeHtml(p1.name)}</div>
                 <div class="mg-player-role mg-role-${p1Role.toLowerCase()}">${p1Role}</div>
+                ${p1HasAdv ? advBadge : ''}
                 <div class="mg-controls-hint">${this._escapeHtml(gameEntry.controls?.player1 || '')}</div>
             </div>
             <div class="mg-center">
@@ -46,6 +54,7 @@ export class MinigameScreen {
                 <div class="mg-player-icon">${p2.icon || '🛡️'}</div>
                 <div class="mg-player-name">${this._escapeHtml(p2.name)}</div>
                 <div class="mg-player-role mg-role-${p2Role.toLowerCase()}">${p2Role}</div>
+                ${p2HasAdv ? advBadge : ''}
                 <div class="mg-controls-hint">${this._escapeHtml(gameEntry.controls?.player2 || '')}</div>
             </div>
         `;
@@ -56,14 +65,36 @@ export class MinigameScreen {
 
         const arena = panel.querySelector('#mg-arena');
 
-        if (isFirstTime && gameEntry.description) {
-            this._showExplanation(arena, gameEntry.description, () => {
+        // Create and init the game instance first to get the dynamic description
+        const GameClass = gameEntry.GameClass;
+        this._gameInstance = new GameClass();
+        this._gameInstance.init(arena, {
+            players,
+            attackerColor,
+            advantage,
+            onEnd: (result) => {
+                this._destroyGame();
+                if (result.tie) {
+                    onEnd(result);
+                } else {
+                    this._showResult(result, players, attackerColor, () => {
+                        this._hide();
+                        onEnd(result);
+                    });
+                }
+            }
+        });
+
+        const dynamicDescription = this._gameInstance.description;
+
+        if (isFirstTime && dynamicDescription) {
+            this._showExplanation(arena, dynamicDescription, () => {
                 onReady();
-                this._launchGame(arena, gameEntry, players, attackerColor, onEnd);
+                this._gameInstance.start();
             });
         } else {
             onReady();
-            this._launchGame(arena, gameEntry, players, attackerColor, onEnd);
+            this._gameInstance.start();
         }
     }
 
@@ -80,28 +111,6 @@ export class MinigameScreen {
             overlay.remove();
             onGotIt();
         });
-    }
-
-    _launchGame(arena, gameEntry, players, attackerColor, onEnd) {
-        const GameClass = gameEntry.GameClass;
-        this._gameInstance = new GameClass();
-        this._gameInstance.init(arena, {
-            players,
-            attackerColor,
-            onEnd: (result) => {
-                this._destroyGame();
-                if (result.tie) {
-                    // Let MinigameManager handle the tie
-                    onEnd(result);
-                } else {
-                    this._showResult(result, players, attackerColor, () => {
-                        this._hide();
-                        onEnd(result);
-                    });
-                }
-            }
-        });
-        this._gameInstance.start();
     }
 
     _showResult(result, players, attackerColor, onDone) {

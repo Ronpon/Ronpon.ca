@@ -1,4 +1,4 @@
-import { GameEvent, MinigameMode } from '../Constants.js';
+import { GameEvent, MinigameMode, MinigameAdvantage } from '../Constants.js';
 
 /**
  * Multi-step setup wizard overlay.
@@ -20,6 +20,7 @@ export class SetupWizard {
             ],
             selectedMinigames: [],
             minigameMode: MinigameMode.RANDOM,
+            minigameAdvantage: MinigameAdvantage.ATTACKER,
             attackerLosesPiece: false
         };
 
@@ -134,15 +135,30 @@ export class SetupWizard {
         const games = this.minigameRegistry || [];
         const hasGames = games.length > 0;
 
-        const gameListHTML = hasGames
-            ? games.map(g => `
-                <label class="setup-minigame-item">
-                    <input type="checkbox" class="setup-mg-check" data-id="${g.id}">
-                    <span class="setup-mg-thumb">${g.thumbnail || '🎮'}</span>
-                    <span class="setup-mg-name">${g.name}</span>
-                </label>
-            `).join('')
-            : `<p class="setup-no-games">No minigames available yet.<br>The game will play as standard chess.</p>`;
+        // Group games by category
+        let gameListHTML = '';
+        if (hasGames) {
+            const grouped = {};
+            for (const g of games) {
+                const cat = g.category || 'Other';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(g);
+            }
+            for (const [cat, catGames] of Object.entries(grouped)) {
+                gameListHTML += `<div class="setup-mg-category">
+                    <div class="setup-mg-category-title">${cat}</div>
+                    ${catGames.map(g => `
+                        <label class="setup-minigame-item">
+                            <input type="checkbox" class="setup-mg-check" data-id="${g.id}">
+                            <span class="setup-mg-thumb">${g.thumbnail || '🎮'}</span>
+                            <span class="setup-mg-name">${g.name}</span>
+                        </label>
+                    `).join('')}
+                </div>`;
+            }
+        } else {
+            gameListHTML = `<p class="setup-no-games">No minigames available yet.<br>The game will play as standard chess.</p>`;
+        }
 
         this._render(`
             <h2>Minigame Selection</h2>
@@ -201,7 +217,7 @@ export class SetupWizard {
                 this.config.minigameMode = selectedMode;
 
                 if (this.config.selectedMinigames.length > 0) {
-                    this._showAttackerLossRule();
+                    this._showMinigameAdvantage();
                 } else {
                     this._finish();
                 }
@@ -219,7 +235,56 @@ export class SetupWizard {
         });
     }
 
-    // ── Screen 4: Attacker Loss Rule ─────────────────────
+    // ── Screen 4: Minigame Advantage ──────────────────────
+    _showMinigameAdvantage() {
+        this._render(`
+            <h2>Minigame Advantage</h2>
+            <p class="setup-rule-desc">
+                Some minigames give a small starting advantage to one side. Who should receive it?
+            </p>
+            <div class="setup-rule-options setup-advantage-options">
+                <button class="btn setup-rule-btn" id="adv-attacker">
+                    <span class="rule-icon">⚔️</span>
+                    <span class="rule-title">Attacker</span>
+                    <span class="rule-sub">Default — attacker gets the edge</span>
+                </button>
+                <button class="btn setup-rule-btn" id="adv-defender">
+                    <span class="rule-icon">🛡️</span>
+                    <span class="rule-title">Defender</span>
+                    <span class="rule-sub">Defender gets the edge instead</span>
+                </button>
+                <button class="btn setup-rule-btn" id="adv-none">
+                    <span class="rule-icon">⚖️</span>
+                    <span class="rule-title">None</span>
+                    <span class="rule-sub">No advantage — perfectly even</span>
+                </button>
+            </div>
+            <div class="setup-actions">
+                <button class="btn" id="btn-back-minigames-adv">Back</button>
+            </div>
+        `);
+
+        this.panel.querySelector('#adv-attacker').addEventListener('click', () => {
+            this.config.minigameAdvantage = MinigameAdvantage.ATTACKER;
+            this._showAttackerLossRule();
+        });
+
+        this.panel.querySelector('#adv-defender').addEventListener('click', () => {
+            this.config.minigameAdvantage = MinigameAdvantage.DEFENDER;
+            this._showAttackerLossRule();
+        });
+
+        this.panel.querySelector('#adv-none').addEventListener('click', () => {
+            this.config.minigameAdvantage = MinigameAdvantage.NONE;
+            this._showAttackerLossRule();
+        });
+
+        this.panel.querySelector('#btn-back-minigames-adv').addEventListener('click', () => {
+            this._showMinigameSelection();
+        });
+    }
+
+    // ── Screen 5: Attacker Loss Rule ─────────────────────
     _showAttackerLossRule() {
         this._render(`
             <h2>Attacker Loss Rule</h2>
@@ -254,7 +319,7 @@ export class SetupWizard {
         });
 
         this.panel.querySelector('#btn-back-minigames').addEventListener('click', () => {
-            this._showMinigameSelection();
+            this._showMinigameAdvantage();
         });
     }
 

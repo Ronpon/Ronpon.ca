@@ -15,7 +15,8 @@ export class DodgingBattle extends BaseMinigame {
         this.id = 'dodging-battle';
         this.name = 'Dodging Battle';
         this.thumbnail = '💥';
-        this.description = 'Dodge the incoming projectiles! Last player standing wins. The attacker gets one extra life.';
+        this.category = 'Skill';
+        this.description = 'Dodge the incoming projectiles! Last player standing wins.';
         this.controls = {
             player1: 'WASD to move',
             player2: 'IJKL to move'
@@ -25,23 +26,44 @@ export class DodgingBattle extends BaseMinigame {
     init(container, config) {
         super.init(container, config);
 
+        // Update description based on advantage
+        if (this.advantage === 'attacker') {
+            this.description = 'Dodge the incoming projectiles! Last player standing wins. The attacker gets one extra life.';
+        } else if (this.advantage === 'defender') {
+            this.description = 'Dodge the incoming projectiles! Last player standing wins. The defender gets one extra life.';
+        } else {
+            this.description = 'Dodge the incoming projectiles! Last player standing wins. No extra lives — one hit and you\'re out!';
+        }
+
         // ── Arena dimensions ─────────────────────────────
         this.arenaSize = 400;
         this.playerRadius = 16;
         this.projectileRadius = 5;
 
         // ── Player state ─────────────────────────────────
+        // Determine extra life based on advantage setting
+        const p1IsAttacker = this.attackerColor === 'w';
+        let p1Lives = 1, p2Lives = 1;
+        if (this.advantage === 'attacker') {
+            p1Lives = p1IsAttacker ? 2 : 1;
+            p2Lives = p1IsAttacker ? 1 : 2;
+        } else if (this.advantage === 'defender') {
+            p1Lives = p1IsAttacker ? 1 : 2;
+            p2Lives = p1IsAttacker ? 2 : 1;
+        }
+        // 'none' → both get 1 life
+
         this.p1 = {
             x: this.arenaSize * 0.3,
             y: this.arenaSize * 0.5,
-            lives: this.attackerColor === 'w' ? 2 : 1,
+            lives: p1Lives,
             alive: true,
             icon: this.players[0].icon || '⚔️'
         };
         this.p2 = {
             x: this.arenaSize * 0.7,
             y: this.arenaSize * 0.5,
-            lives: this.attackerColor === 'b' ? 2 : 1,
+            lives: p2Lives,
             alive: true,
             icon: this.players[1].icon || '🛡️'
         };

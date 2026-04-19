@@ -15,6 +15,7 @@ export class TimingBattle extends BaseMinigame {
         this.id = 'timing-battle';
         this.name = 'Timing Battle';
         this.thumbnail = '⏱️';
+        this.category = 'Skill';
         this.description = 'Wait for "NOW!" then press your key as fast as you can! Fastest reaction wins the round. Press too early and you lose a point. First to push the icon to the far side wins.';
         this.controls = {
             player1: 'Press A on "NOW!"',
@@ -26,10 +27,32 @@ export class TimingBattle extends BaseMinigame {
         super.init(container, config);
 
         this.NOTCH_COUNT = 9; // 0–8
-        // 0 = P1 side (left), 8 = P2 side (right)
-        // Start 1 notch closer to whichever player is the attacker
+        // Determine starting position based on advantage setting
+        // 0 = P1 side (left), 8 = P2 side (right), 4 = center
         const p1IsAttacker = this.attackerColor === 'w';
-        this.position = p1IsAttacker ? 3 : 5;
+        if (this.advantage === 'none') {
+            this.position = 4; // center — no advantage
+        } else {
+            // 'attacker': start closer to attacker; 'defender': start closer to defender
+            const advantagedIsAttacker = this.advantage === 'attacker';
+            // If the advantaged side is the attacker, start 1 notch closer to attacker
+            // "closer to attacker" means the icon is nearer the attacker's goal line,
+            // so the attacker needs fewer wins to push it across
+            if (p1IsAttacker === advantagedIsAttacker) {
+                this.position = 3; // closer to P1 (left) side
+            } else {
+                this.position = 5; // closer to P2 (right) side
+            }
+        }
+
+        // Update description based on advantage
+        if (this.advantage === 'attacker') {
+            this.description = 'Wait for "NOW!" then press your key as fast as you can! Fastest reaction wins the round. Press too early and you lose a point. First to push the icon to the far side wins. The attacker starts with a slight lead.';
+        } else if (this.advantage === 'defender') {
+            this.description = 'Wait for "NOW!" then press your key as fast as you can! Fastest reaction wins the round. Press too early and you lose a point. First to push the icon to the far side wins. The defender starts with a slight lead.';
+        } else {
+            this.description = 'Wait for "NOW!" then press your key as fast as you can! Fastest reaction wins the round. Press too early and you lose a point. First to push the icon to the far side wins. No starting advantage — icon begins at the center.';
+        }
 
         // Round state
         this.phase = 'waiting'; // 'waiting' | 'ready' | 'judging' | 'result' | 'done'
