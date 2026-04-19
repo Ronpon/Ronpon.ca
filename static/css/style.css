@@ -812,8 +812,25 @@ a:hover { color: var(--color-primary-hover); }
 
 /* ── Responsive ─────────────────────────────────────────────────── */
 
+/* Tablet (≤ 1024px) */
+@media (max-width: 1024px) {
+    .content { max-width: 100%; padding: 0 1.5rem; }
+    .hero h1 { font-size: 2.8rem; }
+    .video-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
+
+/* Mobile (≤ 768px) */
 @media (max-width: 768px) {
+    :root {
+        --nav-height: 56px;
+    }
+
+    /* ── Navigation ── */
     .nav-hamburger { display: flex; }
+
+    .site-nav { padding: 0 1rem; }
+
+    .nav-logo { font-size: 1.15rem; }
 
     .nav-menu {
         position: fixed;
@@ -821,6 +838,7 @@ a:hover { color: var(--color-primary-hover); }
         right: -100%;
         width: 280px;
         height: 100vh;
+        height: 100dvh;
         background: var(--color-surface);
         border-left: 1px solid var(--color-border);
         flex-direction: column;
@@ -829,6 +847,7 @@ a:hover { color: var(--color-primary-hover); }
         transition: right var(--tr-slow);
         z-index: 1000;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     .nav-menu.open { right: 0; }
 
@@ -841,7 +860,7 @@ a:hover { color: var(--color-primary-hover); }
         width: 100%;
     }
     .nav-tab {
-        padding: 0.75rem 1rem;
+        padding: 0.85rem 1rem;
         border-radius: var(--radius-sm);
         font-size: 1rem;
     }
@@ -853,27 +872,149 @@ a:hover { color: var(--color-primary-hover); }
         flex-direction: column;
         gap: 0.75rem;
     }
-    .btn-nav { text-align: center; }
+    .btn-nav { text-align: center; padding: 0.6rem 1.25rem; }
 
-    .content { padding: 0 1rem; margin: 1.5rem auto; }
+    /* ── Layout ── */
+    .content { padding: 0 1rem; margin: 1rem auto; }
 
-    .hero { padding: 3rem 0.5rem 2rem; }
+    /* ── Hero ── */
+    .hero { padding: 2.5rem 0.5rem 2rem; }
     .hero h1 { font-size: 2.2rem; }
-    .hero-tagline { font-size: 1.05rem; }
+    .hero-tagline { font-size: 1rem; margin-bottom: 2rem; }
     .hero-links { flex-direction: column; align-items: center; }
     .hero-links .btn { width: 100%; max-width: 300px; }
 
-    .game-grid { grid-template-columns: 1fr; }
-    .video-grid { grid-template-columns: 1fr; }
-
+    /* ── Section headers ── */
     .section-header h1 { font-size: 1.5rem; }
 
-    .auth-page { margin: 1rem; padding: 1.5rem; }
+    /* ── Game grid ── */
+    .game-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .game-card-body { padding: 1rem; }
+    .game-card-body h3 { font-size: 1rem; }
+    .game-card-body p { font-size: 0.85rem; }
 
+    /* ── Video grid ── */
+    .video-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .video-card-body { padding: 0.6rem 0.75rem; }
+    .video-card-body h3 { font-size: 0.88rem; }
+    .videos-header { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+
+    /* ── Filter tags ── */
+    .video-filters {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 0.25rem;
+    }
+    .video-filters::-webkit-scrollbar { display: none; }
+    .filter-tag { flex-shrink: 0; }
+
+    /* ── Auth / forms ── */
+    .auth-page {
+        margin: 0.75rem;
+        padding: 1.5rem 1.25rem;
+        border-radius: var(--radius);
+    }
+    .auth-page h1 { font-size: 1.5rem; }
+    .auth-form input, .auth-form textarea {
+        font-size: 16px; /* prevents iOS auto-zoom */
+    }
+    .btn-social { font-size: 0.9rem; padding: 0.65rem 0.75rem; }
+
+    /* ── Polls ── */
     .poll-header-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
     .pulse-header { flex-direction: column; }
+    .poll-card { padding: 1rem 1.1rem; }
+    .poll-question { font-size: 1.05rem; }
+    .poll-option { padding: 0.65rem 0.75rem; }
+    .poll-admin-actions { flex-direction: column; }
+    .poll-admin-actions .btn-danger,
+    .poll-admin-actions .btn-small { width: 100%; text-align: center; }
 
+    /* ── Scores table ── */
     .col-detail, .col-date { display: none; }
+    .scores-table th, .scores-table td { padding: 0.55rem 0.5rem; font-size: 0.85rem; }
+    .col-rank { width: 2.5rem; }
 
-    .videos-header { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+    /* ── Profile ── */
+    .profile-page { max-width: 100%; }
+    .profile-field { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+
+    /* ── Footer ── */
+    .site-footer { padding: 1.5rem 1rem; }
+
+    /* ── Buttons ── */
+    .btn { padding: 0.65rem 1.5rem; font-size: 0.9rem; }
+    .btn-small { padding: 0.45rem 0.9rem; }
+}
+
+/* Small phones (≤ 480px) */
+@media (max-width: 480px) {
+    .hero h1 { font-size: 1.8rem; }
+    .hero-tagline { font-size: 0.92rem; }
+
+    .content { padding: 0 0.75rem; }
+
+    .game-grid { gap: 0.75rem; }
+    .game-card img { aspect-ratio: 16/10; }
+
+    .auth-page { margin: 0.5rem; padding: 1.25rem 1rem; }
+
+    .poll-card { padding: 0.85rem; margin-bottom: 0.85rem; }
+    .poll-question { font-size: 0.95rem; }
+    .poll-meta { gap: 0.5rem; }
+    .poll-badge { font-size: 0.7rem; }
+    .poll-vote-count { font-size: 0.8rem; }
+
+    .scores-table { font-size: 0.8rem; }
+    .scores-table th, .scores-table td { padding: 0.45rem 0.35rem; }
+    .col-game { font-size: 0.78rem; }
+
+    .section-header h1 { font-size: 1.3rem; }
+
+    .nav-menu { width: 260px; padding: 4.5rem 1.25rem 2rem; }
+
+    .video-filters { gap: 0.35rem; }
+    .filter-tag { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+}
+
+/* ── Touch-friendly improvements ── */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger tap targets */
+    .nav-tab { min-height: 44px; }
+    .btn, .btn-small, .btn-nav, .btn-social { min-height: 44px; }
+    .filter-tag { min-height: 36px; display: inline-flex; align-items: center; }
+    .poll-option-selectable { min-height: 44px; }
+
+    /* Disable hover transforms on touch (avoids stuck states) */
+    .game-card:hover { transform: none; }
+    .game-card:hover::after { opacity: 0; }
+    .game-card:hover .game-card-thumb img { transform: none; }
+    .video-card:hover { transform: none; border-color: var(--color-border); }
+    .btn:hover { transform: none; }
+    .btn-secondary:hover { transform: none; }
+    .btn-nav:hover { transform: none; }
+    .btn-social:hover { transform: none; }
+
+    /* Active states for touch feedback instead */
+    .game-card:active { transform: scale(0.98); }
+    .video-card:active { border-color: var(--color-primary); }
+    .btn:active { transform: scale(0.97); }
+    .btn-secondary:active { transform: scale(0.97); }
+    .filter-tag:active { transform: scale(0.95); }
+    .poll-option-selectable:active { border-color: var(--color-primary); }
+}
+
+/* ── Safe area insets (notch phones) ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .site-nav { padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+    .site-footer { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+    .content { padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
 }
