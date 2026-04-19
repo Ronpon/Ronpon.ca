@@ -57,4 +57,4 @@ def werblers():
 
 @games_bp.route("/werblers-mobile")
 def werblers_mobile():
-    return render_template("games/werblers.html")
+    return render_template("games/werblers_mobile.html")

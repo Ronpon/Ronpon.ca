@@ -1,0 +1,292 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Werblers">
+  <title>Werblers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers-mobile/css/ios_style.css') }}">
+</head>
+<body>
+
+  <!-- ═══════════════════ PROFILE SCREEN ═══════════════════ -->
+  <div id="profile-screen">
+    <h1 class="setup-title">⚔ Werblers ⚔</h1>
+    <div id="profile-create-section">
+      <p class="setup-subtitle">Create a Profile</p>
+      <input type="text" id="profile-name-input" class="profile-input" placeholder="Enter your name..." maxlength="24">
+      <button class="btn-primary btn-lg" onclick="createProfile()">Create</button>
+    </div>
+    <div id="profile-select-section" class="hidden">
+      <p class="setup-subtitle">Select a Profile</p>
+      <div id="profile-list"></div>
+      <button class="btn-secondary btn-sm" style="margin-top:14px" onclick="showCreateProfile()">+ New Profile</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ MAIN MENU ═══════════════════ -->
+  <div id="main-menu-screen" class="hidden">
+    <h1 class="setup-title">⚔ Werblers ⚔</h1>
+    <p class="setup-subtitle" id="menu-profile-name"></p>
+    <div class="main-menu-btns">
+      <button class="btn-primary btn-lg btn-menu" onclick="goToNewGame()">New Game</button>
+      <button class="btn-primary btn-lg btn-menu" onclick="openLoadFromMenu()">Load Game</button>
+      <button class="btn-primary btn-lg btn-menu" onclick="showOptions()">Settings</button>
+      <button class="btn-primary btn-lg btn-menu" onclick="openAchievementsModal()">Achievements</button>
+      <button class="btn-secondary btn-lg btn-menu" onclick="changeProfile()">Change Profile</button>
+      <button class="btn-secondary btn-lg btn-menu" onclick="exitGame()">Exit Game</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ SETUP SCREEN 1: PLAYER COUNT ═══════════════════ -->
+  <div id="setup-screen-1" class="hidden">
+    <h1 class="setup-title">⚔ Werblers ⚔</h1>
+    <p class="setup-subtitle">How many players?</p>
+    <div class="player-count-btns">
+      <button class="btn-count" onclick="setNumPlayers(1)">1</button>
+      <button class="btn-count" onclick="setNumPlayers(2)">2</button>
+      <button class="btn-count" onclick="setNumPlayers(3)">3</button>
+      <button class="btn-count" onclick="setNumPlayers(4)">4</button>
+    </div>
+    <button id="continue-btn" class="btn-primary btn-lg" onclick="continueToHeroes()" disabled>Continue</button>
+  </div>
+
+  <!-- ═══════════════════ SETUP SCREEN 2: HERO SELECTION ═══════════════════ -->
+  <div id="setup-screen-2" class="hidden">
+    <h1 class="setup-title">⚔ Werblers ⚔</h1>
+    <p class="setup-subtitle">Choose Your Hero</p>
+    <p class="setup-player-label" id="hero-screen-player">Player 1</p>
+    <div class="hero-carousel">
+      <button class="carousel-arrow" onclick="prevHero()">&#8249;</button>
+      <div class="hero-carousel-card-wrap">
+        <img id="hero-carousel-img" src="" alt="Hero Card" onclick="openHeroZoom()">
+      </div>
+      <button class="carousel-arrow" onclick="nextHero()">&#8250;</button>
+    </div>
+    <p class="hero-carousel-name" id="hero-carousel-name"></p>
+    <p class="hero-carousel-title" id="hero-carousel-title"></p>
+    <button class="btn-primary btn-lg" onclick="confirmHero()">Confirm</button>
+  </div>
+
+  <!-- Hero zoom overlay -->
+  <div id="hero-zoom-overlay" class="hidden" onclick="closeHeroZoom()">
+    <img id="hero-zoom-img" src="" alt="Hero Card Fullscreen">
+  </div>
+
+  <!-- ═══════════════════ GAME SCREEN ═══════════════════ -->
+  <div id="game-screen" class="hidden">
+
+    <!-- Top bar -->
+    <div id="top-bar">
+      <div id="turn-banner"></div>
+      <div id="top-bar-btns">
+        <button id="saveload-btn" onclick="openSaveLoadModal()" title="Save/Load">💾</button>
+        <button id="achievements-btn-ingame" onclick="openAchievementsModal()" title="Achievements">🏆</button>
+        <button id="options-btn" onclick="showOptions()">⚙</button>
+      </div>
+    </div>
+
+    <!-- Player tabs (multiplayer) -->
+    <div id="player-tabs"></div>
+
+    <!-- ─── Tab content ─── -->
+    <div id="tab-content">
+      <div id="board-tab" class="tab-pane active">
+        <div id="board-scroll">
+          <div id="board-grid"></div>
+        </div>
+      </div>
+
+      <div id="player-tab" class="tab-pane">
+        <div id="player-info-area">
+          <div id="player-stats"></div>
+          <div id="equip-summary"></div>
+          <div id="abilities-section"></div>
+        </div>
+        <button class="btn-view-sheet" onclick="openPlayerSheet()">View Full Sheet</button>
+      </div>
+
+      <div id="log-tab" class="tab-pane">
+        <div id="turn-log"></div>
+      </div>
+    </div>
+
+    <!-- Movement bar (above tab bar) -->
+    <div id="movement-bar" class="hidden">
+      <div id="movement-hand"></div>
+    </div>
+
+    <!-- Bottom tab bar -->
+    <div id="bottom-tab-bar">
+      <button class="tab-btn active" data-tab="board" onclick="switchTab('board')">
+        <span class="tab-icon">🗺</span><span class="tab-label">Board</span>
+      </button>
+      <button class="tab-btn" data-tab="player" onclick="switchTab('player')">
+        <span class="tab-icon">⚔</span><span class="tab-label">Player</span>
+      </button>
+      <button class="tab-btn" data-tab="log" onclick="switchTab('log')">
+        <span class="tab-icon">📜</span><span class="tab-label">Log</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ MODALS ═══════════════════ -->
+
+  <div id="options-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Options</h2>
+      <div class="options-row">
+        <span class="options-label">Music</span>
+        <input type="range" id="vol-music" class="vol-slider" min="0" max="100" value="50"
+               oninput="setMusicVolume(this.value)">
+        <span class="vol-val" id="vol-music-val">50</span>
+      </div>
+      <div class="options-row">
+        <span class="options-label">SFX</span>
+        <input type="range" id="vol-sfx" class="vol-slider" min="0" max="100" value="50"
+               oninput="setSfxVolume(this.value)">
+        <span class="vol-val" id="vol-sfx-val">50</span>
+      </div>
+      <button class="btn-primary" onclick="closeOptions()">Close</button>
+    </div>
+  </div>
+
+  <div id="winner-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title" id="winner-title"></h2>
+      <p id="winner-text" class="modal-desc"></p>
+      <button class="btn-primary" onclick="location.reload()">New Game</button>
+    </div>
+  </div>
+
+  <div id="direction-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Choose Direction</h2>
+      <p class="modal-desc" id="direction-desc"></p>
+      <div id="direction-btns" class="direction-btns"></div>
+    </div>
+  </div>
+
+  <div id="offer-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide" id="offer-content"></div>
+  </div>
+
+  <div id="player-sheet-overlay" class="modal-overlay hidden">
+    <div class="modal-box modal-box-full" id="player-sheet-content"></div>
+  </div>
+
+  <div id="battle-overlay" class="modal-overlay hidden"></div>
+
+  <div id="gain-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide" id="gain-modal-content"></div>
+  </div>
+
+  <div id="deck-viewer-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="dv-header">
+        <h2 id="deck-viewer-title" class="modal-title"></h2>
+        <button class="btn-secondary btn-sm" onclick="closeDeckViewer()">✕</button>
+      </div>
+      <div id="deck-viewer-grid" class="dv-grid"></div>
+    </div>
+  </div>
+
+  <div id="card-zoom-modal" class="modal-overlay hidden" onclick="closeCardZoom()"></div>
+
+  <div id="charlie-work-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">No More Charlie Work</h2>
+      <p class="modal-desc"></p>
+      <div class="modal-btns">
+        <button class="btn-primary" onclick="resolveCharlieWork(true)">Fight Harder</button>
+        <button class="btn-secondary" onclick="resolveCharlieWork(false)">Normal Fight</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="occupied-slot-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Slot Occupied</h2>
+      <p class="modal-desc"></p>
+      <div class="modal-btns">
+        <button class="btn-primary" onclick="_occupiedSlotAction('discard')">Discard Existing</button>
+        <button class="btn-secondary" onclick="_occupiedSlotAction('to_pack')">Move to Pack</button>
+        <button class="btn-secondary" onclick="_occupiedSlotAction('cancel')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rake-it-in-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide" id="rake-it-in-content"></div>
+  </div>
+
+  <!-- Trait/Curse tooltip -->
+  <div id="tc-tooltip" class="tc-tooltip hidden"></div>
+
+  <!-- Save/Load modal -->
+  <div id="saveload-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <h2 class="modal-title">Save / Load</h2>
+      <div class="saveload-tabs">
+        <button class="saveload-tab active" data-mode="save" onclick="setSaveLoadMode('save')">Save</button>
+        <button class="saveload-tab" data-mode="load" onclick="setSaveLoadMode('load')">Load</button>
+      </div>
+      <div id="saveload-slots"></div>
+      <div class="modal-btns">
+        <button id="saveload-confirm-btn" class="btn-primary" disabled onclick="confirmSaveLoad()">Save</button>
+        <button class="btn-secondary" onclick="closeSaveLoadModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overwrite confirm modal -->
+  <div id="overwrite-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Overwrite Save?</h2>
+      <p class="modal-desc">This slot already has a save. Overwrite it?</p>
+      <div class="modal-btns">
+        <button class="btn-primary" onclick="confirmOverwrite(true)">Yes</button>
+        <button class="btn-secondary" onclick="confirmOverwrite(false)">No</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load from main menu modal -->
+  <div id="menu-load-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <h2 class="modal-title">Load Game</h2>
+      <div id="menu-load-slots"></div>
+      <div class="modal-btns">
+        <button id="menu-load-btn" class="btn-primary" disabled onclick="menuLoadGame()">Load</button>
+        <button class="btn-secondary" onclick="closeMenuLoadModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Achievements modal -->
+  <div id="achievements-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <h2 class="modal-title">🏆 Achievements</h2>
+      <div id="achievements-list"></div>
+      <button class="btn-primary" style="margin-top:14px" onclick="closeAchievementsModal()">Close</button>
+    </div>
+  </div>
+
+  <!-- Achievement popup -->
+  <div id="achievement-popup" class="modal-overlay hidden">
+    <div class="modal-box achievement-popup-box">
+      <div class="achievement-popup-icon">🏆</div>
+      <div class="achievement-popup-title">Achievement Complete!</div>
+      <div class="achievement-popup-name" id="achievement-popup-name"></div>
+      <button class="btn-primary" onclick="dismissAchievementPopup()">Nice!</button>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='games/werblers-mobile/js/ios_game.js') }}"></script>
+</body>
+</html>

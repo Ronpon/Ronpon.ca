@@ -289,7 +289,7 @@ a:hover { color: var(--color-primary-hover); }
 /* ── Game grid ──────────────────────────────────────────────────── */
 
 .game-row-title {
-    font-size: 1.25rem;
+    font-size: 1.75rem;
     margin-top: 2rem;
     margin-bottom: 0;
     color: var(--color-text);
