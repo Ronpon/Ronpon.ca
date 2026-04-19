@@ -1,4 +1,4 @@
-"""Ronpon.com — Main Flask application."""
+"""Ronpon.ca — Main Flask application."""
 from __future__ import annotations
 
 import os

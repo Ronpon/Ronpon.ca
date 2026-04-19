@@ -3,32 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Ronpon.com{% endblock %}</title>
+    <title>{% block title %}Ronpon.ca{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="site-nav">
-        <a href="{{ url_for('main.home') }}" class="nav-logo">Ronpon.com</a>
-        <div class="nav-tabs">
-            <a href="{{ url_for('games.index') }}"
-               class="nav-tab {% if request.path.startswith('/games') %}active{% endif %}">Games</a>
-            <a href="{{ url_for('videos.index') }}"
-               class="nav-tab {% if request.path.startswith('/videos') %}active{% endif %}">Videos</a>
-            <a href="{{ url_for('pulse.index') }}"
-               class="nav-tab {% if request.path.startswith('/the-pulse') %}active{% endif %}">The Pulse</a>
-            <a href="{{ url_for('scores.index') }}"
-               class="nav-tab {% if request.path.startswith('/scores') %}active{% endif %}">High Scores</a>
-        </div>
-        <div class="nav-auth">
-            {% if current_user is defined and current_user.is_authenticated %}
-                <a href="{{ url_for('auth.profile') }}" class="nav-link">{{ current_user.username }}</a>
-                <a href="{{ url_for('auth.logout') }}" class="nav-link">Logout</a>
-            {% else %}
-                <a href="{{ url_for('auth.login') }}" class="nav-link">Login</a>
-            {% endif %}
+        <a href="{{ url_for('main.home') }}" class="nav-logo">
+            <span class="logo-text">Ronpon</span><span class="logo-dot">.ca</span>
+        </a>
+
+        <button class="nav-hamburger" id="nav-toggle" aria-label="Toggle navigation">
+            <span></span><span></span><span></span>
+        </button>
+
+        <div class="nav-menu" id="nav-menu">
+            <div class="nav-tabs">
+                <a href="{{ url_for('games.index') }}"
+                   class="nav-tab {% if request.path.startswith('/games') %}active{% endif %}">
+                    <span class="nav-icon">🎮</span> Games</a>
+                <a href="{{ url_for('videos.index') }}"
+                   class="nav-tab {% if request.path.startswith('/videos') %}active{% endif %}">
+                    <span class="nav-icon">🎬</span> Videos</a>
+                <a href="{{ url_for('pulse.index') }}"
+                   class="nav-tab {% if request.path.startswith('/the-pulse') %}active{% endif %}">
+                    <span class="nav-icon">📊</span> The Pulse</a>
+                <a href="{{ url_for('scores.index') }}"
+                   class="nav-tab {% if request.path.startswith('/scores') %}active{% endif %}">
+                    <span class="nav-icon">🏆</span> High Scores</a>
+            </div>
+            <div class="nav-auth">
+                {% if current_user is defined and current_user.is_authenticated %}
+                    <a href="{{ url_for('auth.profile') }}" class="nav-link">{{ current_user.username }}</a>
+                    <a href="{{ url_for('auth.logout') }}" class="nav-link nav-link-logout">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-nav">Sign In</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
+
+    <div class="nav-overlay" id="nav-overlay"></div>
 
     <main class="content">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -45,8 +63,38 @@
     </main>
 
     <footer class="site-footer">
-        <p>&copy; 2026 Ronpon.com</p>
+        <div class="footer-content">
+            <span class="footer-logo">Ronpon<span class="logo-dot">.ca</span></span>
+            <p>&copy; 2026 Ronpon.ca &mdash; Games, videos, and good times.</p>
+        </div>
     </footer>
+
+    <script>
+    (function() {
+        const toggle = document.getElementById('nav-toggle');
+        const menu = document.getElementById('nav-menu');
+        const overlay = document.getElementById('nav-overlay');
+        function closeNav() {
+            toggle.classList.remove('active');
+            menu.classList.remove('open');
+            overlay.classList.remove('visible');
+            document.body.style.overflow = '';
+        }
+        toggle.addEventListener('click', function() {
+            if (menu.classList.contains('open')) { closeNav(); }
+            else {
+                toggle.classList.add('active');
+                menu.classList.add('open');
+                overlay.classList.add('visible');
+                document.body.style.overflow = 'hidden';
+            }
+        });
+        overlay.addEventListener('click', closeNav);
+        menu.querySelectorAll('a').forEach(function(link) {
+            link.addEventListener('click', closeNav);
+        });
+    })();
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

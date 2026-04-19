@@ -1,8 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Games — Ronpon.com{% endblock %}
+{% block title %}Games — Ronpon.ca{% endblock %}
 
 {% block content %}
-<h1>Games</h1>
+<div class="section-header">
+    <h1>Games</h1>
+</div>
+
+<div class="video-filters">
+    <a href="{{ url_for('games.index') }}"
+       class="filter-tag {% if not active_platform %}active{% endif %}">All</a>
+    {% for p in platforms %}
+        <a href="{{ url_for('games.index', platform=p) }}"
+           class="filter-tag {% if active_platform == p %}active{% endif %}">{{ p }}</a>
+    {% endfor %}
+</div>
+
 <div class="game-grid">
     {% for game in games %}
     <a href="{{ url_for('games.' + game.id|replace('-', '_')) }}" class="game-card">
@@ -19,6 +31,7 @@
         <div class="game-card-body">
             <h3>{{ game.title }}</h3>
             <p>{{ game.description }}</p>
+            <span class="game-platform-badge">{{ game.platform }}</span>
         </div>
     </a>
     {% endfor %}

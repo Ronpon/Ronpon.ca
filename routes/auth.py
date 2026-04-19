@@ -77,6 +77,12 @@ def logout():
     return redirect(url_for("main.home"))
 
 
+@auth_bp.route("/social/<provider>")
+def social_login(provider):
+    flash(f"{provider.title()} login coming soon!", "info")
+    return redirect(url_for("auth.login"))
+
+
 @auth_bp.route("/profile")
 @login_required
 def profile():
