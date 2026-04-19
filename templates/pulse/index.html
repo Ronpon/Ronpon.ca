@@ -2,6 +2,287 @@
 {% block title %}The Pulse — Ronpon.ca{% endblock %}
 
 {% block content %}
+<div class="pulse-page">
+
+    <div class="section-header">
+        <h1>The Pulse</h1>
+    </div>
+
+    {# ══════════════════════════════════════════════════════════════
+       LIVE NOW
+       ══════════════════════════════════════════════════════════════ #}
+    {% if live_active and (live_youtube_id or live_twitch_channel) %}
+    <div class="pulse-live-box">
+        <div class="pulse-live-badge">🔴 LIVE NOW</div>
+
+        {% if live_youtube_id %}
+        <div class="pulse-live-embed">
+            <iframe src="https://www.youtube-nocookie.com/embed/{{ live_youtube_id }}?autoplay=1"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen loading="lazy"></iframe>
+        </div>
+        {% endif %}
+
+        <div class="pulse-live-buttons">
+            {% if live_youtube_id %}
+            <a href="https://www.youtube.com/watch?v={{ live_youtube_id }}" target="_blank" rel="noopener"
+               class="btn btn-live btn-live-yt">▶ Watch now on YouTube</a>
+            {% endif %}
+            {% if live_twitch_channel %}
+            <a href="https://www.twitch.tv/{{ live_twitch_channel }}" target="_blank" rel="noopener"
+               class="btn btn-live btn-live-tw">▶ Watch now on Twitch</a>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="pulse-live-box pulse-live-offline">
+        <div class="pulse-live-badge pulse-live-badge-off">⚫ OFFLINE</div>
+        <p class="pulse-live-offline-text">Not live right now — check back soon!</p>
+        {% if live_twitch_channel %}
+        <div class="pulse-live-buttons">
+            <a href="https://www.twitch.tv/{{ live_twitch_channel }}" target="_blank" rel="noopener"
+               class="btn btn-live btn-live-tw">Follow on Twitch</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Admin: Live Settings ── #}
+    {% if is_admin %}
+    <details class="pulse-admin-panel">
+        <summary>Admin — Live Settings</summary>
+        <form method="post" action="{{ url_for('pulse.live_settings') }}" class="pulse-admin-form">
+            <label class="pulse-admin-check">
+                <input type="checkbox" name="live_active" {% if live_active %}checked{% endif %}>
+                Live stream is active
+            </label>
+            <label>YouTube Video/Stream ID or URL
+                <input type="text" name="live_youtube_id" value="{{ live_youtube_id }}" placeholder="e.g. dQw4w9WgXcQ">
+            </label>
+            <label>Twitch Channel Name
+                <input type="text" name="live_twitch_channel" value="{{ live_twitch_channel }}" placeholder="e.g. ronpon">
+            </label>
+            <button type="submit" class="btn btn-small">Save Live Settings</button>
+        </form>
+    </details>
+    {% endif %}
+
+    {# ══════════════════════════════════════════════════════════════
+       THE PULSE GAME SHOW
+       ══════════════════════════════════════════════════════════════ #}
+    <section class="pulse-section">
+        <div class="pulse-section-header">
+            <h2>🎮 The Pulse Game Show</h2>
+            {% if is_admin %}
+            <button class="btn btn-small" onclick="document.getElementById('add-gs-form').classList.toggle('hidden')">+ Add Video</button>
+            {% endif %}
+        </div>
+
+        {% if is_admin %}
+        <form id="add-gs-form" method="post" action="{{ url_for('pulse.add_video') }}" class="pulse-add-video-form hidden">
+            <input type="hidden" name="section" value="game-show">
+            <input type="text" name="youtube_url" placeholder="YouTube URL or Video ID" required>
+            <input type="text" name="title" placeholder="Episode title" required>
+            <button type="submit" class="btn btn-small">Add</button>
+        </form>
+        {% endif %}
+
+        {% if game_show_videos %}
+        <div class="video-grid">
+            {% for v in game_show_videos %}
+            <div class="video-card">
+                <div class="video-embed">
+                    <iframe src="https://www.youtube-nocookie.com/embed/{{ v['youtube_id'] }}"
+                            title="{{ v['title'] }}" frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen loading="lazy"></iframe>
+                </div>
+                <div class="video-card-body">
+                    <h3>{{ v['title'] }}</h3>
+                    {% if is_admin %}
+                    <form action="{{ url_for('pulse.delete_video', video_id=v['id']) }}" method="post" class="video-delete-form">
+                        <button type="submit" class="btn-icon" title="Delete" onclick="return confirm('Delete this video?')">&#x2715;</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state-sm">No Game Show episodes yet.</p>
+        {% endif %}
+    </section>
+
+    {# ══════════════════════════════════════════════════════════════
+       THE PULSE PODCAST
+       ══════════════════════════════════════════════════════════════ #}
+    <section class="pulse-section">
+        <div class="pulse-section-header">
+            <h2>🎙 The Pulse Podcast</h2>
+            {% if is_admin %}
+            <button class="btn btn-small" onclick="document.getElementById('add-pod-form').classList.toggle('hidden')">+ Add Video</button>
+            {% endif %}
+        </div>
+
+        {% if is_admin %}
+        <form id="add-pod-form" method="post" action="{{ url_for('pulse.add_video') }}" class="pulse-add-video-form hidden">
+            <input type="hidden" name="section" value="podcast">
+            <input type="text" name="youtube_url" placeholder="YouTube URL or Video ID" required>
+            <input type="text" name="title" placeholder="Episode title" required>
+            <button type="submit" class="btn btn-small">Add</button>
+        </form>
+        {% endif %}
+
+        {% if podcast_videos %}
+        <div class="video-grid">
+            {% for v in podcast_videos %}
+            <div class="video-card">
+                <div class="video-embed">
+                    <iframe src="https://www.youtube-nocookie.com/embed/{{ v['youtube_id'] }}"
+                            title="{{ v['title'] }}" frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen loading="lazy"></iframe>
+                </div>
+                <div class="video-card-body">
+                    <h3>{{ v['title'] }}</h3>
+                    {% if is_admin %}
+                    <form action="{{ url_for('pulse.delete_video', video_id=v['id']) }}" method="post" class="video-delete-form">
+                        <button type="submit" class="btn-icon" title="Delete" onclick="return confirm('Delete this video?')">&#x2715;</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state-sm">No Podcast episodes yet.</p>
+        {% endif %}
+    </section>
+
+    {# ══════════════════════════════════════════════════════════════
+       THE PULSE POLLS
+       ══════════════════════════════════════════════════════════════ #}
+    <section class="pulse-section">
+        <div class="pulse-section-header">
+            <h2>📊 The Pulse Polls</h2>
+            {% if is_admin %}
+            <a href="{{ url_for('pulse.create') }}" class="btn btn-small">+ New Poll</a>
+            {% endif %}
+        </div>
+
+        {% if not polls %}
+            <p class="empty-state-sm">No polls yet. Check back soon!</p>
+        {% endif %}
+
+        {% for poll in polls %}
+        <div class="poll-card {% if not poll.is_active %}poll-closed{% endif %}">
+            <div class="poll-header-row">
+                <h3 class="poll-question">{{ poll.question }}</h3>
+                <div class="poll-meta">
+                    {% if poll.is_active %}
+                        <span class="poll-badge poll-badge-live">Live</span>
+                    {% else %}
+                        <span class="poll-badge poll-badge-closed">Closed</span>
+                    {% endif %}
+                    <span class="poll-vote-count">{{ poll.total_votes }} vote{{ 's' if poll.total_votes != 1 }}</span>
+                </div>
+            </div>
+
+            {# Active poll: voting form (logged-in, hasn't voted) #}
+            {% if poll.is_active and current_user.is_authenticated and not poll.user_vote %}
+                <form method="post" action="{{ url_for('pulse.vote', poll_id=poll.id) }}" class="poll-options">
+                    {% for opt in poll.options %}
+                    <label class="poll-option poll-option-selectable">
+                        <input type="radio" name="option_id" value="{{ opt.id }}" required>
+                        <span class="poll-option-label">{{ opt.label }}</span>
+                    </label>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-small poll-vote-btn">Vote</button>
+                </form>
+
+            {# Active poll: already voted #}
+            {% elif poll.is_active and poll.user_vote %}
+                <div class="poll-options">
+                    {% for opt in poll.options %}
+                    <div class="poll-option {% if opt.id == poll.user_vote %}poll-option-voted{% endif %}">
+                        <span class="poll-option-label">{{ opt.label }}</span>
+                        {% if opt.id == poll.user_vote %}
+                            <span class="poll-your-vote">Your vote ✓</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <p class="poll-hidden-note">Results hidden until the poll closes.</p>
+                </div>
+
+            {# Active poll: not logged in #}
+            {% elif poll.is_active %}
+                <div class="poll-options">
+                    {% for opt in poll.options %}
+                    <div class="poll-option">
+                        <span class="poll-option-label">{{ opt.label }}</span>
+                    </div>
+                    {% endfor %}
+                    <p class="poll-hidden-note"><a href="{{ url_for('auth.login') }}">Log in</a> to vote.</p>
+                </div>
+
+            {# Closed poll: show results #}
+            {% else %}
+                <div class="poll-options">
+                    {% for opt in poll.options %}
+                    {% set pct = ((opt.votes / poll.total_votes * 100) | round(1)) if poll.total_votes > 0 else 0 %}
+                    <div class="poll-option poll-option-result {% if opt.id == poll.user_vote %}poll-option-voted{% endif %}">
+                        <div class="poll-bar" style="width: {{ pct }}%"></div>
+                        <span class="poll-option-label">{{ opt.label }}</span>
+                        <span class="poll-option-pct">{{ opt.votes }} ({{ pct }}%)</span>
+                        {% if opt.id == poll.user_vote %}
+                            <span class="poll-your-vote">✓</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {# Admin controls #}
+            {% if is_admin %}
+            <details class="poll-admin-section">
+                <summary>Admin — Results & Controls</summary>
+                <div class="poll-admin-results">
+                    {% for opt in poll.options %}
+                    {% set pct = ((opt.votes / poll.total_votes * 100) | round(1)) if poll.total_votes > 0 else 0 %}
+                    <div class="poll-option poll-option-result">
+                        <div class="poll-bar" style="width: {{ pct }}%"></div>
+                        <span class="poll-option-label">{{ opt.label }}</span>
+                        <span class="poll-option-pct">{{ opt.votes }} ({{ pct }}%)</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="poll-admin-actions">
+                    {% if poll.is_active %}
+                    <form method="post" action="{{ url_for('pulse.close', poll_id=poll.id) }}">
+                        <button type="submit" class="btn btn-small btn-secondary">Close Poll</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('pulse.reopen', poll_id=poll.id) }}">
+                        <button type="submit" class="btn btn-small btn-secondary">Reopen</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('pulse.delete', poll_id=poll.id) }}"
+                          onsubmit="return confirm('Delete this poll and all its votes?')">
+                        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                    </form>
+                </div>
+            </details>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+
+</div>
+{% endblock %}
+{% extends "base.html" %}
+{% block title %}The Pulse — Ronpon.ca{% endblock %}
+
+{% block content %}
 <div class="pulse-header">
     <div>
         <h1>The Pulse</h1>

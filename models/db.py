@@ -37,7 +37,10 @@ def ph(n: int = 1) -> str:
 def get_conn():
     """Yield a DB-API 2.0 connection. Commits on success, closes always."""
     if _pg and DATABASE_URL:
-        conn = _pg.connect(DATABASE_URL, sslmode="require")
+        conn = _pg.connect(
+            DATABASE_URL, sslmode="require",
+            cursor_factory=_pg.extras.DictCursor,
+        )
         try:
             yield conn
             conn.commit()
@@ -170,6 +173,33 @@ def init_db(app_config) -> None:
                 score       INTEGER NOT NULL,
                 detail      TEXT    NOT NULL DEFAULT '',
                 achieved_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+
+        # ── Pulse Videos (Game Show & Podcast episodes) ─────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS pulse_videos (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                youtube_id  TEXT    NOT NULL,
+                title       TEXT    NOT NULL,
+                section     TEXT    NOT NULL DEFAULT 'game-show',
+                added_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS pulse_videos (
+                id          SERIAL PRIMARY KEY,
+                youtube_id  TEXT    NOT NULL,
+                title       TEXT    NOT NULL,
+                section     TEXT    NOT NULL DEFAULT 'game-show',
+                added_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+
+        # ── Pulse Settings (key-value for Live Now, etc.) ───────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS pulse_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
             )
         """)
 

@@ -1,4 +1,5 @@
-"""The Pulse — game show & polling routes."""
+"""The Pulse — game show, podcast, polls & live stream routes."""
+import re
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import current_user, login_required
 from models.db import get_conn, ph
@@ -10,6 +11,29 @@ def _is_admin():
     return current_user.is_authenticated and current_user.is_admin
 
 
+def _get_setting(cur, key, default=""):
+    cur.execute(f"SELECT value FROM pulse_settings WHERE key = {ph()}", (key,))
+    row = cur.fetchone()
+    return row[0] if row else default
+
+
+def _set_setting(cur, key, value):
+    """Upsert a pulse setting."""
+    cur.execute(f"SELECT 1 FROM pulse_settings WHERE key = {ph()}", (key,))
+    if cur.fetchone():
+        cur.execute(f"UPDATE pulse_settings SET value = {ph()} WHERE key = {ph()}", (value, key))
+    else:
+        cur.execute(f"INSERT INTO pulse_settings (key, value) VALUES ({ph(2)})", (key, value))
+
+
+def _extract_youtube_id(url_or_id: str) -> str | None:
+    url_or_id = url_or_id.strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", url_or_id):
+        return url_or_id
+    m = re.search(r"(?:v=|youtu\.be/|embed/)([A-Za-z0-9_-]{11})", url_or_id)
+    return m.group(1) if m else None
+
+
 # ── Public: poll listing / voting ────────────────────────────────
 
 @pulse_bp.route("/")
@@ -17,15 +41,33 @@ def index():
     with get_conn() as conn:
         cur = conn.cursor()
 
-        # Active polls
+        # ── Live Now settings ──
+        live_active = _get_setting(cur, "live_active", "0") == "1"
+        live_youtube_id = _get_setting(cur, "live_youtube_id")
+        live_twitch_channel = _get_setting(cur, "live_twitch_channel")
+
+        # ── Pulse videos ──
         cur.execute(
-            "SELECT id, question, created_at FROM polls WHERE is_active = 1 ORDER BY created_at DESC"
+            "SELECT id, youtube_id, title, section, added_at FROM pulse_videos "
+            "WHERE section = 'game-show' ORDER BY added_at DESC"
+        )
+        game_show_videos = cur.fetchall()
+
+        cur.execute(
+            "SELECT id, youtube_id, title, section, added_at FROM pulse_videos "
+            "WHERE section = 'podcast' ORDER BY added_at DESC"
+        )
+        podcast_videos = cur.fetchall()
+
+        # ── Polls ──
+        cur.execute(
+            "SELECT id, question, created_at FROM polls WHERE is_active ORDER BY created_at DESC"
         )
         active_polls = cur.fetchall()
 
         # Closed polls
         cur.execute(
-            "SELECT id, question, created_at FROM polls WHERE is_active = 0 ORDER BY created_at DESC"
+            "SELECT id, question, created_at FROM polls WHERE NOT is_active ORDER BY created_at DESC"
         )
         closed_polls = cur.fetchall()
 
@@ -73,6 +115,11 @@ def index():
         "pulse/index.html",
         polls=polls_data,
         is_admin=_is_admin(),
+        live_active=live_active,
+        live_youtube_id=live_youtube_id,
+        live_twitch_channel=live_twitch_channel,
+        game_show_videos=game_show_videos,
+        podcast_videos=podcast_videos,
     )
 
 
@@ -172,7 +219,7 @@ def close(poll_id):
 
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(f"UPDATE polls SET is_active = 0 WHERE id = {ph()}", (poll_id,))
+        cur.execute(f"UPDATE polls SET is_active = {ph()} WHERE id = {ph()}", (False, poll_id))
 
     flash("Poll closed.", "success")
     return redirect(url_for("pulse.index"))
@@ -186,7 +233,7 @@ def reopen(poll_id):
 
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(f"UPDATE polls SET is_active = 1 WHERE id = {ph()}", (poll_id,))
+        cur.execute(f"UPDATE polls SET is_active = {ph()} WHERE id = {ph()}", (True, poll_id))
 
     flash("Poll reopened.", "success")
     return redirect(url_for("pulse.index"))
@@ -205,4 +252,80 @@ def delete(poll_id):
         cur.execute(f"DELETE FROM polls WHERE id = {ph()}", (poll_id,))
 
     flash("Poll deleted.", "success")
+    return redirect(url_for("pulse.index"))
+
+
+# ── Admin: manage Pulse videos (Game Show & Podcast) ─────────────
+
+@pulse_bp.route("/add-video", methods=["POST"])
+def add_video():
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("pulse.index"))
+
+    raw_url = request.form.get("youtube_url", "")
+    title = request.form.get("title", "").strip()
+    section = request.form.get("section", "game-show").strip()
+
+    if section not in ("game-show", "podcast"):
+        section = "game-show"
+
+    yt_id = _extract_youtube_id(raw_url)
+    if not yt_id:
+        flash("Invalid YouTube URL or video ID.", "error")
+        return redirect(url_for("pulse.index"))
+    if not title:
+        flash("Title is required.", "error")
+        return redirect(url_for("pulse.index"))
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"INSERT INTO pulse_videos (youtube_id, title, section) VALUES ({ph(3)})",
+            (yt_id, title, section),
+        )
+
+    flash("Video added!", "success")
+    return redirect(url_for("pulse.index"))
+
+
+@pulse_bp.route("/delete-video/<int:video_id>", methods=["POST"])
+def delete_video(video_id):
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("pulse.index"))
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM pulse_videos WHERE id = {ph()}", (video_id,))
+
+    flash("Video removed.", "success")
+    return redirect(url_for("pulse.index"))
+
+
+# ── Admin: Live Now settings ─────────────────────────────────────
+
+@pulse_bp.route("/live-settings", methods=["POST"])
+def live_settings():
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("pulse.index"))
+
+    live_active = "1" if request.form.get("live_active") else "0"
+    youtube_id_raw = request.form.get("live_youtube_id", "").strip()
+    twitch_channel = request.form.get("live_twitch_channel", "").strip()
+
+    # Extract YouTube video/stream ID if a full URL is given
+    yt_id = ""
+    if youtube_id_raw:
+        extracted = _extract_youtube_id(youtube_id_raw)
+        yt_id = extracted if extracted else youtube_id_raw
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        _set_setting(cur, "live_active", live_active)
+        _set_setting(cur, "live_youtube_id", yt_id)
+        _set_setting(cur, "live_twitch_channel", twitch_channel)
+
+    flash("Live settings updated!", "success")
     return redirect(url_for("pulse.index"))

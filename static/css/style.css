@@ -628,7 +628,9 @@ a:hover { color: var(--color-primary-hover); }
     font-size: 1.1rem;
 }
 
-/* ── The Pulse (polls) ──────────────────────────────────────────── */
+/* ── The Pulse ───────────────────────────────────────────────────── */
+
+.pulse-page { max-width: 100%; }
 
 .pulse-header {
     display: flex;
@@ -642,6 +644,153 @@ a:hover { color: var(--color-primary-hover); }
     font-size: 0.95rem;
     margin-top: 0.25rem;
 }
+
+/* Live Now box */
+.pulse-live-box {
+    background: var(--color-surface);
+    border: 2px solid #e74c3c;
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+.pulse-live-offline {
+    border-color: var(--color-border);
+}
+.pulse-live-badge {
+    display: inline-block;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+    color: #e74c3c;
+}
+.pulse-live-badge-off {
+    color: var(--color-text-muted);
+}
+.pulse-live-embed {
+    position: relative;
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto 1rem;
+    padding-top: 45%;
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.pulse-live-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+.pulse-live-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.btn-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 1.5rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #fff;
+    transition: opacity var(--tr);
+}
+.btn-live:hover { opacity: 0.85; color: #fff; }
+.btn-live-yt { background: #c4302b; }
+.btn-live-tw { background: #6441a5; }
+.pulse-live-offline-text {
+    color: var(--color-text-muted);
+    margin-bottom: 0.75rem;
+}
+
+/* Pulse sections (Game Show, Podcast, Polls) */
+.pulse-section {
+    margin-bottom: 2.5rem;
+}
+.pulse-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+.pulse-section-header h2 {
+    font-size: 1.5rem;
+}
+
+.empty-state-sm {
+    color: var(--color-text-muted);
+    padding: 1.5rem 0;
+    font-size: 0.95rem;
+}
+
+/* Pulse admin panels */
+.pulse-admin-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+}
+.pulse-admin-panel summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+.pulse-admin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    max-width: 480px;
+}
+.pulse-admin-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+.pulse-admin-form input[type="text"] {
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+.pulse-admin-check {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.5rem !important;
+}
+
+/* Pulse add-video inline form */
+.pulse-add-video-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.pulse-add-video-form input[type="text"] {
+    flex: 1;
+    min-width: 180px;
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+
+/* Poll styles */
 
 .poll-card {
     background: var(--color-surface);
@@ -934,6 +1083,14 @@ a:hover { color: var(--color-primary-hover); }
         font-size: 16px; /* prevents iOS auto-zoom */
     }
     .btn-social { font-size: 0.9rem; padding: 0.65rem 0.75rem; }
+
+    /* ── Pulse ── */
+    .pulse-live-embed { padding-top: 56.25%; }
+    .pulse-live-buttons { flex-direction: column; align-items: center; }
+    .btn-live { width: 100%; max-width: 300px; justify-content: center; }
+    .pulse-section-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .pulse-section-header h2 { font-size: 1.25rem; }
+    .pulse-add-video-form { flex-direction: column; }
 
     /* ── Polls ── */
     .poll-header-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
