@@ -33,6 +33,22 @@ def ph(n: int = 1) -> str:
     return ", ".join([p] * n)
 
 
+def _column_exists(cur, table: str, column: str) -> bool:
+    if _pg and DATABASE_URL:
+        cur.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
+            (table, column),
+        )
+        return cur.fetchone() is not None
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cur.fetchall())
+
+
+def _ensure_column(cur, table: str, column: str, definition: str) -> None:
+    if not _column_exists(cur, table, column):
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 @contextmanager
 def get_conn():
     """Yield a DB-API 2.0 connection. Commits on success, closes always."""
@@ -72,6 +88,9 @@ def init_db(app_config) -> None:
                 email       TEXT    NOT NULL UNIQUE,
                 pw_hash     TEXT    NOT NULL,
                 is_admin    INTEGER NOT NULL DEFAULT 0,
+                oauth_provider TEXT NOT NULL DEFAULT '',
+                oauth_sub   TEXT NOT NULL DEFAULT '',
+                display_name TEXT NOT NULL DEFAULT '',
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             )
         """) if not (_pg and DATABASE_URL) else cur.execute("""
@@ -81,9 +100,15 @@ def init_db(app_config) -> None:
                 email       TEXT    NOT NULL UNIQUE,
                 pw_hash     TEXT    NOT NULL,
                 is_admin    BOOLEAN NOT NULL DEFAULT FALSE,
+                oauth_provider TEXT NOT NULL DEFAULT '',
+                oauth_sub   TEXT NOT NULL DEFAULT '',
+                display_name TEXT NOT NULL DEFAULT '',
                 created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
             )
         """)
+        _ensure_column(cur, "users", "oauth_provider", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(cur, "users", "oauth_sub", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(cur, "users", "display_name", "TEXT NOT NULL DEFAULT ''")
 
         # ── Videos ──────────────────────────────────────────────
         cur.execute("""

@@ -11,6 +11,7 @@ let abilityChoices = {};   // { ability_id: true | {args} }
 // ================================================================ PROFILE / SAVE / ACHIEVEMENT STATE
 let _deviceId    = '';
 let _profileId   = null;
+let _profileToken = '';
 let _profileName = '';
 let _saveLoadMode = 'save';  // 'save' or 'load'
 let _selectedSlot = null;
@@ -4480,6 +4481,7 @@ async function createProfile() {
 
 function selectProfile(profile) {
   _profileId = profile.id;
+  _profileToken = profile.profile_token || '';
   _profileName = profile.name;
   // Go to main menu
   document.getElementById('profile-screen').classList.add('hidden');
@@ -4489,6 +4491,7 @@ function selectProfile(profile) {
 
 function changeProfile() {
   _profileId = null;
+  _profileToken = '';
   _profileName = '';
   _loadProfileScreen();
 }
@@ -4496,6 +4499,7 @@ function changeProfile() {
 function exitGame() {
   // Return to profile selection
   _profileId = null;
+  _profileToken = '';
   _profileName = '';
   _loadProfileScreen();
 }
@@ -4531,7 +4535,7 @@ function setSaveLoadMode(mode) {
 
 async function _refreshSaveSlots() {
   if (!_profileId) return;
-  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId);
+  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
   _savesData = data.saves || [];
   _renderSaveSlots('saveload-slots');
@@ -4596,7 +4600,7 @@ async function _doSave() {
   const resp = await fetch('/games/werblers/api/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, slot_number: _selectedSlot }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, slot_number: _selectedSlot }),
   });
   const data = await resp.json();
   if (data.ok) {
@@ -4608,7 +4612,7 @@ async function _doLoad() {
   const resp = await fetch('/games/werblers/api/load', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, slot_number: _selectedSlot }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, slot_number: _selectedSlot }),
   });
   const data = await resp.json();
   if (data.ok) {
@@ -4631,7 +4635,7 @@ async function _doLoad() {
 async function openLoadFromMenu() {
   _selectedSlot = null;
   _saveLoadMode = 'load';
-  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId);
+  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
   _savesData = data.saves || [];
   _renderSaveSlots('menu-load-slots');
@@ -4647,7 +4651,7 @@ async function menuLoadGame() {
   const resp = await fetch('/games/werblers/api/load', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, slot_number: _selectedSlot }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, slot_number: _selectedSlot }),
   });
   const data = await resp.json();
   if (data.ok) {
@@ -4666,7 +4670,7 @@ async function menuLoadGame() {
 // ================================================================ ACHIEVEMENTS
 async function openAchievementsModal() {
   if (!_profileId) return;
-  const resp = await fetch('/games/werblers/api/achievements?profile_id=' + _profileId);
+  const resp = await fetch('/games/werblers/api/achievements?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
   const list = document.getElementById('achievements-list');
   list.innerHTML = '';
@@ -4694,7 +4698,7 @@ async function _checkAchievement(key) {
   const resp = await fetch('/games/werblers/api/achievements', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, achievement: key }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, achievement: key }),
   });
   const data = await resp.json();
   if (data.newly_granted) {

@@ -28,9 +28,8 @@ def api_resolve_mystery():
     try:
         return _api_resolve_mystery_inner()
     except Exception as exc:
-        tb = _tb.format_exc()
         _tb.print_exc()
-        return jsonify({"error": f"Server error in resolve_mystery: {exc}\n\nTraceback:\n{tb}"}), 500
+        return jsonify({"error": "Server error in resolve_mystery."}), 500
 
 
 def _api_resolve_mystery_inner():

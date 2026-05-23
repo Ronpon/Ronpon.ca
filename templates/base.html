@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Ronpon.ca{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,7 +37,9 @@
             <div class="nav-auth">
                 {% if current_user is defined and current_user.is_authenticated %}
                     <a href="{{ url_for('auth.profile') }}" class="nav-link">{{ current_user.username }}</a>
-                    <a href="{{ url_for('auth.logout') }}" class="nav-link nav-link-logout">Logout</a>
+                    <form action="{{ url_for('auth.logout') }}" method="post" class="nav-logout-form">
+                        <button type="submit" class="nav-link nav-link-logout">Logout</button>
+                    </form>
                 {% else %}
                     <a href="{{ url_for('auth.login') }}" class="btn btn-nav">Sign In</a>
                 {% endif %}
@@ -69,6 +72,28 @@
 
     <script>
     (function() {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        document.querySelectorAll('form[method]').forEach(function(form) {
+            if ((form.method || '').toLowerCase() !== 'post') { return; }
+            if (form.querySelector('input[name="csrf_token"]')) { return; }
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'csrf_token';
+            input.value = csrfToken;
+            form.appendChild(input);
+        });
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+            init = init || {};
+            const method = (init.method || 'GET').toUpperCase();
+            if (csrfToken && !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
+                const headers = new Headers(init.headers || {});
+                headers.set('X-CSRF-Token', csrfToken);
+                init = Object.assign({}, init, { headers });
+            }
+            return nativeFetch(input, init);
+        };
+
         const toggle = document.getElementById('nav-toggle');
         const menu = document.getElementById('nav-menu');
         const overlay = document.getElementById('nav-overlay');

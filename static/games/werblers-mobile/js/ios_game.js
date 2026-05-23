@@ -27,6 +27,7 @@ let _crossroadsSelectedSources = []; // tracks selected discard items for Crossr
 // Profile / Save / Achievement state
 let _deviceId    = '';
 let _profileId   = null;
+let _profileToken = '';
 let _profileName = '';
 let _saveLoadMode = 'save';
 let _selectedSlot = null;
@@ -3598,6 +3599,7 @@ async function createProfile() {
 
 function selectProfile(profile) {
   _profileId = profile.id;
+  _profileToken = profile.profile_token || '';
   _profileName = profile.name;
   document.getElementById('profile-screen').classList.add('hidden');
   document.getElementById('main-menu-screen').classList.remove('hidden');
@@ -3606,12 +3608,14 @@ function selectProfile(profile) {
 
 function changeProfile() {
   _profileId = null;
+  _profileToken = '';
   _profileName = '';
   _loadProfileScreen();
 }
 
 function exitGame() {
   _profileId = null;
+  _profileToken = '';
   _profileName = '';
   _loadProfileScreen();
 }
@@ -3647,7 +3651,7 @@ function setSaveLoadMode(mode) {
 
 async function _refreshSaveSlots() {
   if (!_profileId) return;
-  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId);
+  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
   _savesData = data.saves || [];
   _renderSaveSlots('saveload-slots');
@@ -3700,7 +3704,7 @@ async function _doSave() {
   const resp = await fetch('/games/werblers/api/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, slot_number: _selectedSlot }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, slot_number: _selectedSlot }),
   });
   const data = await resp.json();
   if (data.ok) closeSaveLoadModal();
@@ -3709,7 +3713,7 @@ async function _doLoad() {
   const resp = await fetch('/games/werblers/api/load', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, slot_number: _selectedSlot }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, slot_number: _selectedSlot }),
   });
   const data = await resp.json();
   if (data.ok) {
@@ -3733,7 +3737,7 @@ async function _doLoad() {
 async function openLoadFromMenu() {
   _selectedSlot = null;
   _saveLoadMode = 'load';
-  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId);
+  const resp = await fetch('/games/werblers/api/saves?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
   _savesData = data.saves || [];
   _renderSaveSlots('menu-load-slots');
@@ -3746,7 +3750,7 @@ async function menuLoadGame() {
   const resp = await fetch('/games/werblers/api/load', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, slot_number: _selectedSlot }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, slot_number: _selectedSlot }),
   });
   const data = await resp.json();
   if (data.ok) {
@@ -3766,7 +3770,7 @@ async function menuLoadGame() {
 // ================================================================
 async function openAchievementsModal() {
   if (!_profileId) return;
-  const resp = await fetch('/games/werblers/api/achievements?profile_id=' + _profileId);
+  const resp = await fetch('/games/werblers/api/achievements?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
   const list = document.getElementById('achievements-list');
   list.innerHTML = '';
@@ -3788,7 +3792,7 @@ async function _checkAchievement(key) {
   const resp = await fetch('/games/werblers/api/achievements', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: _profileId, achievement: key }),
+    body: JSON.stringify({ profile_id: _profileId, profile_token: _profileToken, achievement: key }),
   });
   const data = await resp.json();
   if (data.newly_granted) {

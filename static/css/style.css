@@ -146,6 +146,8 @@ a:hover { color: var(--color-primary-hover); }
 .nav-auth { margin-left: auto; display: flex; align-items: center; gap: 1rem; }
 .nav-link { color: var(--color-text-muted); font-weight: 500; font-size: 0.9rem; }
 .nav-link:hover { color: var(--color-text); }
+.nav-logout-form { margin: 0; }
+.nav-logout-form button { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
 .nav-link-logout { opacity: 0.7; }
 .nav-link-logout:hover { color: var(--color-primary); opacity: 1; }
 

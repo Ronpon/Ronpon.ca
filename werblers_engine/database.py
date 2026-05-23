@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -68,6 +69,8 @@ _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS profiles (
     id          SERIAL PRIMARY KEY,
     device_id   TEXT NOT NULL,
+    profile_token TEXT NOT NULL DEFAULT '',
+    user_id     INTEGER,
     name        TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT ''
 );
@@ -98,6 +101,8 @@ _SCHEMA_SQL_SQLITE = """
 CREATE TABLE IF NOT EXISTS profiles (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id   TEXT NOT NULL,
+    profile_token TEXT NOT NULL DEFAULT '',
+    user_id     INTEGER,
     name        TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT ''
 );
@@ -132,53 +137,125 @@ def init_db() -> None:
             cur.execute(_SCHEMA_SQL)
         else:
             cur.executescript(_SCHEMA_SQL_SQLITE)
+        _ensure_profile_token_column(conn, cur)
+
+
+def _column_exists(cur, table: str, column: str) -> bool:
+    if _pg and DATABASE_URL:
+        cur.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
+            (table, column),
+        )
+        return cur.fetchone() is not None
+    cur.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cur.fetchall())
+
+
+def _ensure_profile_token_column(conn, cur) -> None:
+    if not _column_exists(cur, "profiles", "profile_token"):
+        cur.execute("ALTER TABLE profiles ADD COLUMN profile_token TEXT NOT NULL DEFAULT ''")
+    if not _column_exists(cur, "profiles", "user_id"):
+        cur.execute("ALTER TABLE profiles ADD COLUMN user_id INTEGER")
+    cur.execute("SELECT id FROM profiles WHERE profile_token = '' OR profile_token IS NULL")
+    for row in cur.fetchall():
+        cur.execute(
+            f"UPDATE profiles SET profile_token = {_ph()} WHERE id = {_ph()}",
+            (secrets.token_urlsafe(32), row[0]),
+        )
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
 # Profile CRUD
 # ---------------------------------------------------------------------------
 
-def create_profile(device_id: str, name: str) -> dict:
+def create_profile(device_id: str, name: str, user_id: int | None = None) -> dict:
     now = datetime.now(timezone.utc).isoformat()
+    profile_token = secrets.token_urlsafe(32)
     with _get_conn() as conn:
         cur = conn.cursor()
         if _pg and DATABASE_URL:
             cur.execute(
-                f"INSERT INTO profiles (device_id, name, created_at) VALUES ({_ph(3)}) RETURNING id",
-                (device_id, name, now),
+                f"INSERT INTO profiles (device_id, profile_token, user_id, name, created_at) VALUES ({_ph(5)}) RETURNING id",
+                (device_id, profile_token, user_id, name, now),
             )
             pid = cur.fetchone()[0]
         else:
             cur.execute(
-                f"INSERT INTO profiles (device_id, name, created_at) VALUES ({_ph(3)})",
-                (device_id, name, now),
+                f"INSERT INTO profiles (device_id, profile_token, user_id, name, created_at) VALUES ({_ph(5)})",
+                (device_id, profile_token, user_id, name, now),
             )
             pid = cur.lastrowid
-    return {"id": pid, "device_id": device_id, "name": name, "created_at": now}
+    return {
+        "id": pid,
+        "device_id": device_id,
+        "profile_token": profile_token,
+        "user_id": user_id,
+        "name": name,
+        "created_at": now,
+    }
 
 
-def list_profiles(device_id: str) -> list[dict]:
+def list_profiles(device_id: str = "", user_id: int | None = None) -> list[dict]:
     with _get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(
-            f"SELECT id, device_id, name, created_at FROM profiles WHERE device_id = {_ph()} ORDER BY id",
-            (device_id,),
-        )
+        if user_id is not None:
+            cur.execute(
+                f"SELECT id, device_id, profile_token, user_id, name, created_at FROM profiles WHERE user_id = {_ph()} ORDER BY id",
+                (user_id,),
+            )
+        else:
+            cur.execute(
+                f"SELECT id, device_id, profile_token, user_id, name, created_at FROM profiles WHERE device_id = {_ph()} ORDER BY id",
+                (device_id,),
+            )
         rows = cur.fetchall()
-    return [{"id": r[0], "device_id": r[1], "name": r[2], "created_at": r[3]} for r in rows]
+    return [
+        {
+            "id": r[0],
+            "device_id": r[1],
+            "profile_token": r[2],
+            "user_id": r[3],
+            "name": r[4],
+            "created_at": r[5],
+        }
+        for r in rows
+    ]
 
 
 def get_profile(profile_id: int) -> Optional[dict]:
     with _get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
-            f"SELECT id, device_id, name, created_at FROM profiles WHERE id = {_ph()}",
+            f"SELECT id, device_id, profile_token, user_id, name, created_at FROM profiles WHERE id = {_ph()}",
             (profile_id,),
         )
         r = cur.fetchone()
     if r is None:
         return None
-    return {"id": r[0], "device_id": r[1], "name": r[2], "created_at": r[3]}
+    return {"id": r[0], "device_id": r[1], "profile_token": r[2], "user_id": r[3], "name": r[4], "created_at": r[5]}
+
+
+def profile_belongs_to_user(profile_id: int, user_id: int) -> bool:
+    with _get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT 1 FROM profiles WHERE id = {_ph()} AND user_id = {_ph()}",
+            (profile_id, user_id),
+        )
+        return cur.fetchone() is not None
+
+
+def profile_token_matches(profile_id: int, profile_token: str) -> bool:
+    if not profile_token:
+        return False
+    with _get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT 1 FROM profiles WHERE id = {_ph()} AND profile_token = {_ph()}",
+            (profile_id, profile_token),
+        )
+        return cur.fetchone() is not None
 
 
 # ---------------------------------------------------------------------------

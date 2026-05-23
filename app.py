@@ -5,9 +5,26 @@ import os
 from flask import Flask, render_template, send_from_directory
 from flask_login import LoginManager
 from config import Config
+from security import csrf_token, require_configured_secret, set_security_headers, validate_csrf
 
 app = Flask(__name__)
 app.config.from_object(Config)
+require_configured_secret(app)
+
+
+@app.context_processor
+def inject_security_helpers():
+    return {"csrf_token": csrf_token}
+
+
+@app.before_request
+def enforce_csrf():
+    validate_csrf()
+
+
+@app.after_request
+def add_security_headers(response):
+    return set_security_headers(response)
 
 # ---------------------------------------------------------------------------
 # Database
@@ -26,7 +43,10 @@ from models.user import User
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.get_by_id(int(user_id))
+    try:
+        return User.get_by_id(int(user_id))
+    except (TypeError, ValueError):
+        return None
 
 # ---------------------------------------------------------------------------
 # Blueprints
@@ -91,4 +111,5 @@ def internal_error(e):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = app.config.get("APP_ENV") != "production"
+    app.run(host="0.0.0.0", port=port, debug=debug)

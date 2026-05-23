@@ -11,6 +11,8 @@ SCORED_GAMES = [
     {"key": "werblers", "title": "Werblers"},
 ]
 
+MAX_ACCEPTED_SCORE = 1_000_000
+
 
 @scores_bp.route("/")
 def index():
@@ -71,7 +73,7 @@ def api_submit():
     valid_keys = [g["key"] for g in SCORED_GAMES]
     if game not in valid_keys:
         return jsonify(ok=False, error="Invalid game."), 400
-    if not isinstance(score, (int, float)) or score < 0:
+    if not isinstance(score, (int, float)) or score < 0 or score > MAX_ACCEPTED_SCORE:
         return jsonify(ok=False, error="Invalid score."), 400
 
     score = int(score)

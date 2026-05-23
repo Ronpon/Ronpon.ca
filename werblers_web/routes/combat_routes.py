@@ -36,9 +36,8 @@ def api_fight():
         return jsonify({"phase": phase, "state": _build_state(), "combat_info": combat_info})
     except Exception as exc:
         import traceback
-        tb = traceback.format_exc()
         traceback.print_exc()
-        return jsonify({"error": f"Server error during fight: {exc}\n\nTraceback:\n{tb}"}), 500
+        return jsonify({"error": "Server error during fight."}), 500
 
 
 @combat_bp.route("/api/flee", methods=["POST"])
@@ -56,9 +55,8 @@ def api_flee():
         return jsonify({"phase": "done", "state": _build_state()})
     except Exception as exc:
         import traceback
-        tb = traceback.format_exc()
         traceback.print_exc()
-        return jsonify({"error": f"Server error during flee: {exc}\n\nTraceback:\n{tb}"}), 500
+        return jsonify({"error": "Server error during flee."}), 500
 
 
 @combat_bp.route("/api/swiftness_flee", methods=["POST"])
@@ -91,7 +89,7 @@ def api_swiftness_flee():
     except Exception as exc:
         import traceback
         traceback.print_exc()
-        return jsonify({"error": f"Server error: {exc}"}), 500
+        return jsonify({"error": "Server error."}), 500
 
 
 @combat_bp.route("/api/use_ill_come_in_again", methods=["POST"])

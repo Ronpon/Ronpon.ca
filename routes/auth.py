@@ -1,18 +1,109 @@
-"""Auth routes — register, login, logout, profile."""
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
-from flask_login import login_user, logout_user, login_required, current_user
-from flask_bcrypt import generate_password_hash
+"""Auth routes for admin setup, admin password login, and profile actions."""
+from __future__ import annotations
 
-from models.user import User
+import time
+import json
+import secrets
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask_bcrypt import generate_password_hash
+from flask_login import current_user, login_required, login_user, logout_user
+
 from models.db import get_conn, ph
+from models.user import User
+from security import is_safe_redirect
 
 auth_bp = Blueprint("auth", __name__)
+
+_LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+_LOGIN_WINDOW_SECONDS = 15 * 60
+_LOGIN_MAX_ATTEMPTS = 8
+_GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+_GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+
+
+def _rate_limit_key(username: str) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    remote_ip = forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "unknown"
+    return f"{remote_ip}:{username.lower()}"
+
+
+def _too_many_login_attempts(username: str) -> bool:
+    now = time.time()
+    key = _rate_limit_key(username)
+    attempts = [ts for ts in _LOGIN_ATTEMPTS.get(key, []) if now - ts < _LOGIN_WINDOW_SECONDS]
+    _LOGIN_ATTEMPTS[key] = attempts
+    return len(attempts) >= _LOGIN_MAX_ATTEMPTS
+
+
+def _record_failed_login(username: str) -> None:
+    _LOGIN_ATTEMPTS.setdefault(_rate_limit_key(username), []).append(time.time())
+
+
+def _clear_failed_logins(username: str) -> None:
+    _LOGIN_ATTEMPTS.pop(_rate_limit_key(username), None)
+
+
+def _admin_setup_allowed() -> bool:
+    if User.count() > 0:
+        return False
+    token = current_app.config.get("ADMIN_SETUP_TOKEN", "")
+    if not token:
+        return current_app.config.get("APP_ENV") != "production"
+    supplied = request.args.get("setup_token") or request.form.get("setup_token")
+    return supplied == token
+
+
+def _oauth_next() -> str:
+    next_page = request.args.get("next") or session.pop("oauth_next", None)
+    return next_page if is_safe_redirect(next_page) else url_for("main.home")
+
+
+def _google_configured() -> bool:
+    return bool(current_app.config.get("GOOGLE_CLIENT_ID") and current_app.config.get("GOOGLE_CLIENT_SECRET"))
+
+
+def _google_redirect_uri() -> str:
+    return url_for("auth.google_callback", _external=True)
+
+
+def _http_post_json(url: str, payload: dict) -> dict:
+    body = urlencode(payload).encode("utf-8")
+    req = Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _http_get_json(url: str, params: dict) -> dict:
+    with urlopen(f"{url}?{urlencode(params)}", timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _validate_google_identity(id_token: str) -> dict:
+    info = _http_get_json(_GOOGLE_TOKENINFO_URL, {"id_token": id_token})
+    client_id = current_app.config["GOOGLE_CLIENT_ID"]
+    if info.get("aud") != client_id:
+        raise ValueError("Invalid Google token audience.")
+    if info.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise ValueError("Invalid Google token issuer.")
+    if info.get("email_verified") not in {"true", True}:
+        raise ValueError("Google email is not verified.")
+    email = (info.get("email") or "").lower()
+    allowed_domains = current_app.config.get("GOOGLE_ALLOWED_DOMAINS", [])
+    if allowed_domains and email.rsplit("@", 1)[-1] not in allowed_domains:
+        raise ValueError("Email domain is not allowed.")
+    if not info.get("sub") or not email:
+        raise ValueError("Google identity response is missing required fields.")
+    return info
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
-    # Registration is only available when no users exist (first-run admin setup)
-    if User.count() > 0:
+    # First-run admin setup only. Public users should use OAuth providers.
+    if not _admin_setup_allowed():
         abort(404)
 
     if current_user.is_authenticated:
@@ -23,15 +114,16 @@ def register():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm", "")
+        admin_username = current_app.config.get("ADMIN_USERNAME", "")
+        min_password_length = current_app.config.get("ADMIN_PASSWORD_MIN_LENGTH", 12)
 
-        # --- validation ---
         errors = []
-        if not username or len(username) < 3:
-            errors.append("Username must be at least 3 characters.")
+        if username != admin_username:
+            errors.append("Username must match the configured admin username.")
         if not email or "@" not in email:
             errors.append("Enter a valid email.")
-        if len(password) < 6:
-            errors.append("Password must be at least 6 characters.")
+        if len(password) < min_password_length:
+            errors.append(f"Password must be at least {min_password_length} characters.")
         if password != confirm:
             errors.append("Passwords do not match.")
         if User.get_by_username(username):
@@ -40,14 +132,13 @@ def register():
             errors.append("Email already registered.")
 
         if errors:
-            for e in errors:
-                flash(e, "error")
-            return render_template("auth/register.html",
-                                   username=username, email=email)
+            for error in errors:
+                flash(error, "error")
+            return render_template("auth/register.html", username=username, email=email)
 
         user = User.create(username, email, password)
-        login_user(user)
-        flash("Account created!", "success")
+        login_user(user, fresh=True)
+        flash("Admin account created.", "success")
         return redirect(url_for("main.home"))
 
     return render_template("auth/register.html")
@@ -62,20 +153,27 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
+        if _too_many_login_attempts(username):
+            flash("Too many failed login attempts. Please try again later.", "error")
+            return render_template("auth/login.html", username=username), 429
+
         user = User.get_by_username(username)
-        if user and user.check_password(password):
-            login_user(user, remember=True)
+        if user and user.is_admin and user.check_password(password):
+            remember = bool(request.form.get("remember"))
+            login_user(user, remember=remember, fresh=True)
+            _clear_failed_logins(username)
             next_page = request.args.get("next")
             flash("Logged in.", "success")
-            return redirect(next_page or url_for("main.home"))
+            return redirect(next_page if is_safe_redirect(next_page) else url_for("main.home"))
 
+        _record_failed_login(username)
         flash("Invalid username or password.", "error")
         return render_template("auth/login.html", username=username)
 
     return render_template("auth/login.html")
 
 
-@auth_bp.route("/logout")
+@auth_bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
@@ -85,8 +183,74 @@ def logout():
 
 @auth_bp.route("/social/<provider>")
 def social_login(provider):
-    flash(f"{provider.title()} login coming soon!", "info")
+    if provider == "google":
+        if not _google_configured():
+            flash("Google login is not configured yet.", "error")
+            return redirect(url_for("auth.login"))
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+        session["oauth_state"] = state
+        session["oauth_nonce"] = nonce
+        next_page = request.args.get("next")
+        if is_safe_redirect(next_page):
+            session["oauth_next"] = next_page
+        params = {
+            "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+            "redirect_uri": _google_redirect_uri(),
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "nonce": nonce,
+            "prompt": "select_account",
+        }
+        return redirect(f"{_GOOGLE_AUTH_URL}?{urlencode(params)}")
+
+    flash(f"{provider.title()} login is not configured yet.", "info")
     return redirect(url_for("auth.login"))
+
+
+@auth_bp.route("/auth/google/callback")
+def google_callback():
+    if request.args.get("error"):
+        flash("Google login was cancelled.", "error")
+        return redirect(url_for("auth.login"))
+
+    expected_state = session.pop("oauth_state", None)
+    if not expected_state or request.args.get("state") != expected_state:
+        abort(400, description="Invalid OAuth state.")
+
+    code = request.args.get("code")
+    if not code or not _google_configured():
+        flash("Google login is not configured correctly.", "error")
+        return redirect(url_for("auth.login"))
+
+    try:
+        token_data = _http_post_json(_GOOGLE_TOKEN_URL, {
+            "code": code,
+            "client_id": current_app.config["GOOGLE_CLIENT_ID"],
+            "client_secret": current_app.config["GOOGLE_CLIENT_SECRET"],
+            "redirect_uri": _google_redirect_uri(),
+            "grant_type": "authorization_code",
+        })
+        identity = _validate_google_identity(token_data.get("id_token", ""))
+    except Exception:
+        current_app.logger.exception("Google OAuth login failed")
+        flash("Google login failed. Please try again.", "error")
+        return redirect(url_for("auth.login"))
+
+    nonce = session.pop("oauth_nonce", None)
+    if nonce and identity.get("nonce") and identity.get("nonce") != nonce:
+        abort(400, description="Invalid OAuth nonce.")
+
+    user = User.create_or_update_oauth(
+        provider="google",
+        subject=identity["sub"],
+        email=identity["email"],
+        name=identity.get("name") or identity["email"].split("@", 1)[0],
+    )
+    login_user(user, fresh=True)
+    flash("Logged in with Google.", "success")
+    return redirect(_oauth_next())
 
 
 @auth_bp.route("/profile")
@@ -101,13 +265,14 @@ def change_password():
     current_pw = request.form.get("current_password", "")
     new_pw = request.form.get("new_password", "")
     confirm_pw = request.form.get("confirm_password", "")
+    min_password_length = current_app.config.get("ADMIN_PASSWORD_MIN_LENGTH", 12)
 
     if not current_user.check_password(current_pw):
         flash("Current password is incorrect.", "error")
         return redirect(url_for("auth.profile"))
 
-    if len(new_pw) < 6:
-        flash("New password must be at least 6 characters.", "error")
+    if len(new_pw) < min_password_length:
+        flash(f"New password must be at least {min_password_length} characters.", "error")
         return redirect(url_for("auth.profile"))
 
     if new_pw != confirm_pw:
@@ -122,8 +287,9 @@ def change_password():
             (pw_hash, current_user.id),
         )
 
-    flash("Password updated successfully.", "success")
-    return redirect(url_for("auth.profile"))
+    logout_user()
+    flash("Password updated. Please log in again.", "success")
+    return redirect(url_for("auth.login"))
 
 
 @auth_bp.route("/delete-account", methods=["POST"])
