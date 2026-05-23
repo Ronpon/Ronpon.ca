@@ -23,6 +23,8 @@ class Config:
         for d in os.environ.get("GOOGLE_ALLOWED_DOMAINS", "").split(",")
         if d.strip()
     ]
+    DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "")
+    DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
     PREFERRED_URL_SCHEME = "https" if APP_ENV == "production" else "http"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

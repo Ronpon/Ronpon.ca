@@ -23,6 +23,9 @@ _LOGIN_MAX_ATTEMPTS = 8
 _GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+_DISCORD_AUTH_URL = "https://discord.com/oauth2/authorize"
+_DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token"
+_DISCORD_USER_URL = "https://discord.com/api/users/@me"
 
 
 def _rate_limit_key(username: str) -> str:
@@ -66,8 +69,21 @@ def _google_configured() -> bool:
     return bool(current_app.config.get("GOOGLE_CLIENT_ID") and current_app.config.get("GOOGLE_CLIENT_SECRET"))
 
 
+def _discord_configured() -> bool:
+    return bool(current_app.config.get("DISCORD_CLIENT_ID") and current_app.config.get("DISCORD_CLIENT_SECRET"))
+
+
+def _external_url(endpoint: str) -> str:
+    scheme = current_app.config.get("PREFERRED_URL_SCHEME") or request.scheme
+    return url_for(endpoint, _external=True, _scheme=scheme)
+
+
 def _google_redirect_uri() -> str:
-    return url_for("auth.google_callback", _external=True)
+    return _external_url("auth.google_callback")
+
+
+def _discord_redirect_uri() -> str:
+    return _external_url("auth.discord_callback")
 
 
 def _http_post_json(url: str, payload: dict) -> dict:
@@ -77,8 +93,10 @@ def _http_post_json(url: str, payload: dict) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _http_get_json(url: str, params: dict) -> dict:
-    with urlopen(f"{url}?{urlencode(params)}", timeout=10) as resp:
+def _http_get_json(url: str, params: dict | None = None, headers: dict | None = None) -> dict:
+    request_url = f"{url}?{urlencode(params)}" if params else url
+    req = Request(request_url, headers=headers or {})
+    with urlopen(req, timeout=10) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -98,6 +116,25 @@ def _validate_google_identity(id_token: str) -> dict:
     if not info.get("sub") or not email:
         raise ValueError("Google identity response is missing required fields.")
     return info
+
+
+def _fetch_discord_identity(access_token: str) -> dict:
+    info = _http_get_json(_DISCORD_USER_URL, headers={"Authorization": f"Bearer {access_token}"})
+    email = (info.get("email") or "").lower()
+    if not info.get("id") or not email:
+        raise ValueError("Discord identity response is missing required fields.")
+    if info.get("verified") is False:
+        raise ValueError("Discord email is not verified.")
+    return info
+
+
+def _store_oauth_state() -> str:
+    state = secrets.token_urlsafe(32)
+    session["oauth_state"] = state
+    next_page = request.args.get("next")
+    if is_safe_redirect(next_page):
+        session["oauth_next"] = next_page
+    return state
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
@@ -187,13 +224,9 @@ def social_login(provider):
         if not _google_configured():
             flash("Google login is not configured yet.", "error")
             return redirect(url_for("auth.login"))
-        state = secrets.token_urlsafe(32)
+        state = _store_oauth_state()
         nonce = secrets.token_urlsafe(32)
-        session["oauth_state"] = state
         session["oauth_nonce"] = nonce
-        next_page = request.args.get("next")
-        if is_safe_redirect(next_page):
-            session["oauth_next"] = next_page
         params = {
             "client_id": current_app.config["GOOGLE_CLIENT_ID"],
             "redirect_uri": _google_redirect_uri(),
@@ -204,6 +237,20 @@ def social_login(provider):
             "prompt": "select_account",
         }
         return redirect(f"{_GOOGLE_AUTH_URL}?{urlencode(params)}")
+
+    if provider == "discord":
+        if not _discord_configured():
+            flash("Discord login is not configured yet.", "error")
+            return redirect(url_for("auth.login"))
+        params = {
+            "client_id": current_app.config["DISCORD_CLIENT_ID"],
+            "redirect_uri": _discord_redirect_uri(),
+            "response_type": "code",
+            "scope": "identify email",
+            "state": _store_oauth_state(),
+            "prompt": "consent",
+        }
+        return redirect(f"{_DISCORD_AUTH_URL}?{urlencode(params)}")
 
     flash(f"{provider.title()} login is not configured yet.", "info")
     return redirect(url_for("auth.login"))
@@ -250,6 +297,46 @@ def google_callback():
     )
     login_user(user, fresh=True)
     flash("Logged in with Google.", "success")
+    return redirect(_oauth_next())
+
+
+@auth_bp.route("/auth/discord/callback")
+def discord_callback():
+    if request.args.get("error"):
+        flash("Discord login was cancelled.", "error")
+        return redirect(url_for("auth.login"))
+
+    expected_state = session.pop("oauth_state", None)
+    if not expected_state or request.args.get("state") != expected_state:
+        abort(400, description="Invalid OAuth state.")
+
+    code = request.args.get("code")
+    if not code or not _discord_configured():
+        flash("Discord login is not configured correctly.", "error")
+        return redirect(url_for("auth.login"))
+
+    try:
+        token_data = _http_post_json(_DISCORD_TOKEN_URL, {
+            "code": code,
+            "client_id": current_app.config["DISCORD_CLIENT_ID"],
+            "client_secret": current_app.config["DISCORD_CLIENT_SECRET"],
+            "redirect_uri": _discord_redirect_uri(),
+            "grant_type": "authorization_code",
+        })
+        identity = _fetch_discord_identity(token_data.get("access_token", ""))
+    except Exception:
+        current_app.logger.exception("Discord OAuth login failed")
+        flash("Discord login failed. Please try again.", "error")
+        return redirect(url_for("auth.login"))
+
+    user = User.create_or_update_oauth(
+        provider="discord",
+        subject=identity["id"],
+        email=identity["email"],
+        name=identity.get("global_name") or identity.get("username") or identity["email"].split("@", 1)[0],
+    )
+    login_user(user, fresh=True)
+    flash("Logged in with Discord.", "success")
     return redirect(_oauth_next())
 
 

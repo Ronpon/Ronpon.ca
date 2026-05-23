@@ -4,12 +4,15 @@ from __future__ import annotations
 import os
 from flask import Flask, render_template, send_from_directory
 from flask_login import LoginManager
+from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
 from security import csrf_token, require_configured_secret, set_security_headers, validate_csrf
 
 app = Flask(__name__)
 app.config.from_object(Config)
 require_configured_secret(app)
+if app.config.get("APP_ENV") == "production":
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 
 @app.context_processor
