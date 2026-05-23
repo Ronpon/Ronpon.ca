@@ -171,7 +171,7 @@
         </div>
 
         {% if not polls %}
-            <p class="empty-state-sm">No polls yet. Check back soon!</p>
+            <p class="empty-state-sm">No polls available right now. Check back soon!</p>
         {% endif %}
 
         {% for poll in polls %}
@@ -222,7 +222,7 @@
                         <span class="poll-option-label">{{ opt.label }}</span>
                     </div>
                     {% endfor %}
-                    <p class="poll-hidden-note"><a href="{{ url_for('auth.login') }}">Log in</a> to vote.</p>
+                    <p class="poll-hidden-note"><a href="{{ url_for('auth.login', next=request.full_path) }}">Log in</a> to vote.</p>
                 </div>
 
             {# Closed poll: show results #}

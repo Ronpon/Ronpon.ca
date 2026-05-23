@@ -73,10 +73,14 @@ def index():
         )
         closed_polls = cur.fetchall()
 
-        # Build option + vote data for each poll
+        active_poll_ids = {poll[0] for poll in active_polls}
+
+        # Build option + vote data for each poll. Logged-in non-admin users lose
+        # access to active polls once they have completed them.
         polls_data = []
         for poll in list(active_polls) + list(closed_polls):
             pid = poll[0]
+            is_active = pid in active_poll_ids
             cur.execute("SELECT id, label FROM poll_options WHERE poll_id = " + ph(), (pid,))
             options = cur.fetchall()
 
@@ -103,11 +107,14 @@ def index():
                 if row:
                     user_vote = row[0]
 
+            if is_active and user_vote and not _is_admin():
+                continue
+
             polls_data.append({
                 "id": pid,
                 "question": poll[1],
                 "created_at": poll[2],
-                "is_active": poll in active_polls,
+                "is_active": is_active,
                 "options": [{"id": o[0], "label": o[1], "votes": counts.get(o[0], 0)} for o in options],
                 "total_votes": total,
                 "user_vote": user_vote,
