@@ -306,6 +306,7 @@ def delete_account():
 
     with get_conn() as conn:
         cur = conn.cursor()
+        cur.execute(f"DELETE FROM poll_submissions WHERE user_id = {ph()}", (user_id,))
         cur.execute(f"DELETE FROM poll_votes WHERE user_id = {ph()}", (user_id,))
         cur.execute(f"DELETE FROM users WHERE id = {ph()}", (user_id,))
 

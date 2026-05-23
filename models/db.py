@@ -134,6 +134,7 @@ def init_db(app_config) -> None:
             CREATE TABLE IF NOT EXISTS polls (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 question    TEXT    NOT NULL,
+                title       TEXT    NOT NULL DEFAULT '',
                 is_active   INTEGER NOT NULL DEFAULT 1,
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
             )
@@ -141,46 +142,151 @@ def init_db(app_config) -> None:
             CREATE TABLE IF NOT EXISTS polls (
                 id          SERIAL PRIMARY KEY,
                 question    TEXT    NOT NULL,
+                title       TEXT    NOT NULL DEFAULT '',
                 is_active   BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
             )
         """)
+        _ensure_column(cur, "polls", "title", "TEXT NOT NULL DEFAULT ''")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS poll_questions (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                poll_id        INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                question_text  TEXT    NOT NULL,
+                question_order INTEGER NOT NULL DEFAULT 0
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS poll_questions (
+                id             SERIAL PRIMARY KEY,
+                poll_id        INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                question_text  TEXT    NOT NULL,
+                question_order INTEGER NOT NULL DEFAULT 0
+            )
+        """)
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS poll_options (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 poll_id     INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                question_id INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE,
                 label       TEXT    NOT NULL
+                , option_order INTEGER NOT NULL DEFAULT 0
             )
         """) if not (_pg and DATABASE_URL) else cur.execute("""
             CREATE TABLE IF NOT EXISTS poll_options (
                 id          SERIAL PRIMARY KEY,
                 poll_id     INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                question_id INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE,
                 label       TEXT    NOT NULL
+                , option_order INTEGER NOT NULL DEFAULT 0
             )
         """)
+        _ensure_column(cur, "poll_options", "question_id", "INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE")
+        _ensure_column(cur, "poll_options", "option_order", "INTEGER NOT NULL DEFAULT 0")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS poll_votes (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 poll_id     INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                question_id INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE,
                 option_id   INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
                 user_id     INTEGER NOT NULL REFERENCES users(id),
-                voted_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-                UNIQUE(poll_id, user_id)
+                voted_at    TEXT    NOT NULL DEFAULT (datetime('now'))
             )
         """) if not (_pg and DATABASE_URL) else cur.execute("""
             CREATE TABLE IF NOT EXISTS poll_votes (
                 id          SERIAL PRIMARY KEY,
                 poll_id     INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                question_id INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE,
                 option_id   INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
                 user_id     INTEGER NOT NULL REFERENCES users(id),
-                voted_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                voted_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        if _pg and DATABASE_URL:
+            cur.execute("ALTER TABLE poll_votes DROP CONSTRAINT IF EXISTS poll_votes_poll_id_user_id_key")
+        else:
+            cur.execute("PRAGMA index_list(poll_votes)")
+            indexes = cur.fetchall()
+            has_legacy_unique = any(row[2] and str(row[1]).startswith("sqlite_autoindex_poll_votes") for row in indexes)
+            if has_legacy_unique:
+                cur.execute("ALTER TABLE poll_votes RENAME TO poll_votes_legacy")
+                cur.execute("""
+                    CREATE TABLE poll_votes (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        poll_id     INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                        question_id INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE,
+                        option_id   INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+                        user_id     INTEGER NOT NULL REFERENCES users(id),
+                        voted_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+                    )
+                """)
+                cur.execute("""
+                    INSERT INTO poll_votes (id, poll_id, option_id, user_id, voted_at)
+                    SELECT id, poll_id, option_id, user_id, voted_at FROM poll_votes_legacy
+                """)
+                cur.execute("DROP TABLE poll_votes_legacy")
+        _ensure_column(cur, "poll_votes", "question_id", "INTEGER REFERENCES poll_questions(id) ON DELETE CASCADE")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS poll_submissions (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                poll_id      INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                submitted_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(poll_id, user_id)
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS poll_submissions (
+                id           SERIAL PRIMARY KEY,
+                poll_id      INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+                user_id      INTEGER NOT NULL REFERENCES users(id),
+                submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(poll_id, user_id)
             )
         """)
+
+        # Migrate old single-question polls into the multi-question shape.
+        cur.execute("UPDATE polls SET title = question WHERE title = ''")
+        cur.execute("""
+            SELECT p.id, p.question
+            FROM polls p
+            LEFT JOIN poll_questions q ON q.poll_id = p.id
+            WHERE q.id IS NULL
+        """)
+        legacy_polls = cur.fetchall()
+        for poll in legacy_polls:
+            poll_id, question = poll[0], poll[1]
+            cur.execute(
+                f"INSERT INTO poll_questions (poll_id, question_text, question_order) VALUES ({ph(3)})",
+                (poll_id, question, 1),
+            )
+            cur.execute("SELECT MAX(id) FROM poll_questions")
+            question_id = cur.fetchone()[0]
+            cur.execute(
+                f"UPDATE poll_options SET question_id = {ph()} WHERE poll_id = {ph()} AND question_id IS NULL",
+                (question_id, poll_id),
+            )
+            cur.execute(
+                f"UPDATE poll_votes SET question_id = {ph()} WHERE poll_id = {ph()} AND question_id IS NULL",
+                (question_id, poll_id),
+            )
 
         # ── High Scores ────────────────────────────────────────
+        cur.execute("""
+            SELECT DISTINCT v.poll_id, v.user_id
+            FROM poll_votes v
+            LEFT JOIN poll_submissions s ON s.poll_id = v.poll_id AND s.user_id = v.user_id
+            WHERE s.id IS NULL
+        """)
+        legacy_submissions = cur.fetchall()
+        for submission in legacy_submissions:
+            cur.execute(
+                f"INSERT INTO poll_submissions (poll_id, user_id) VALUES ({ph(2)})",
+                (submission[0], submission[1]),
+            )
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS high_scores (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,

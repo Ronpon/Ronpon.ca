@@ -993,7 +993,154 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     display: flex;
     gap: 0.5rem;
     margin-top: 0.75rem;
+    flex-wrap: wrap;
 }
+
+.poll-available-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.4rem;
+    padding: 1rem 1.5rem;
+    min-height: 64px;
+}
+.poll-available-btn span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    font-size: 0.95rem;
+}
+
+.poll-list,
+.poll-builder-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.poll-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.poll-title-link,
+.poll-title-static {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+.poll-title-link { color: var(--color-text); }
+.poll-title-link:hover { color: var(--color-primary); }
+.poll-title-static { margin: 0; }
+.poll-list-meta {
+    margin: 0.25rem 0 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+.poll-badge-completed { background: var(--color-primary); color: #fff; }
+.poll-completed { opacity: 0.78; }
+
+.poll-admin-page,
+.poll-take-page {
+    max-width: 860px;
+    margin: 0 auto;
+}
+.poll-builder-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.poll-builder-form input[type="text"],
+.poll-builder-form input[type="number"] {
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 1rem;
+}
+.poll-builder-question {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    background: var(--color-surface);
+    margin: 0 0 1rem;
+}
+.poll-builder-question legend {
+    padding: 0 0.35rem;
+    color: var(--color-text);
+    font-weight: 700;
+}
+.poll-builder-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+.poll-question-card { margin-top: 1rem; }
+.poll-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+.poll-navigation form { margin: 0; }
+
+.poll-results-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 1.25rem;
+    align-items: center;
+}
+.poll-pie-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+}
+.poll-pie {
+    width: 190px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+        conic-gradient(
+            #e94560 0 var(--a),
+            #4ecdc4 var(--a) calc(var(--a) + var(--b)),
+            #f4d35e calc(var(--a) + var(--b)) calc(var(--a) + var(--b) + var(--c)),
+            #6c8cff calc(var(--a) + var(--b) + var(--c)) 100%
+        );
+    border: 1px solid var(--color-border);
+}
+.poll-pie-legend {
+    display: grid;
+    gap: 0.35rem;
+    width: 100%;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.poll-pie-legend span {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.poll-swatch {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 3px;
+    flex: 0 0 auto;
+}
+.poll-swatch-1 { background: #e94560; }
+.poll-swatch-2 { background: #4ecdc4; }
+.poll-swatch-3 { background: #f4d35e; }
+.poll-swatch-4 { background: #6c8cff; }
 
 .btn-danger {
     background: #e74c3c;
@@ -1259,6 +1406,24 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     .btn-secondary:active { transform: scale(0.97); }
     .filter-tag:active { transform: scale(0.95); }
     .poll-option-selectable:active { border-color: var(--color-primary); }
+}
+
+@media (max-width: 720px) {
+    .poll-list-header,
+    .poll-navigation {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .poll-builder-options,
+    .poll-results-layout {
+        grid-template-columns: 1fr;
+    }
+    .poll-available-btn {
+        width: 100%;
+        justify-content: center;
+        font-size: 1.15rem;
+    }
+    .poll-pie-wrap { align-items: flex-start; }
 }
 
 /* ── Safe area insets (notch phones) ── */

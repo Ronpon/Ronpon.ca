@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Available Polls - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="pulse-page">
+    <div class="section-header poll-list-header">
+        <h1>Available Polls</h1>
+        {% if is_admin %}
+        <a href="{{ url_for('pulse.create') }}" class="btn btn-small">+ New Poll</a>
+        {% endif %}
+    </div>
+
+    {% if not polls %}
+    <p class="empty-state">No polls available right now.</p>
+    {% endif %}
+
+    <div class="poll-list">
+        {% for poll in polls %}
+        <div class="poll-card {% if poll.submitted %}poll-completed{% elif not poll.is_active %}poll-closed{% endif %}">
+            <div class="poll-header-row">
+                <div>
+                    {% if poll.is_active and not poll.submitted %}
+                    <a href="{{ url_for('pulse.take_poll', poll_id=poll.id) }}" class="poll-title-link">{{ poll.title }}</a>
+                    {% else %}
+                    <h2 class="poll-title-static">{{ poll.title }}</h2>
+                    {% endif %}
+                    <p class="poll-list-meta">{{ poll.question_count }} question{{ 's' if poll.question_count != 1 }}</p>
+                </div>
+                <div class="poll-meta">
+                    {% if poll.submitted %}
+                    <span class="poll-badge poll-badge-completed">Completed</span>
+                    {% elif poll.is_active %}
+                    <span class="poll-badge poll-badge-live">Open</span>
+                    {% else %}
+                    <span class="poll-badge poll-badge-closed">Closed</span>
+                    {% endif %}
+                    {% if is_admin %}
+                    <span class="poll-vote-count">{{ poll.submissions }} submitted</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if poll.is_active and not poll.submitted and poll.answered %}
+            <p class="poll-hidden-note">{{ poll.answered }} answer{{ 's' if poll.answered != 1 }} saved so far.</p>
+            {% endif %}
+
+            {% if is_admin %}
+            <div class="poll-admin-actions">
+                <a href="{{ url_for('pulse.poll_results', poll_id=poll.id) }}" class="btn btn-small btn-secondary">Results</a>
+                <a href="{{ url_for('pulse.edit_poll', poll_id=poll.id) }}" class="btn btn-small btn-secondary">Edit</a>
+                {% if poll.is_active %}
+                <form method="post" action="{{ url_for('pulse.close', poll_id=poll.id) }}">
+                    <button type="submit" class="btn btn-small btn-secondary">Close</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('pulse.reopen', poll_id=poll.id) }}">
+                    <button type="submit" class="btn btn-small btn-secondary">Reopen</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('pulse.delete', poll_id=poll.id) }}"
+                      onsubmit="return confirm('Delete this poll and all its answers?')">
+                    <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="auth-alt">
+        <a href="{{ url_for('pulse.index') }}">&larr; Back to The Pulse</a>
+    </div>
+</div>
+{% endblock %}

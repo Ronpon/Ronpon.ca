@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ poll[1] }} - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="poll-take-page">
+    <div class="section-header">
+        <h1>{{ poll[1] }}</h1>
+        <p class="poll-list-meta">Question {{ step }} of {{ total_questions }} - {{ remaining }} remaining</p>
+    </div>
+
+    <form method="post" action="{{ url_for('pulse.vote', poll_id=poll[0]) }}" class="poll-card poll-question-card">
+        <input type="hidden" name="step" value="{{ step }}">
+        <input type="hidden" name="question_id" value="{{ question[0] }}">
+        <h2 class="poll-question">{{ question[1] }}</h2>
+
+        <div class="poll-options">
+            {% for opt in options %}
+            <label class="poll-option poll-option-selectable {% if opt[0] == selected_option_id %}poll-option-voted{% endif %}">
+                <input type="radio" name="option_id" value="{{ opt[0] }}" {% if opt[0] == selected_option_id %}checked{% endif %} required>
+                <span class="poll-option-label">{{ opt[1] }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div class="poll-navigation">
+            {% if step > 1 %}
+            <a href="{{ url_for('pulse.take_poll', poll_id=poll[0], q=step - 1) }}" class="btn btn-small btn-secondary">Back</a>
+            {% else %}
+            <a href="{{ url_for('pulse.polls') }}" class="btn btn-small btn-secondary">Back</a>
+            {% endif %}
+            <button type="submit" class="btn btn-small poll-vote-btn">Vote</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}New Poll - Ronpon.ca{% endblock %}
+{% block title %}Edit Poll - Ronpon.ca{% endblock %}
 
 {% block content %}
 <div class="poll-admin-page">
     <div class="section-header">
-        <h1>Create a Poll</h1>
+        <h1>Edit Poll</h1>
     </div>
 
     <form method="post" class="poll-builder-form">
         <label>Poll title
-            <input type="text" name="title" value="{{ title }}" placeholder="Weekly Pulse Check" required>
+            <input type="text" name="title" value="{{ title }}" required>
         </label>
 
         <label>How many questions?
@@ -18,7 +18,7 @@
 
         <div id="question-fields"></div>
 
-        <button type="submit" class="btn">Create Poll</button>
+        <button type="submit" class="btn">Save Poll</button>
     </form>
 
     <div class="auth-alt">
@@ -34,45 +34,40 @@
     const countInput = document.getElementById('question-count');
     const fields = document.getElementById('question-fields');
 
-    function optionValue(questionIndex, optionIndex) {
-        const q = existing[questionIndex - 1] || {};
-        return (q.options || [])[optionIndex - 1] || '';
-    }
-
-    function questionValue(questionIndex) {
-        const q = existing[questionIndex - 1] || {};
-        return q.text || '';
+    function esc(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     }
 
     function render() {
         const count = Math.max(1, Math.min(parseInt(countInput.value || '1', 10), 50));
         fields.innerHTML = '';
         for (let i = 1; i <= count; i += 1) {
+            const question = existing[i - 1] || {};
+            const options = question.options || [];
             const block = document.createElement('fieldset');
             block.className = 'poll-builder-question';
             block.innerHTML = `
                 <legend>Question ${i}</legend>
+                ${question.id ? `<input type="hidden" name="question_${i}_id" value="${question.id}">` : ''}
                 <label>Question text
-                    <input type="text" name="question_${i}" value="${escapeHtml(questionValue(i))}" required>
+                    <input type="text" name="question_${i}" value="${esc(question.text)}" required>
                 </label>
                 <div class="poll-builder-options">
                     ${[1, 2, 3, 4].map(function(opt) {
+                        const option = options[opt - 1] || {};
                         return `<label>Option ${opt}
-                            <input type="text" name="question_${i}_option_${opt}" value="${escapeHtml(optionValue(i, opt))}" required>
+                            ${option.id ? `<input type="hidden" name="question_${i}_option_${opt}_id" value="${option.id}">` : ''}
+                            <input type="text" name="question_${i}_option_${opt}" value="${esc(option.label)}" required>
                         </label>`;
                     }).join('')}
                 </div>
             `;
             fields.appendChild(block);
         }
-    }
-
-    function escapeHtml(value) {
-        return String(value)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
     }
 
     countInput.addEventListener('input', render);

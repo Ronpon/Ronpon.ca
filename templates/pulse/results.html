@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Poll Results - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="pulse-page">
+    <div class="section-header">
+        <h1>{{ poll[1] }} Results</h1>
+    </div>
+
+    {% for item in results %}
+    <section class="poll-card poll-results-card">
+        <div class="poll-results-layout">
+            <div>
+                <h2 class="poll-question">{{ item.question }}</h2>
+                <p class="poll-list-meta">{{ item.total }} submitted answer{{ 's' if item.total != 1 }}</p>
+                <div class="poll-options">
+                    {% for opt in item.options %}
+                    <div class="poll-option poll-option-result">
+                        <div class="poll-bar" style="width: {{ opt.pct }}%"></div>
+                        <span class="poll-option-label">{{ opt.label }}</span>
+                        <span class="poll-option-pct">{{ opt.votes }} ({{ opt.pct }}%)</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="poll-pie-wrap">
+                <div class="poll-pie"
+                     style="--a: {{ item.options[0].pct if item.options|length > 0 else 0 }}%; --b: {{ item.options[1].pct if item.options|length > 1 else 0 }}%; --c: {{ item.options[2].pct if item.options|length > 2 else 0 }}%;"></div>
+                <div class="poll-pie-legend">
+                    {% for opt in item.options %}
+                    <span><i class="poll-swatch poll-swatch-{{ loop.index }}"></i>{{ opt.label }} - {{ opt.pct }}%</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endfor %}
+
+    <div class="auth-alt">
+        <a href="{{ url_for('pulse.polls') }}">&larr; Back to Polls</a>
+    </div>
+</div>
+{% endblock %}

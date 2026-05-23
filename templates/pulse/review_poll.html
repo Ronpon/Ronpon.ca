@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Submit Poll - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="poll-take-page">
+    <div class="section-header">
+        <h1>{{ poll[1] }}</h1>
+        <p class="poll-list-meta">Review your answers before submitting.</p>
+    </div>
+
+    <div class="poll-card">
+        <div class="poll-options">
+            {% for item in answered %}
+            <div class="poll-option">
+                <span class="poll-option-label">
+                    <strong>{{ item.step }}. {{ item.question }}</strong><br>
+                    {{ item.answer or "Not answered" }}
+                </span>
+                <a href="{{ url_for('pulse.take_poll', poll_id=poll[0], q=item.step) }}" class="btn btn-small btn-secondary">Edit</a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="poll-navigation">
+            <a href="{{ url_for('pulse.take_poll', poll_id=poll[0], q=answered|length) }}" class="btn btn-small btn-secondary">Back</a>
+            <form method="post" action="{{ url_for('pulse.submit_poll', poll_id=poll[0]) }}">
+                <button type="submit" class="btn btn-small">Submit</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
