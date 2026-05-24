@@ -1,8 +1,9 @@
 """Combat API routes (fight, flee, consumable use, bystander interactions)."""
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify
 
+from security import json_body
 from werblers_engine import content as C
 from werblers_engine import effects as _fx
 from werblers_web.serializers import (
@@ -34,9 +35,8 @@ def api_fight():
             combat_info = _enrich_combat_info(combat_info)
         phase = "summoned_done" if result.get("summoned_monster") else "done"
         return jsonify({"phase": phase, "state": _build_state(), "combat_info": combat_info})
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        current_app.logger.exception("Werblers fight failed")
         return jsonify({"error": "Server error during fight."}), 500
 
 
@@ -53,9 +53,8 @@ def api_flee():
             return jsonify(result), 400
         _st["last_log"] = result.get("log", [])
         return jsonify({"phase": "done", "state": _build_state()})
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        current_app.logger.exception("Werblers flee failed")
         return jsonify({"error": "Server error during flee."}), 500
 
 
@@ -86,9 +85,8 @@ def api_swiftness_flee():
         _game._advance_turn()
         _st["last_log"] = log
         return jsonify({"phase": "done", "state": _build_state()})
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        current_app.logger.exception("Werblers swiftness flee failed")
         return jsonify({"error": "Server error."}), 500
 
 
@@ -112,7 +110,7 @@ def api_use_eight_lives():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     curse_index = int(data.get("curse_index", 0))
     result = _game.use_eight_lives(curse_index)
     if result.get("log"):
@@ -127,7 +125,7 @@ def api_summon_monster():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     idx = int(data.get("index", 0))
     player = _game.current_player
     if idx < 0 or idx >= len(player.captured_monsters):
@@ -183,7 +181,7 @@ def api_crossroads_discard():
     miniboss = _game._pending_combat.get("monster")
     if not miniboss or getattr(miniboss, "effect_id", "") != "crossroads_demon":
         return jsonify({"error": "Not a Crossroads Demon encounter"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     equip_sources: list[dict] = data.get("equip_sources", [])
     player = _game.current_player
     slot_map = {
@@ -240,7 +238,7 @@ def api_use_consumable():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     idx = int(data.get("consumable_index", 0))
     player = _game.current_player
     if idx < 0 or idx >= len(player.consumables):
@@ -420,7 +418,7 @@ def api_use_pack_consumable():
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
     import copy as _copy
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     pack_idx = int(data.get("pack_index", 0))
     player = _game.current_player
     if pack_idx < 0 or pack_idx >= len(player.pack):
@@ -510,7 +508,7 @@ def api_bystander_consumable():
         return jsonify({"error": "No game in progress"}), 400
     if _game._pending_combat is None:
         return jsonify({"error": "No pending combat"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     bystander_id = int(data.get("player_id", -1))
     skip: bool = bool(data.get("skip", False))
     consumable_index = data.get("consumable_index", None)

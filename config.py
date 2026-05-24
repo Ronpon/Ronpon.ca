@@ -13,6 +13,21 @@ def _env_first(*names: str, default: str = "") -> str:
     return default
 
 
+def _csv_env(name: str) -> list[str]:
+    return [
+        value.strip().lower()
+        for value in os.environ.get(name, "").split(",")
+        if value.strip()
+    ]
+
+
+def _bool_env(name: str, default: bool = False) -> bool:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Config:
     APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "development"))
     INSECURE_DEV_SECRET = "ronpon-dev-secret-change-me"
@@ -33,6 +48,11 @@ class Config:
     ]
     DISCORD_CLIENT_ID = _env_first("DISCORD_CLIENT_ID", "DISCORD_OAUTH_CLIENT_ID")
     DISCORD_CLIENT_SECRET = _env_first("DISCORD_CLIENT_SECRET", "DISCORD_OAUTH_CLIENT_SECRET")
+    PUBLIC_ORIGIN = os.environ.get("PUBLIC_ORIGIN", "").rstrip("/")
+    TRUSTED_HOSTS = _csv_env("TRUSTED_HOSTS") or None
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))
+    ENABLE_SCORES = _bool_env("ENABLE_SCORES", False)
+    ENABLE_ACHIEVEMENTS = _bool_env("ENABLE_ACHIEVEMENTS", False)
     PREFERRED_URL_SCHEME = "https" if APP_ENV == "production" else "http"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

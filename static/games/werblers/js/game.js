@@ -4475,6 +4475,10 @@ async function createProfile() {
     body: JSON.stringify({ device_id: _deviceId, name }),
   });
   const data = await resp.json();
+  if (!resp.ok || !data.profile) {
+    alert(data.error || 'Could not create profile.');
+    return;
+  }
   nameInput.value = '';
   selectProfile(data.profile);
 }
@@ -4669,6 +4673,7 @@ async function menuLoadGame() {
 
 // ================================================================ ACHIEVEMENTS
 async function openAchievementsModal() {
+  if (!window.RONPON_FEATURES?.achievements) return;
   if (!_profileId) return;
   const resp = await fetch('/games/werblers/api/achievements?profile_id=' + _profileId + '&profile_token=' + encodeURIComponent(_profileToken));
   const data = await resp.json();
@@ -4692,6 +4697,7 @@ function closeAchievementsModal() {
 let _achievementsTriggeredThisSession = new Set();
 
 async function _checkAchievement(key) {
+  if (!window.RONPON_FEATURES?.achievements) return;
   if (!_profileId) return;
   if (_achievementsTriggeredThisSession.has(key)) return;
   _achievementsTriggeredThisSession.add(key);

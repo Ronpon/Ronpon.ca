@@ -1,8 +1,9 @@
 """Inventory management API routes (equip, manage, discard items)."""
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
+from security import json_body
 from werblers_engine import effects as _fx
 from werblers_web.serializers import (
     item_card_image as _item_card_image,
@@ -26,7 +27,7 @@ def api_equip_from_pack():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     pack_index = int(data.get("pack_index", 0))
     force   = bool(data.get("force",   False))
     to_pack = bool(data.get("to_pack", False))
@@ -151,7 +152,7 @@ def api_manage_item():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     action = data.get("action", "")
     source = data.get("source", "")
     idx    = int(data.get("index", 0))
@@ -220,7 +221,7 @@ def api_discard_consumable():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     idx = int(data.get("consumable_index", 0))
     player = _game.current_player
     if idx < 0 or idx >= len(player.consumables):
@@ -235,7 +236,7 @@ def api_release_monster():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     idx = int(data.get("index", 0))
     player = _game.current_player
     if idx < 0 or idx >= len(player.captured_monsters):

@@ -289,6 +289,13 @@
   </div>
 
   <script>
+  window.RONPON_FEATURES = { achievements: {{ feature_flags.achievements|tojson }} };
+  if (!window.RONPON_FEATURES.achievements) {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[onclick*="openAchievementsModal"], #achievements-modal, #achievement-popup')
+        .forEach(function(el) { el.remove(); });
+    });
+  }
   (function() {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const nativeFetch = window.fetch.bind(window);

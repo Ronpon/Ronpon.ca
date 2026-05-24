@@ -33,13 +33,42 @@ def validate_csrf() -> None:
         abort(400, description="Invalid CSRF token.")
 
 
+def validate_trusted_host() -> None:
+    trusted_hosts = current_app.config.get("TRUSTED_HOSTS") or []
+    if not trusted_hosts:
+        return
+    host = (request.host or "").split(":", 1)[0].rstrip(".").lower()
+    if host not in trusted_hosts:
+        abort(400, description="Untrusted Host header.")
+
+
+def json_body() -> dict:
+    raw_body = request.get_data(cache=True)
+    if not raw_body:
+        return {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        abort(400, description="Expected a valid JSON object.")
+    return data
+
+
 def is_safe_redirect(target: str | None) -> bool:
     if not target:
         return False
-    host_url = request.host_url
-    test_url = urlparse(urljoin(host_url, target))
-    ref_url = urlparse(host_url)
-    return test_url.scheme in {"http", "https"} and ref_url.netloc == test_url.netloc
+    if target != target.strip() or target.startswith("\\"):
+        return False
+    if any(ord(char) < 32 for char in target):
+        return False
+    base_url = current_app.config.get("PUBLIC_ORIGIN") or request.host_url
+    if not base_url.endswith("/"):
+        base_url += "/"
+    test_url = urlparse(urljoin(base_url, target))
+    ref_url = urlparse(base_url)
+    if test_url.scheme not in {"http", "https"} or ref_url.netloc != test_url.netloc:
+        return False
+    if ref_url.scheme == "https" and test_url.scheme != "https":
+        return False
+    return True
 
 
 def require_configured_secret(app=None) -> None:
@@ -64,10 +93,11 @@ def set_security_headers(response):
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: https:; "
+        "img-src 'self' data:; "
         "media-src 'self'; "
         "connect-src 'self'; "
-        "frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv; "
+        "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv; "
+        "object-src 'none'; "
         "base-uri 'self'; "
         "form-action 'self'; "
         "frame-ancestors 'self'",

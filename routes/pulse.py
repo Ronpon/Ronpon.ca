@@ -7,6 +7,11 @@ from flask_login import current_user, login_required
 from models.db import get_conn, ph
 
 pulse_bp = Blueprint("pulse", __name__)
+_MAX_VIDEO_TITLE_LENGTH = 120
+_MAX_POLL_TITLE_LENGTH = 140
+_MAX_POLL_TEXT_LENGTH = 500
+_MAX_POLL_OPTION_LENGTH = 160
+_TWITCH_CHANNEL_RE = re.compile(r"^[A-Za-z0-9_]{3,25}$")
 
 
 def _is_admin():
@@ -94,12 +99,18 @@ def _validate_poll_payload(title: str, questions: list[dict]) -> list[str]:
     errors = []
     if not title:
         errors.append("Poll title is required.")
+    elif len(title) > _MAX_POLL_TITLE_LENGTH:
+        errors.append(f"Poll title must be {_MAX_POLL_TITLE_LENGTH} characters or fewer.")
     for idx, question in enumerate(questions, start=1):
         if not question["text"]:
             errors.append(f"Question {idx} is required.")
+        elif len(question["text"]) > _MAX_POLL_TEXT_LENGTH:
+            errors.append(f"Question {idx} is too long.")
         for opt_idx, label in enumerate(question["options"], start=1):
             if not label:
                 errors.append(f"Question {idx}, option {opt_idx} is required.")
+            elif len(label) > _MAX_POLL_OPTION_LENGTH:
+                errors.append(f"Question {idx}, option {opt_idx} is too long.")
     return errors
 
 
@@ -554,6 +565,9 @@ def add_video():
     if not title:
         flash("Title is required.", "error")
         return redirect(url_for("pulse.index"))
+    if len(title) > _MAX_VIDEO_TITLE_LENGTH:
+        flash("Title is too long.", "error")
+        return redirect(url_for("pulse.index"))
 
     with get_conn() as conn:
         conn.cursor().execute(
@@ -588,7 +602,15 @@ def live_settings():
     yt_id = ""
     if youtube_id_raw:
         extracted = _extract_youtube_id(youtube_id_raw)
-        yt_id = extracted if extracted else youtube_id_raw
+        if not extracted:
+            flash("Invalid YouTube stream URL or video ID.", "error")
+            return redirect(url_for("pulse.index"))
+        yt_id = extracted
+    if twitch_channel.startswith("@"):
+        twitch_channel = twitch_channel[1:]
+    if twitch_channel and not _TWITCH_CHANNEL_RE.fullmatch(twitch_channel):
+        flash("Invalid Twitch channel name.", "error")
+        return redirect(url_for("pulse.index"))
 
     with get_conn() as conn:
         cur = conn.cursor()

@@ -7,6 +7,8 @@ from flask_login import current_user
 from models.db import get_conn, ph
 
 videos_bp = Blueprint("videos", __name__)
+_MAX_VIDEO_TITLE_LENGTH = 120
+_MAX_CATEGORY_LENGTH = 60
 
 
 def _extract_youtube_id(url_or_id: str) -> str | None:
@@ -59,6 +61,12 @@ def add():
             return redirect(url_for("videos.add"))
         if not title:
             flash("Title is required.", "error")
+            return redirect(url_for("videos.add"))
+        if len(title) > _MAX_VIDEO_TITLE_LENGTH:
+            flash("Title is too long.", "error")
+            return redirect(url_for("videos.add"))
+        if len(category) > _MAX_CATEGORY_LENGTH:
+            flash("Category is too long.", "error")
             return redirect(url_for("videos.add"))
 
         with get_conn() as conn:

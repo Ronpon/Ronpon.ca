@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 import json
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
@@ -29,8 +29,7 @@ _DISCORD_USER_URL = "https://discord.com/api/users/@me"
 
 
 def _rate_limit_key(username: str) -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    remote_ip = forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "unknown"
+    remote_ip = request.remote_addr or "unknown"
     return f"{remote_ip}:{username.lower()}"
 
 
@@ -74,6 +73,9 @@ def _discord_configured() -> bool:
 
 
 def _external_url(endpoint: str) -> str:
+    public_origin = current_app.config.get("PUBLIC_ORIGIN", "")
+    if public_origin:
+        return urljoin(f"{public_origin}/", url_for(endpoint).lstrip("/"))
     scheme = current_app.config.get("PREFERRED_URL_SCHEME") or request.scheme
     return url_for(endpoint, _external=True, _scheme=scheme)
 

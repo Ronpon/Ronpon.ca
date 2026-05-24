@@ -1,16 +1,19 @@
 """Profile, save/load, and achievement API routes."""
 from __future__ import annotations
 
-import uuid
+import re
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
+from security import json_body
 from werblers_engine import database as db
 from werblers_engine.save_load import serialize_game, deserialize_game
-from werblers_web.routes.helpers import _sessions, _get_state, _build_state
+from werblers_web.routes.helpers import _get_state, _build_state, _set_game_state
 
 save_bp = Blueprint("save", __name__)
+_DEVICE_ID_RE = re.compile(r"^dev_[A-Za-z0-9-]{8,60}$")
+_MAX_PROFILES_PER_OWNER = 20
 
 
 def _profile_token_from_request(data: dict | None = None) -> str:
@@ -36,16 +39,19 @@ def api_list_profiles():
 
 @save_bp.route("/api/profiles", methods=["POST"])
 def api_create_profile():
-    data = request.get_json(force=True) or {}
+    data = json_body()
     device_id = data.get("device_id", "")
     name = data.get("name", "").strip()
     if not device_id or not name:
         return jsonify({"error": "device_id and name required"}), 400
-    if not device_id.startswith("dev_") or len(device_id) > 64:
+    if not _DEVICE_ID_RE.fullmatch(device_id):
         return jsonify({"error": "Invalid device_id"}), 400
     if len(name) > 24:
         return jsonify({"error": "Name is too long"}), 400
     user_id = current_user.id if current_user.is_authenticated else None
+    existing_profiles = db.list_profiles(user_id=user_id) if user_id else db.list_profiles(device_id)
+    if len(existing_profiles) >= _MAX_PROFILES_PER_OWNER:
+        return jsonify({"error": "Profile limit reached"}), 429
     profile = db.create_profile(device_id, name, user_id=user_id)
     return jsonify({"profile": profile})
 
@@ -63,7 +69,7 @@ def api_save_game():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data = request.get_json(force=True) or {}
+    data = json_body()
     profile_id = data.get("profile_id")
     slot_number = data.get("slot_number")
     if profile_id is None or slot_number is None:
@@ -87,7 +93,7 @@ def api_save_game():
 
 @save_bp.route("/api/load", methods=["POST"])
 def api_load_game():
-    data = request.get_json(force=True) or {}
+    data = json_body()
     profile_id = data.get("profile_id")
     slot_number = data.get("slot_number")
     if profile_id is None or slot_number is None:
@@ -98,13 +104,13 @@ def api_load_game():
     if game_json is None:
         return jsonify({"error": "Save not found"}), 404
     game = deserialize_game(game_json)
-    sid = str(uuid.uuid4())
-    session["game_id"] = sid
-    _sessions[sid] = {"game": game, "last_log": ["Game loaded!"], "pending_log": []}
+    _set_game_state(game, ["Game loaded!"])
     return jsonify({"ok": True, "state": _build_state()})
 
 @save_bp.route("/api/achievements", methods=["GET"])
 def api_list_achievements():
+    if not current_app.config.get("ENABLE_ACHIEVEMENTS", False):
+        return jsonify({"achievements": [], "enabled": False})
     profile_id = request.args.get("profile_id", type=int)
     if profile_id is None:
         return jsonify({"error": "profile_id required"}), 400
@@ -114,7 +120,9 @@ def api_list_achievements():
 
 @save_bp.route("/api/achievements", methods=["POST"])
 def api_grant_achievement():
-    data = request.get_json(force=True) or {}
+    if not current_app.config.get("ENABLE_ACHIEVEMENTS", False):
+        return jsonify({"ok": True, "newly_granted": False, "achievements": [], "enabled": False})
+    data = json_body()
     profile_id = data.get("profile_id")
     achievement_key = data.get("achievement")
     if profile_id is None or not achievement_key:

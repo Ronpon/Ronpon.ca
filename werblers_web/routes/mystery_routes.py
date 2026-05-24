@@ -1,8 +1,9 @@
 """Mystery event API routes (mystery box, wheel, smith, fairy king, beggar)."""
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify
 
+from security import json_body
 from werblers_engine import content as C
 from werblers_web.serializers import (
     item_card_image as _item_card_image,
@@ -24,11 +25,10 @@ def api_resolve_mystery():
         smith_indices:  list[int]  (3 pack slot indices for the smith trade)
         smith_equip_index: int  (equipped item index for tier-3 smith enhancement)
     """
-    import traceback as _tb
     try:
         return _api_resolve_mystery_inner()
-    except Exception as exc:
-        _tb.print_exc()
+    except Exception:
+        current_app.logger.exception("Werblers mystery resolution failed")
         return jsonify({"error": "Server error in resolve_mystery."}), 500
 
 
@@ -41,7 +41,7 @@ def _api_resolve_mystery_inner():
     if po is None or po.get("type") != "mystery":
         return jsonify({"error": "No pending mystery event"}), 400
 
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     event = po["event"]
     player = _game.current_player
     level = po["level"]
@@ -214,7 +214,7 @@ def api_resolve_fairy_king_reward():
     if po is None or po.get("type") != "fairy_king_reward":
         return jsonify({"error": "No pending Fairy King reward"}), 400
 
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     choice = int(data.get("choice_index", -1))
     reward_items = po["reward_items"]
     if choice < 0 or choice >= len(reward_items):

@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import os
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_login import LoginManager
 from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
-from security import csrf_token, require_configured_secret, set_security_headers, validate_csrf
+from security import csrf_token, require_configured_secret, set_security_headers, validate_csrf, validate_trusted_host
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -17,11 +17,18 @@ if app.config.get("APP_ENV") == "production":
 
 @app.context_processor
 def inject_security_helpers():
-    return {"csrf_token": csrf_token}
+    return {
+        "csrf_token": csrf_token,
+        "feature_flags": {
+            "achievements": app.config.get("ENABLE_ACHIEVEMENTS", False),
+            "scores": app.config.get("ENABLE_SCORES", False),
+        },
+    }
 
 
 @app.before_request
 def enforce_csrf():
+    validate_trusted_host()
     validate_csrf()
 
 
@@ -59,14 +66,15 @@ from routes.auth import auth_bp
 from routes.games import games_bp
 from routes.videos import videos_bp
 from routes.pulse import pulse_bp
-from routes.scores import scores_bp
 
 app.register_blueprint(main_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(games_bp, url_prefix="/games")
 app.register_blueprint(videos_bp, url_prefix="/videos")
 app.register_blueprint(pulse_bp, url_prefix="/the-pulse")
-app.register_blueprint(scores_bp, url_prefix="/scores")
+if app.config.get("ENABLE_SCORES", False):
+    from routes.scores import scores_bp
+    app.register_blueprint(scores_bp, url_prefix="/scores")
 
 # ── Werblers game blueprints (API routes under /games/werblers) ──
 from werblers_engine import database as werblers_db
@@ -109,6 +117,13 @@ def page_not_found(e):
 
 @app.errorhandler(500)
 def internal_error(e):
+    return render_template("errors/500.html"), 500
+
+
+@app.errorhandler(ValueError)
+def invalid_request_value(e):
+    if request.path.startswith("/games/werblers/api/"):
+        return jsonify({"error": "Invalid request value."}), 400
     return render_template("errors/500.html"), 500
 
 

@@ -1,11 +1,11 @@
 """Game setup and turn-flow API routes (new game, state, movement, offers)."""
 from __future__ import annotations
 
-import uuid
 from typing import Optional
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, jsonify
 
+from security import json_body
 from werblers_engine.game import Game
 from werblers_engine.heroes import HEROES, HeroId
 from werblers_engine import effects as _fx
@@ -17,7 +17,7 @@ from werblers_web.serializers import (
     consumable_card_image as _consumable_card_image,
     item_to_dict_from_obj as _item_to_dict_from_obj,
 )
-from werblers_web.routes.helpers import _sessions, _get_state, _enrich_combat_info, _build_state
+from werblers_web.routes.helpers import _get_state, _enrich_combat_info, _build_state, _set_game_state
 
 game_bp = Blueprint("game", __name__)
 
@@ -39,17 +39,31 @@ def api_heroes():
 
 @game_bp.route("/api/new_game", methods=["POST"])
 def api_new_game():
-    data: dict = request.get_json(force=True) or {}
-    hero_id_strs: list[str] = data.get("hero_ids", [])
-    num_players: int = len(hero_id_strs) if hero_id_strs else data.get("num_players", 1)
-    seed: Optional[int] = data.get("seed", None)
-    hero_ids = [HeroId[h] for h in hero_id_strs] if hero_id_strs else None
-    game = Game(num_players=num_players, hero_ids=hero_ids, seed=seed)
+    data: dict = json_body()
+    hero_id_strs = data.get("hero_ids", [])
+    if hero_id_strs is not None and not isinstance(hero_id_strs, list):
+        return jsonify({"error": "hero_ids must be a list."}), 400
+    if hero_id_strs:
+        invalid = [hero_id for hero_id in hero_id_strs if hero_id not in HeroId.__members__]
+        if invalid:
+            return jsonify({"error": "Invalid hero selection."}), 400
+        if len(set(hero_id_strs)) != len(hero_id_strs):
+            return jsonify({"error": "Each hero can only be selected once."}), 400
+        hero_ids = [HeroId[hero_id] for hero_id in hero_id_strs]
+        num_players = len(hero_ids)
+    else:
+        hero_ids = None
+        num_players = data.get("num_players", 1)
+    try:
+        num_players = int(num_players)
+        seed_raw = data.get("seed", None)
+        seed: Optional[int] = int(seed_raw) if seed_raw is not None else None
+        game = Game(num_players=num_players, hero_ids=hero_ids, seed=seed)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid game setup."}), 400
     for p in game.players:
         game.draw_movement_cards(p)
-    sid = str(uuid.uuid4())
-    session["game_id"] = sid
-    _sessions[sid] = {"game": game, "last_log": ["New game started!"], "pending_log": []}
+    _set_game_state(game, ["New game started!"])
     return jsonify({"ok": True, "state": _build_state()})
 
 
@@ -82,7 +96,7 @@ def api_begin_move():
         return jsonify({"error": "Resolve the current offer first"}), 409
     if _game._pending_combat is not None:
         return jsonify({"error": "Resolve the current combat first"}), 409
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     card_index: int = int(data.get("card_index", 0))
     flee: bool = bool(data.get("flee", False))
     activated: dict = data.get("activated", {})
@@ -152,7 +166,7 @@ def api_resolve_charlie_work():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     use_it: bool = bool(data.get("use_it", False))
     result = _game.resolve_charlie_work(use_it=use_it)
     log = _st["pending_log"] + result.get("log", [])
@@ -171,7 +185,7 @@ def api_resolve_offer():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    choices: dict = request.get_json(force=True) or {}
+    choices: dict = json_body()
     result = _game.resolve_offer(choices=choices)
     combined_log = _st["pending_log"] + result.get("log", [])
     _st["pending_log"] = combined_log
@@ -214,7 +228,7 @@ def api_resolve_rake_it_in():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     use_it = bool(data.get("use_it", False))
     discard_slot = str(data.get("discard_slot", ""))
     discard_idx  = int(data.get("discard_idx", 0))
@@ -242,7 +256,7 @@ def api_place_trait_item():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     target_pid = data.get("player_id")
     if target_pid is not None:
         player = next((p for p in _game.players if p.player_id == target_pid), None)
@@ -273,7 +287,7 @@ def api_resolve_minion():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     player_id: int = int(data.get("player_id", _game.current_player.player_id))
     replace_index: int = int(data.get("replace_index", -1))
     discard: bool = bool(data.get("discard", False))
@@ -312,7 +326,7 @@ def api_play_turn():
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    data: dict = request.get_json(force=True) or {}
+    data: dict = json_body()
     card_index: int = int(data.get("card_index", 0))
     flee: bool = bool(data.get("flee", False))
     shop_choice: int = int(data.get("shop_choice", 0))
