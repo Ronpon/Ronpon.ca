@@ -13,8 +13,8 @@ def _shop_products():
             "kind": "Amazon book",
             "title": "Make Someone Read You This Book",
             "description": (
-                "A Ronpon book for the person in your life who may need a little "
-                "friendly pressure to turn some pages."
+                "A hilariously frustrating book to read aloud, that will have the "
+                "kids rolling with laughter as you struggle."
             ),
             "price": "",
             "image_url": url_for("serve_site_image", filename="Shop/Make Someone Cover.jpg"),
@@ -27,8 +27,8 @@ def _shop_products():
             "kind": "Amazon book",
             "title": "Ronpon's Nursery Rhymes for Sarcastic A**holes",
             "description": (
-                "Nursery rhymes with a sharper grin, made for readers whose bedtime "
-                "stories got a little more sarcastic."
+                "Nursery rhymes for cynics who like to poke holes in things. "
+                "For children of all ages."
             ),
             "price": "",
             "image_url": url_for("serve_site_image", filename="Shop/Nursery Rhymes Cover.jpg"),
