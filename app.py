@@ -96,6 +96,11 @@ app.register_blueprint(werblers_save_bp, url_prefix="/games/werblers")
 
 # ── Werblers media serving ───────────────────────────────────────
 _WERBLERS_MEDIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "werblers_media")
+_SITE_IMAGES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Images")
+
+@app.route("/images/<path:filename>")
+def serve_site_image(filename: str):
+    return send_from_directory(_SITE_IMAGES, filename)
 
 @app.route("/games/werblers/images/<path:filename>")
 def werblers_serve_image(filename: str):
