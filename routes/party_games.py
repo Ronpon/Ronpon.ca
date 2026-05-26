@@ -253,6 +253,21 @@ def scenes_vote(code):
     )
 
 
+@party_games_bp.post("/api/rooms/<code>/scenes/next")
+def scenes_next(code):
+    normalized = party_games.normalize_code(code)
+    host_token = _session_token(HOST_SESSION_KEY, normalized)
+    try:
+        scenes_phone.next_round_or_results(normalized, host_token or "")
+    except scenes_phone.ScenesError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return _snapshot_json(
+        normalized,
+        host_token=host_token,
+        player_token=_session_token(PLAYER_SESSION_KEY, normalized),
+    )
+
+
 def _snapshot(code: str, *, host_token: str | None = None, player_token: str | None = None):
     snapshot = party_games.snapshot_room(code, host_token=host_token, player_token=player_token)
     if not snapshot:

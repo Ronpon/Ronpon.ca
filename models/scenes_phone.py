@@ -201,6 +201,27 @@ def submit_vote(code: str, player_token: str, answer_player_id: int) -> None:
         _maybe_advance(cur, room)
 
 
+def next_round_or_results(code: str, host_token: str) -> None:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        room = _select_room(cur, code)
+        if not _host_matches(room, host_token):
+            raise ScenesError("Host access required.")
+        state = _maybe_advance(cur, room)
+        if state.get("phase") != "reveal":
+            raise ScenesError("The round is not ready to advance.")
+        round_number = int(state.get("round") or 1)
+        answers = _select_answers(cur, room["id"], round_number)
+        if _reveal_step(state, len(answers)) < len(answers):
+            raise ScenesError("Finish revealing this round first.")
+
+        now = _utcnow()
+        if round_number >= int(state.get("rounds") or 3):
+            _advance_to_results(cur, room, state, now)
+        else:
+            _advance_to_next_round(cur, room, state, now)
+
+
 def enrich_snapshot(code: str, snapshot: dict[str, Any]) -> dict[str, Any]:
     if snapshot["room"].get("game_key") != GAME_KEY:
         return snapshot
@@ -234,6 +255,13 @@ def _game_payload(cur, room: dict[str, Any], state: dict[str, Any], players: lis
     votes = _select_votes(cur, room["id"], round_number) if round_number else []
     answer_owner_ids = {int(answer["player_id"]) for answer in answers}
     vote_counts = Counter(int(vote["answer_player_id"]) for vote in votes)
+    players_by_id = {int(player["id"]): player for player in players}
+    voter_names_by_answer: dict[int, list[str]] = {}
+    for vote in votes:
+        answer_player_id = int(vote["answer_player_id"])
+        voter = players_by_id.get(int(vote["voter_player_id"]))
+        if voter:
+            voter_names_by_answer.setdefault(answer_player_id, []).append(voter["name"])
     voter_ids = {int(vote["voter_player_id"]) for vote in votes}
     current_answer = current_player_id in answer_owner_ids if current_player_id else False
     current_vote = current_player_id in voter_ids if current_player_id else False
@@ -264,16 +292,19 @@ def _game_payload(cur, room: dict[str, Any], state: dict[str, Any], players: lis
             phase,
             reveal_step,
             state.get("reveal_order") or [],
+            voter_names_by_answer,
         ),
         "scoreboard": _scoreboard(players),
         "reveal_step": reveal_step,
         "reveal_total": len(answers),
+        "reveal_complete": phase == "reveal" and reveal_step >= len(answers),
+        "is_final_round": round_number >= int(state.get("rounds") or 3),
     }
 
 
 def _maybe_advance(cur, room: dict[str, Any]) -> dict[str, Any]:
     state = _state_from_room(room)
-    if room["status"] != "playing" or state.get("phase") not in {"answer", "vote", "reveal"}:
+    if room["status"] != "playing" or state.get("phase") not in {"answer", "vote"}:
         return state
 
     now = _utcnow()
@@ -294,15 +325,6 @@ def _maybe_advance(cur, room: dict[str, Any]) -> dict[str, Any]:
         all_done = required_votes == 0 or len(votes) >= required_votes
         if time_up or all_done:
             state = _advance_to_reveal(cur, room, state, answers, votes, now)
-    elif phase == "reveal":
-        reveal_total = len(answers)
-        reveal_seconds = max(3.0, (reveal_total + 1) * REVEAL_SECONDS_PER_ANSWER)
-        started = _parse_time(state.get("phase_started_at"))
-        if now >= started + timedelta(seconds=reveal_seconds):
-            if int(state.get("round") or 1) >= int(state.get("rounds") or 3):
-                state = _advance_to_results(cur, room, state, now)
-            else:
-                state = _advance_to_next_round(cur, room, state, now)
 
     return state
 
@@ -445,6 +467,7 @@ def _public_answers(
     phase: str,
     reveal_step: int,
     reveal_order: list[int],
+    voter_names_by_answer: dict[int, list[str]],
 ) -> list[dict[str, Any]]:
     player_by_id = {int(player["id"]): player for player in players}
     revealed_ids: set[int] = set()
@@ -466,6 +489,7 @@ def _public_answers(
             "is_revealed": revealed,
             "owner_name": owner["name"] if revealed and owner else "",
             "vote_count": int(vote_counts.get(player_id, 0)) if phase in {"reveal", "results"} else None,
+            "voter_names": voter_names_by_answer.get(player_id, []) if revealed and phase in {"reveal", "results"} else [],
         })
     return visible
 

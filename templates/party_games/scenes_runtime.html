@@ -12,12 +12,23 @@
     let draftText = '';
     let jumbleUsed = [];
     let canvasApi = null;
+    const infoToggle = document.getElementById('party-info-toggle');
+    if (infoToggle) {
+        infoToggle.addEventListener('click', function() {
+            root.classList.toggle('party-info-open');
+        });
+    }
 
     function render(state) {
         if (!state.game) { return; }
         const game = state.game;
         const phase = game.phase || 'lobby';
         const player = state.current_player || {};
+        const isActive = state.room.status === 'playing' && phase !== 'lobby';
+        root.classList.toggle('party-game-active', isActive);
+        if (!isActive) {
+            root.classList.remove('party-info-open');
+        }
         const renderKey = [
             phase,
             game.round,
@@ -25,6 +36,7 @@
             game.submitted_current,
             game.voted_current,
             game.reveal_step,
+            game.reveal_complete,
             game.answer_count,
             game.vote_count
         ].join(':');
@@ -189,13 +201,23 @@
             <div class="scenes-scoreboard ${finalResults ? 'final' : ''}">
                 ${game.scoreboard.map(scoreRow).join('')}
             </div>
+            ${revealActions(game, finalResults)}
         `;
+        const nextBtn = document.getElementById('scenes-next-round');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', nextRound);
+        }
     }
 
     function answerCard(answer, showReveal, canVote) {
         const revealed = showReveal && answer.is_revealed;
         const owner = revealed ? escapeHtml(answer.owner_name) : (showReveal ? '???' : 'Anonymous');
         const voteText = answer.vote_count === 1 ? '1 vote' : `${answer.vote_count || 0} votes`;
+        const voterTags = revealed && answer.voter_names && answer.voter_names.length
+            ? `<div class="scenes-voter-tags">${answer.voter_names.map(function(name, index) {
+                return `<span class="scenes-voter-tag" style="animation-delay: ${140 + (index * 90)}ms">${escapeHtml(name)}</span>`;
+            }).join('')}</div>`
+            : '';
         return `
             <div class="scenes-answer-card ${answer.is_own ? 'own' : ''} ${revealed ? 'revealed' : ''}">
                 <div class="scenes-answer-body">
@@ -204,10 +226,27 @@
                         : `<p>${escapeHtml(answer.text)}</p>`}
                 </div>
                 <div class="scenes-answer-meta">
-                    <span>${owner}</span>
+                    <span class="${revealed ? 'scenes-nametag' : ''}">${owner}</span>
                     ${showReveal && revealed ? `<strong>${voteText}</strong>` : ''}
                 </div>
+                ${voterTags}
                 ${canVote ? `<button type="button" class="btn btn-small" data-vote-answer="${answer.answer_id}">Vote</button>` : ''}
+            </div>
+        `;
+    }
+
+    function revealActions(game, finalResults) {
+        if (finalResults) { return ''; }
+        if (!game.reveal_complete) {
+            return '<p class="party-empty">Name tags are being revealed.</p>';
+        }
+        if (!initialState.is_host) {
+            return '<p class="party-empty">Waiting for the host to continue.</p>';
+        }
+        const label = game.is_final_round ? 'Final Rankings' : 'Next Round';
+        return `
+            <div class="scenes-action-row">
+                <button type="button" id="scenes-next-round" class="btn">${label}</button>
             </div>
         `;
     }
@@ -225,7 +264,7 @@
     function header(game, label) {
         return `
             <div class="scenes-topline">
-                <span class="party-kicker">${label} · Round ${game.round} of ${game.rounds} · ${modeLabel(game.mode)}</span>
+                <span class="party-kicker">${label} - Round ${game.round} of ${game.rounds} - ${modeLabel(game.mode)}</span>
                 <span id="scenes-timer" class="scenes-timer"></span>
             </div>
         `;
@@ -266,6 +305,19 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ answer_id: answerId })
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.error) { return; }
+            render(data);
+        });
+    }
+
+    function nextRound() {
+        fetch(`/games/party/api/rooms/${code}/scenes/next`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
         }).then(function(response) {
             return response.json();
         }).then(function(data) {

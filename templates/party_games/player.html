@@ -6,32 +6,37 @@
     class="party-room party-player-room"
     data-code="{{ snapshot.room.code }}"
     data-state-url="{{ url_for('party_games.room_state', code=snapshot.room.code) }}">
-    <div class="party-room-top">
-        <div>
-            <span class="party-kicker">Party Games</span>
-            <h1>{{ game.title }}</h1>
+    {% if game.key == 'scenes-from-your-phone' %}
+    <button type="button" id="party-info-toggle" class="btn btn-small btn-secondary party-info-toggle">Game Info</button>
+    {% endif %}
+    <div id="party-info-drawer" class="party-info-drawer">
+        <div class="party-room-top">
+            <div>
+                <span class="party-kicker">Party Games</span>
+                <h1>{{ game.title }}</h1>
+            </div>
+            <span class="party-mini-code">{{ snapshot.room.code }}</span>
         </div>
-        <span class="party-mini-code">{{ snapshot.room.code }}</span>
+
+        <section class="party-panel party-player-controls">
+            <div>
+                <span class="party-label">Playing as</span>
+                <h2 id="party-player-name">{{ snapshot.current_player.name }}</h2>
+            </div>
+            <div class="party-action-row">
+                <button type="button" id="party-ready" class="btn">Ready</button>
+                <button type="button" id="party-leave" class="btn btn-secondary">Leave</button>
+            </div>
+        </section>
+
+        <section class="party-panel party-player-panel">
+            <div class="party-status-row">
+                <span class="party-label">Status</span>
+                <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
+            </div>
+            <div id="party-player-list" class="party-player-list"></div>
+        </section>
     </div>
-
-    <section class="party-panel party-player-controls">
-        <div>
-            <span class="party-label">Playing as</span>
-            <h2 id="party-player-name">{{ snapshot.current_player.name }}</h2>
-        </div>
-        <div class="party-action-row">
-            <button type="button" id="party-ready" class="btn">Ready</button>
-            <button type="button" id="party-leave" class="btn btn-secondary">Leave</button>
-        </div>
-    </section>
-
-    <section class="party-panel party-player-panel">
-        <div class="party-status-row">
-            <span class="party-label">Status</span>
-            <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
-        </div>
-        <div id="party-player-list" class="party-player-list"></div>
-    </section>
 
     {% if game.key == 'scenes-from-your-phone' %}
     <section id="scenes-game-panel" class="party-panel scenes-panel"></section>
@@ -81,8 +86,7 @@
             const hostBadge = player.is_host_player ? '<span class="party-player-state host">Host</span>' : '';
             return `
                 <div class="party-player-row${selfClass}">
-                    <span class="party-player-name">${escapeHtml(player.name)}</span>
-                    ${hostBadge}
+                    <span class="party-player-name"><span>${escapeHtml(player.name)}</span>${hostBadge}</span>
                     <span class="party-player-state ${readyClass}">${readyText}</span>
                 </div>
             `;

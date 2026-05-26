@@ -6,77 +6,82 @@
     class="party-room party-host-room"
     data-code="{{ snapshot.room.code }}"
     data-state-url="{{ url_for('party_games.room_state', code=snapshot.room.code) }}">
-    <div class="party-room-top">
-        <div>
-            <span class="party-kicker">Party Games</span>
-            <h1>{{ game.title }}</h1>
-        </div>
-        <a href="{{ url_for('party_games.index') }}" class="btn btn-small btn-secondary">Hub</a>
-    </div>
-
-    <div class="party-host-layout">
-        <section class="party-code-panel">
-            <span class="party-label">Room Code</span>
-            <strong id="party-room-code">{{ snapshot.room.code }}</strong>
-            <input id="party-join-link" value="{{ join_url }}" readonly>
-            <button type="button" id="party-copy-link" class="btn btn-small btn-secondary">Copy Link</button>
-        </section>
-
-        <section class="party-panel party-controls-panel">
-            <div class="party-status-row">
-                <span class="party-label">Status</span>
-                <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
-            </div>
-            {% if game.key == 'scenes-from-your-phone' %}
-            <div id="scenes-settings" class="scenes-settings">
-                <label>
-                    Time
-                    <select id="scenes-answer-seconds">
-                        <option value="30">30 seconds</option>
-                        <option value="60" selected>1 minute</option>
-                        <option value="120">2 minutes</option>
-                    </select>
-                </label>
-                <label>
-                    Mode
-                    <select id="scenes-mode">
-                        <option value="standard">Standard</option>
-                        <option value="jumble">Jumble</option>
-                        <option value="draw">Draw</option>
-                    </select>
-                </label>
-                <label>
-                    Rounds
-                    <select id="scenes-rounds">
-                        <option value="3" selected>3 rounds</option>
-                        <option value="5">5 rounds</option>
-                        <option value="7">7 rounds</option>
-                    </select>
-                </label>
-            </div>
-            {% endif %}
-            <div class="party-host-player-box">
-                <span class="party-label">Playing as</span>
-                <h2 id="party-player-name">{{ snapshot.current_player.name if snapshot.current_player else 'Host' }}</h2>
-                <button type="button" id="party-ready" class="btn btn-small">Ready Up</button>
-            </div>
-            <div class="party-action-row">
-                <button type="button" id="party-start" class="btn">Start</button>
-                <button type="button" id="party-reset" class="btn btn-secondary">Back to Lobby</button>
-                <button type="button" id="party-close" class="btn btn-secondary">Close</button>
-            </div>
-        </section>
-    </div>
-
-    <section class="party-panel party-player-panel">
-        <div class="party-panel-heading party-player-heading">
+    {% if game.key == 'scenes-from-your-phone' %}
+    <button type="button" id="party-info-toggle" class="btn btn-small btn-secondary party-info-toggle">Game Info</button>
+    {% endif %}
+    <div id="party-info-drawer" class="party-info-drawer">
+        <div class="party-room-top">
             <div>
-                <span class="party-kicker">Players</span>
-                <h2><span id="party-player-count">{{ snapshot.players|length }}</span> Joined</h2>
+                <span class="party-kicker">Party Games</span>
+                <h1>{{ game.title }}</h1>
             </div>
+            <a href="{{ url_for('party_games.index') }}" class="btn btn-small btn-secondary">Hub</a>
         </div>
-        <div id="party-player-list" class="party-player-list"></div>
-    </section>
+
+        <div class="party-host-layout">
+            <section class="party-code-panel">
+                <span class="party-label">Room Code</span>
+                <strong id="party-room-code">{{ snapshot.room.code }}</strong>
+                <input id="party-join-link" value="{{ join_url }}" readonly>
+                <button type="button" id="party-copy-link" class="btn btn-small btn-secondary">Copy Link</button>
+            </section>
+
+            <section class="party-panel party-controls-panel">
+                <div class="party-status-row">
+                    <span class="party-label">Status</span>
+                    <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
+                </div>
+                {% if game.key == 'scenes-from-your-phone' %}
+                <div id="scenes-settings" class="scenes-settings">
+                    <label>
+                        Time
+                        <select id="scenes-answer-seconds">
+                            <option value="30">30 seconds</option>
+                            <option value="60" selected>1 minute</option>
+                            <option value="120">2 minutes</option>
+                        </select>
+                    </label>
+                    <label>
+                        Mode
+                        <select id="scenes-mode">
+                            <option value="standard">Standard</option>
+                            <option value="jumble">Jumble</option>
+                            <option value="draw">Draw</option>
+                        </select>
+                    </label>
+                    <label>
+                        Rounds
+                        <select id="scenes-rounds">
+                            <option value="3" selected>3 rounds</option>
+                            <option value="5">5 rounds</option>
+                            <option value="7">7 rounds</option>
+                        </select>
+                    </label>
+                </div>
+                {% endif %}
+                <div class="party-host-player-box">
+                    <span class="party-label">Playing as</span>
+                    <h2 id="party-player-name">{{ snapshot.current_player.name if snapshot.current_player else 'Host' }}</h2>
+                    <button type="button" id="party-ready" class="btn btn-small">Ready Up</button>
+                </div>
+                <div class="party-action-row">
+                    <button type="button" id="party-start" class="btn">Start</button>
+                    <button type="button" id="party-reset" class="btn btn-secondary">Back to Lobby</button>
+                    <button type="button" id="party-close" class="btn btn-secondary">Close</button>
+                </div>
+            </section>
+        </div>
+
+        <section class="party-panel party-player-panel">
+            <div class="party-panel-heading party-player-heading">
+                <div>
+                    <span class="party-kicker">Players</span>
+                    <h2><span id="party-player-count">{{ snapshot.players|length }}</span> Joined</h2>
+                </div>
+            </div>
+            <div id="party-player-list" class="party-player-list"></div>
+        </section>
+    </div>
 
     {% if game.key == 'scenes-from-your-phone' %}
     <section id="scenes-game-panel" class="party-panel scenes-panel"></section>
@@ -141,8 +146,7 @@
             const selfClass = currentPlayer && player.id === currentPlayer.id ? ' self' : '';
             return `
                 <div class="party-player-row${selfClass}">
-                    <span class="party-player-name">${escapeHtml(player.name)}</span>
-                    ${hostBadge}
+                    <span class="party-player-name"><span>${escapeHtml(player.name)}</span>${hostBadge}</span>
                     <span class="party-player-state ${readyClass}">${readyText}</span>
                     <span class="party-player-state ${connectedClass}">${connectedText}</span>
                 </div>
