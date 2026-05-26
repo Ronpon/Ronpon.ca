@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Write a Question for The Pulse - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="shop-page shop-detail-page">
+    <div class="section-header">
+        <h1>Write Your Own Question for The Pulse<a href="#pulse-question-detail-note" class="shop-asterisk" aria-label="Read submission note">*</a></h1>
+    </div>
+    <p class="shop-intro">
+        A $10.00 question submission flow is being prepared. This preview shows the information the finished checkout will collect.
+    </p>
+
+    <div class="shop-detail-layout">
+        <section class="shop-detail-panel">
+            <span class="shop-product-kind">The Pulse</span>
+            <p class="shop-detail-price">$10.00</p>
+            <p>
+                Send in a multiple-choice poll question for possible use in The Pulse, where players try to predict how people answer. This is a paid submission option only, not paid entry into a contest or game.
+            </p>
+            <p id="pulse-question-detail-note" class="shop-fine-print">
+                *Question submissions are reviewed before use. Buying this does not guarantee your question will appear in a poll or episode. We may edit, reject, or skip submissions for clarity, length, appropriateness, legality, duplication, tone, or overall fit with The Pulse.
+            </p>
+            <a href="{{ url_for('shop.index') }}" class="btn btn-secondary">Back to Shop</a>
+        </section>
+
+        <form class="shop-preview-form" aria-disabled="true">
+            <fieldset disabled>
+                <legend>Submission Preview</legend>
+
+                <label>
+                    Poll question
+                    <textarea rows="4" placeholder="What question should The Pulse ask?"></textarea>
+                </label>
+
+                <div class="shop-option-grid">
+                    <label>
+                        Option A
+                        <input type="text" placeholder="First answer">
+                    </label>
+                    <label>
+                        Option B
+                        <input type="text" placeholder="Second answer">
+                    </label>
+                    <label>
+                        Option C
+                        <input type="text" placeholder="Third answer">
+                    </label>
+                    <label>
+                        Option D
+                        <input type="text" placeholder="Fourth answer">
+                    </label>
+                </div>
+
+                <label>
+                    Display name
+                    <input type="text" placeholder="How should we credit you?">
+                </label>
+
+                <label class="shop-check-row">
+                    <input type="checkbox">
+                    Submit anonymously
+                </label>
+
+                <label>
+                    Email or contact info
+                    <input type="email" placeholder="you@example.com">
+                </label>
+
+                <label>
+                    Optional notes
+                    <textarea rows="3" placeholder="Anything else we should know?"></textarea>
+                </label>
+
+                <button type="button" class="btn" disabled>Checkout Coming Soon</button>
+            </fieldset>
+        </form>
+    </div>
+</div>
+{% endblock %}

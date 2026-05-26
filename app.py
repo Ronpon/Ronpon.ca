@@ -66,12 +66,14 @@ from routes.auth import auth_bp
 from routes.games import games_bp
 from routes.videos import videos_bp
 from routes.pulse import pulse_bp
+from routes.shop import shop_bp
 
 app.register_blueprint(main_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(games_bp, url_prefix="/games")
 app.register_blueprint(videos_bp, url_prefix="/videos")
 app.register_blueprint(pulse_bp, url_prefix="/the-pulse")
+app.register_blueprint(shop_bp)
 if app.config.get("ENABLE_SCORES", False):
     from routes.scores import scores_bp
     app.register_blueprint(scores_bp, url_prefix="/scores")
