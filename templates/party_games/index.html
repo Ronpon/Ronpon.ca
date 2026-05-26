@@ -21,6 +21,15 @@
                     {% endfor %}
                 </select>
             </label>
+            <label>
+                Your Name
+                <input
+                    name="host_name"
+                    value="{{ default_name }}"
+                    autocomplete="nickname"
+                    maxlength="{{ max_name_length }}"
+                    required>
+            </label>
             <button type="submit" class="btn">Host Game</button>
         </form>
 
@@ -44,6 +53,7 @@
                 Display Name
                 <input
                     name="name"
+                    value="{{ default_name }}"
                     autocomplete="nickname"
                     maxlength="{{ max_name_length }}"
                     required>

@@ -1896,6 +1896,11 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     background: #4ecdc4;
 }
 
+.party-player-state.host {
+    color: #08080f;
+    background: #f4d35e;
+}
+
 .party-player-state.offline {
     color: #08080f;
     background: #f4d35e;
@@ -1903,6 +1908,27 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
 
 .party-empty {
     color: var(--color-text-muted);
+}
+
+.party-host-player-box {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.45rem 0.75rem;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+}
+
+.party-host-player-box .party-label {
+    grid-column: 1 / -1;
+}
+
+.party-host-player-box h2 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 1.1rem;
 }
 
 @media (max-width: 768px) {
@@ -1919,6 +1945,10 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     }
 
     .party-code-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .party-host-player-box {
         grid-template-columns: 1fr;
     }
 

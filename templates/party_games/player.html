@@ -74,9 +74,11 @@
             const readyClass = player.is_ready ? 'ready' : 'waiting';
             const readyText = player.is_ready ? 'Ready' : 'Waiting';
             const selfClass = currentPlayer && player.id === currentPlayer.id ? ' self' : '';
+            const hostBadge = player.is_host_player ? '<span class="party-player-state host">Host</span>' : '';
             return `
                 <div class="party-player-row${selfClass}">
                     <span class="party-player-name">${escapeHtml(player.name)}</span>
+                    ${hostBadge}
                     <span class="party-player-state ${readyClass}">${readyText}</span>
                 </div>
             `;

@@ -163,8 +163,8 @@ def snapshot_room(
         room["player_count"] = len(players)
         return {
             "room": _public_room(room),
-            "players": [_public_player(p) for p in players],
-            "current_player": _public_player(player) if player else None,
+            "players": [_public_player(p, host_token=room["host_token"]) for p in players],
+            "current_player": _public_player(player, host_token=room["host_token"]) if player else None,
             "is_host": is_host,
             "server_time": now,
         }
@@ -355,15 +355,21 @@ def _public_room(room: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _public_player(player: dict[str, Any] | None) -> dict[str, Any] | None:
+def _public_player(
+    player: dict[str, Any] | None,
+    *,
+    host_token: str | None = None,
+) -> dict[str, Any] | None:
     if not player:
         return None
+    is_host_player = bool(host_token and secrets.compare_digest(player["token"], host_token))
     return {
         "id": player["id"],
         "name": player["name"],
         "is_ready": player["is_ready"],
         "score": player["score"],
         "is_connected": _is_recent(player["last_seen_at"]),
+        "is_host_player": is_host_player,
     }
 
 
