@@ -6,6 +6,22 @@
     <h1>Games</h1>
 </div>
 
+<h2 class="game-row-title">Party Games</h2>
+<div class="game-grid">
+    {% for game in party_games %}
+    <a href="{{ url_for('party_games.index') }}" class="game-card">
+        <div class="game-card-thumb">
+            <div class="game-card-placeholder">P</div>
+        </div>
+        <div class="game-card-body">
+            <h3>{{ game.title }}</h3>
+            <p>{{ game.description }}</p>
+            <span class="game-platform-badge">{{ game.platform }}</span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
 <h2 class="game-row-title">PC Games</h2>
 <div class="game-grid">
     {% for game in pc_games %}

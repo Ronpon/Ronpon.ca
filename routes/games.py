@@ -34,13 +34,23 @@ GAMES = [
     },
 ]
 
+PARTY_GAMES = [
+    {
+        "title": "Party Games",
+        "description": "Room-code games for a shared host screen and phone controllers.",
+        "platform": "Group",
+    }
+]
+
 
 @games_bp.route("/")
 def index():
     pc_games = [g for g in GAMES if g["platform"] == "PC"]
     mobile_games = [g for g in GAMES if g["platform"] == "Mobile"]
     return render_template("games/index.html",
-                           pc_games=pc_games, mobile_games=mobile_games)
+                           pc_games=pc_games,
+                           mobile_games=mobile_games,
+                           party_games=PARTY_GAMES)
 
 
 @games_bp.route("/battle-chess")

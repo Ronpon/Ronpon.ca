@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Party Games - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="party-page">
+    <div class="section-header party-header">
+        <h1>Party Games</h1>
+    </div>
+
+    <div class="party-index-grid">
+        <form method="post" action="{{ url_for('party_games.create_room') }}" class="party-panel">
+            <div class="party-panel-heading">
+                <span class="party-kicker">Host</span>
+                <h2>Start a Room</h2>
+            </div>
+            <label>
+                Game
+                <select name="game_key">
+                    {% for game in games %}
+                    <option value="{{ game.key }}">{{ game.title }} - {{ game.player_range }} players</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <button type="submit" class="btn">Host Game</button>
+        </form>
+
+        <form method="post" action="{{ url_for('party_games.join_room') }}" class="party-panel">
+            <div class="party-panel-heading">
+                <span class="party-kicker">Join</span>
+                <h2>Enter a Code</h2>
+            </div>
+            <label>
+                Room Code
+                <input
+                    name="code"
+                    value="{{ prefill_code }}"
+                    inputmode="text"
+                    autocomplete="off"
+                    maxlength="8"
+                    placeholder="ABCD"
+                    required>
+            </label>
+            <label>
+                Display Name
+                <input
+                    name="name"
+                    autocomplete="nickname"
+                    maxlength="{{ max_name_length }}"
+                    required>
+            </label>
+            <button type="submit" class="btn btn-secondary">Join Game</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

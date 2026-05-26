@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Host {{ snapshot.room.code }} - Party Games{% endblock %}
+
+{% block content %}
+<div
+    class="party-room party-host-room"
+    data-code="{{ snapshot.room.code }}"
+    data-state-url="{{ url_for('party_games.room_state', code=snapshot.room.code) }}">
+    <div class="party-room-top">
+        <div>
+            <span class="party-kicker">Party Games</span>
+            <h1>{{ game.title }}</h1>
+        </div>
+        <a href="{{ url_for('party_games.index') }}" class="btn btn-small btn-secondary">Hub</a>
+    </div>
+
+    <div class="party-host-layout">
+        <section class="party-code-panel">
+            <span class="party-label">Room Code</span>
+            <strong id="party-room-code">{{ snapshot.room.code }}</strong>
+            <input id="party-join-link" value="{{ join_url }}" readonly>
+            <button type="button" id="party-copy-link" class="btn btn-small btn-secondary">Copy Link</button>
+        </section>
+
+        <section class="party-panel party-controls-panel">
+            <div class="party-status-row">
+                <span class="party-label">Status</span>
+                <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
+            </div>
+            <div class="party-action-row">
+                <button type="button" id="party-start" class="btn">Start</button>
+                <button type="button" id="party-reset" class="btn btn-secondary">Back to Lobby</button>
+                <button type="button" id="party-close" class="btn btn-secondary">Close</button>
+            </div>
+        </section>
+    </div>
+
+    <section class="party-panel party-player-panel">
+        <div class="party-panel-heading party-player-heading">
+            <div>
+                <span class="party-kicker">Players</span>
+                <h2><span id="party-player-count">{{ snapshot.players|length }}</span> Joined</h2>
+            </div>
+        </div>
+        <div id="party-player-list" class="party-player-list"></div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const root = document.querySelector('.party-room');
+    const code = root.dataset.code;
+    const stateUrl = root.dataset.stateUrl;
+    const initialState = {{ snapshot|tojson }};
+
+    const statusEl = document.getElementById('party-status');
+    const countEl = document.getElementById('party-player-count');
+    const listEl = document.getElementById('party-player-list');
+    const startBtn = document.getElementById('party-start');
+    const resetBtn = document.getElementById('party-reset');
+    const closeBtn = document.getElementById('party-close');
+    const copyBtn = document.getElementById('party-copy-link');
+    const joinLink = document.getElementById('party-join-link');
+
+    function render(state) {
+        const room = state.room;
+        const players = state.players || [];
+        statusEl.textContent = room.status;
+        statusEl.dataset.status = room.status;
+        countEl.textContent = players.length;
+        startBtn.disabled = room.status !== 'lobby';
+        resetBtn.disabled = room.status === 'lobby';
+        closeBtn.disabled = room.status === 'closed';
+
+        if (!players.length) {
+            listEl.innerHTML = '<p class="party-empty">No players yet.</p>';
+            return;
+        }
+
+        listEl.innerHTML = players.map(function(player) {
+            const readyClass = player.is_ready ? 'ready' : 'waiting';
+            const readyText = player.is_ready ? 'Ready' : 'Waiting';
+            const connectedClass = player.is_connected ? 'online' : 'offline';
+            const connectedText = player.is_connected ? 'Online' : 'Away';
+            return `
+                <div class="party-player-row">
+                    <span class="party-player-name">${escapeHtml(player.name)}</span>
+                    <span class="party-player-state ${readyClass}">${readyText}</span>
+                    <span class="party-player-state ${connectedClass}">${connectedText}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function loadState() {
+        return fetch(stateUrl)
+            .then(function(response) {
+                if (!response.ok) { throw new Error('state'); }
+                return response.json();
+            })
+            .then(render)
+            .catch(function() {});
+    }
+
+    function roomAction(action) {
+        return fetch(`/games/party/api/rooms/${code}/${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.error) { return loadState(); }
+            if (data.redirect) {
+                window.location.href = data.redirect;
+                return;
+            }
+            render(data);
+        });
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function(char) {
+            return ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char];
+        });
+    }
+
+    startBtn.addEventListener('click', function() { roomAction('start'); });
+    resetBtn.addEventListener('click', function() { roomAction('reset'); });
+    closeBtn.addEventListener('click', function() { roomAction('close'); });
+    copyBtn.addEventListener('click', function() {
+        joinLink.select();
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(joinLink.value).catch(function() {
+                document.execCommand('copy');
+            });
+        } else {
+            document.execCommand('copy');
+        }
+        copyBtn.textContent = 'Copied';
+        window.setTimeout(function() { copyBtn.textContent = 'Copy Link'; }, 1200);
+    });
+
+    render(initialState);
+    window.setInterval(loadState, 1500);
+})();
+</script>
+{% endblock %}

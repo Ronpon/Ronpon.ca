@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ game.title }} - Party Games{% endblock %}
+
+{% block content %}
+<div
+    class="party-room party-player-room"
+    data-code="{{ snapshot.room.code }}"
+    data-state-url="{{ url_for('party_games.room_state', code=snapshot.room.code) }}">
+    <div class="party-room-top">
+        <div>
+            <span class="party-kicker">Party Games</span>
+            <h1>{{ game.title }}</h1>
+        </div>
+        <span class="party-mini-code">{{ snapshot.room.code }}</span>
+    </div>
+
+    <section class="party-panel party-player-controls">
+        <div>
+            <span class="party-label">Playing as</span>
+            <h2 id="party-player-name">{{ snapshot.current_player.name }}</h2>
+        </div>
+        <div class="party-action-row">
+            <button type="button" id="party-ready" class="btn">Ready</button>
+            <button type="button" id="party-leave" class="btn btn-secondary">Leave</button>
+        </div>
+    </section>
+
+    <section class="party-panel party-player-panel">
+        <div class="party-status-row">
+            <span class="party-label">Status</span>
+            <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
+        </div>
+        <div id="party-player-list" class="party-player-list"></div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const root = document.querySelector('.party-room');
+    const code = root.dataset.code;
+    const stateUrl = root.dataset.stateUrl;
+    const initialState = {{ snapshot|tojson }};
+
+    const statusEl = document.getElementById('party-status');
+    const listEl = document.getElementById('party-player-list');
+    const readyBtn = document.getElementById('party-ready');
+    const leaveBtn = document.getElementById('party-leave');
+    const nameEl = document.getElementById('party-player-name');
+    let isReady = Boolean(initialState.current_player && initialState.current_player.is_ready);
+
+    function render(state) {
+        const room = state.room;
+        const players = state.players || [];
+        const currentPlayer = state.current_player;
+        statusEl.textContent = room.status;
+        statusEl.dataset.status = room.status;
+        readyBtn.disabled = room.status !== 'lobby';
+
+        if (currentPlayer) {
+            isReady = Boolean(currentPlayer.is_ready);
+            nameEl.textContent = currentPlayer.name;
+            readyBtn.textContent = isReady ? 'Ready' : 'Ready Up';
+            readyBtn.classList.toggle('btn-secondary', isReady);
+        }
+
+        if (!players.length) {
+            listEl.innerHTML = '<p class="party-empty">No players yet.</p>';
+            return;
+        }
+
+        listEl.innerHTML = players.map(function(player) {
+            const readyClass = player.is_ready ? 'ready' : 'waiting';
+            const readyText = player.is_ready ? 'Ready' : 'Waiting';
+            const selfClass = currentPlayer && player.id === currentPlayer.id ? ' self' : '';
+            return `
+                <div class="party-player-row${selfClass}">
+                    <span class="party-player-name">${escapeHtml(player.name)}</span>
+                    <span class="party-player-state ${readyClass}">${readyText}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function loadState() {
+        return fetch(stateUrl)
+            .then(function(response) {
+                if (!response.ok) { throw new Error('state'); }
+                return response.json();
+            })
+            .then(render)
+            .catch(function() {});
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function(char) {
+            return ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char];
+        });
+    }
+
+    readyBtn.addEventListener('click', function() {
+        fetch(`/games/party/api/rooms/${code}/ready`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_ready: !isReady })
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.error) { return loadState(); }
+            render(data);
+        });
+    });
+
+    leaveBtn.addEventListener('click', function() {
+        fetch(`/games/party/api/rooms/${code}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            window.location.href = data.redirect || '/games/party/';
+        });
+    });
+
+    render(initialState);
+    window.setInterval(loadState, 1500);
+})();
+</script>
+{% endblock %}

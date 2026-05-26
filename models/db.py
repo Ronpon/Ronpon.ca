@@ -307,6 +307,58 @@ def init_db(app_config) -> None:
             )
         """)
 
+        # Party Games rooms and players.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_rooms (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                code         TEXT    NOT NULL UNIQUE,
+                game_key     TEXT    NOT NULL,
+                status       TEXT    NOT NULL DEFAULT 'lobby',
+                host_token   TEXT    NOT NULL,
+                state_json   TEXT    NOT NULL DEFAULT '{}',
+                created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_rooms (
+                id           SERIAL PRIMARY KEY,
+                code         TEXT    NOT NULL UNIQUE,
+                game_key     TEXT    NOT NULL,
+                status       TEXT    NOT NULL DEFAULT 'lobby',
+                host_token   TEXT    NOT NULL,
+                state_json   TEXT    NOT NULL DEFAULT '{}',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_players (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id      INTEGER NOT NULL REFERENCES party_rooms(id) ON DELETE CASCADE,
+                name         TEXT    NOT NULL,
+                token        TEXT    NOT NULL,
+                is_ready     INTEGER NOT NULL DEFAULT 0,
+                score        INTEGER NOT NULL DEFAULT 0,
+                joined_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+                last_seen_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(room_id, token)
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_players (
+                id           SERIAL PRIMARY KEY,
+                room_id      INTEGER NOT NULL REFERENCES party_rooms(id) ON DELETE CASCADE,
+                name         TEXT    NOT NULL,
+                token        TEXT    NOT NULL,
+                is_ready     BOOLEAN NOT NULL DEFAULT FALSE,
+                score        INTEGER NOT NULL DEFAULT 0,
+                joined_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(room_id, token)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_party_players_room ON party_players(room_id)")
+
         # ── Pulse Videos (Game Show & Podcast episodes) ─────────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS pulse_videos (

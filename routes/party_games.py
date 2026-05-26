@@ -1,0 +1,215 @@
+"""Party Games lobby and realtime-ish room routes."""
+from __future__ import annotations
+
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+
+from models import party_games
+
+
+party_games_bp = Blueprint("party_games", __name__)
+
+PARTY_GAME_CATALOG = {
+    "lobby-test": {
+        "key": "lobby-test",
+        "title": "Lobby Test",
+        "description": "A reusable room-code lobby for the first wave of Party Games.",
+        "player_range": "2-12",
+    }
+}
+
+HOST_SESSION_KEY = "party_host_tokens"
+PLAYER_SESSION_KEY = "party_player_tokens"
+
+
+@party_games_bp.route("/")
+def index():
+    code = party_games.normalize_code(request.args.get("code", ""))
+    return render_template(
+        "party_games/index.html",
+        games=list(PARTY_GAME_CATALOG.values()),
+        prefill_code=code,
+        max_name_length=party_games.MAX_PLAYER_NAME_LENGTH,
+    )
+
+
+@party_games_bp.post("/rooms")
+def create_room():
+    game_key = request.form.get("game_key", "lobby-test")
+    if game_key not in PARTY_GAME_CATALOG:
+        flash("Choose a Party Game.", "error")
+        return redirect(url_for("party_games.index"))
+
+    host_token = party_games.new_token()
+    try:
+        room = party_games.create_room(game_key, host_token)
+    except party_games.PartyGameError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("party_games.index"))
+
+    _store_session_token(HOST_SESSION_KEY, room["code"], host_token)
+    return redirect(url_for("party_games.host_room", code=room["code"]))
+
+
+@party_games_bp.post("/join")
+def join_room():
+    code = party_games.normalize_code(request.form.get("code", ""))
+    name = party_games.clean_player_name(request.form.get("name", ""))
+    if not code:
+        flash("Enter a room code.", "error")
+        return redirect(url_for("party_games.index"))
+    if not name:
+        flash("Enter a display name.", "error")
+        return redirect(url_for("party_games.index", code=code))
+
+    player_token = _session_token(PLAYER_SESSION_KEY, code) or party_games.new_token()
+    try:
+        room, _player = party_games.join_room(code, player_token, name)
+    except party_games.PartyGameError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("party_games.index", code=code))
+
+    _store_session_token(PLAYER_SESSION_KEY, room["code"], player_token)
+    return redirect(url_for("party_games.player_room", code=room["code"]))
+
+
+@party_games_bp.get("/rooms/<code>/host")
+def host_room(code):
+    normalized = party_games.normalize_code(code)
+    host_token = _session_token(HOST_SESSION_KEY, normalized)
+    snapshot = _snapshot(normalized, host_token=host_token)
+    if not snapshot or not snapshot["is_host"]:
+        flash("Host access for that room was not found in this browser.", "error")
+        return redirect(url_for("party_games.index", code=normalized))
+
+    return render_template(
+        "party_games/host.html",
+        game=_game_for_snapshot(snapshot),
+        snapshot=snapshot,
+        join_url=url_for("party_games.index", code=normalized, _external=True),
+    )
+
+
+@party_games_bp.get("/rooms/<code>/player")
+def player_room(code):
+    normalized = party_games.normalize_code(code)
+    player_token = _session_token(PLAYER_SESSION_KEY, normalized)
+    snapshot = _snapshot(normalized, player_token=player_token)
+    if not snapshot or not snapshot["current_player"]:
+        flash("Join that room to play.", "error")
+        return redirect(url_for("party_games.index", code=normalized))
+
+    return render_template(
+        "party_games/player.html",
+        game=_game_for_snapshot(snapshot),
+        snapshot=snapshot,
+        max_name_length=party_games.MAX_PLAYER_NAME_LENGTH,
+    )
+
+
+@party_games_bp.get("/api/rooms/<code>")
+def room_state(code):
+    normalized = party_games.normalize_code(code)
+    snapshot = _snapshot(
+        normalized,
+        host_token=_session_token(HOST_SESSION_KEY, normalized),
+        player_token=_session_token(PLAYER_SESSION_KEY, normalized),
+    )
+    if not snapshot:
+        return jsonify({"error": "Room not found."}), 404
+    return jsonify(snapshot)
+
+
+@party_games_bp.post("/api/rooms/<code>/start")
+def start_room(code):
+    normalized = party_games.normalize_code(code)
+    host_token = _session_token(HOST_SESSION_KEY, normalized)
+    if not party_games.set_room_status(normalized, host_token or "", "playing"):
+        return jsonify({"error": "Host access required."}), 403
+    return _snapshot_json(normalized, host_token=host_token)
+
+
+@party_games_bp.post("/api/rooms/<code>/reset")
+def reset_room(code):
+    normalized = party_games.normalize_code(code)
+    host_token = _session_token(HOST_SESSION_KEY, normalized)
+    if not party_games.reset_room(normalized, host_token or ""):
+        return jsonify({"error": "Host access required."}), 403
+    return _snapshot_json(normalized, host_token=host_token)
+
+
+@party_games_bp.post("/api/rooms/<code>/close")
+def close_room(code):
+    normalized = party_games.normalize_code(code)
+    host_token = _session_token(HOST_SESSION_KEY, normalized)
+    if not party_games.set_room_status(normalized, host_token or "", "closed"):
+        return jsonify({"error": "Host access required."}), 403
+    _remove_session_token(HOST_SESSION_KEY, normalized)
+    return jsonify({"ok": True, "redirect": url_for("party_games.index")})
+
+
+@party_games_bp.post("/api/rooms/<code>/ready")
+def set_ready(code):
+    normalized = party_games.normalize_code(code)
+    player_token = _session_token(PLAYER_SESSION_KEY, normalized)
+    payload = request.get_json(silent=True) or {}
+    player = party_games.set_player_ready(normalized, player_token or "", bool(payload.get("is_ready")))
+    if not player:
+        return jsonify({"error": "Player access required."}), 403
+    return _snapshot_json(normalized, player_token=player_token)
+
+
+@party_games_bp.post("/api/rooms/<code>/leave")
+def leave_room(code):
+    normalized = party_games.normalize_code(code)
+    player_token = _session_token(PLAYER_SESSION_KEY, normalized)
+    if player_token:
+        party_games.leave_room(normalized, player_token)
+        _remove_session_token(PLAYER_SESSION_KEY, normalized)
+    return jsonify({"ok": True, "redirect": url_for("party_games.index", code=normalized)})
+
+
+def _snapshot(code: str, *, host_token: str | None = None, player_token: str | None = None):
+    snapshot = party_games.snapshot_room(code, host_token=host_token, player_token=player_token)
+    if not snapshot:
+        return None
+    snapshot["room"]["game_title"] = _game_for_snapshot(snapshot)["title"]
+    snapshot["room"]["game_description"] = _game_for_snapshot(snapshot)["description"]
+    snapshot["room"]["player_range"] = _game_for_snapshot(snapshot)["player_range"]
+    return snapshot
+
+
+def _snapshot_json(code: str, *, host_token: str | None = None, player_token: str | None = None):
+    snapshot = _snapshot(code, host_token=host_token, player_token=player_token)
+    if not snapshot:
+        return jsonify({"error": "Room not found."}), 404
+    return jsonify(snapshot)
+
+
+def _game_for_snapshot(snapshot: dict):
+    return PARTY_GAME_CATALOG.get(snapshot["room"]["game_key"], PARTY_GAME_CATALOG["lobby-test"])
+
+
+def _session_token(key: str, code: str) -> str | None:
+    values = session.get(key)
+    if not isinstance(values, dict):
+        return None
+    token = values.get(code)
+    return token if isinstance(token, str) else None
+
+
+def _store_session_token(key: str, code: str, token: str) -> None:
+    values = session.get(key)
+    if not isinstance(values, dict):
+        values = {}
+    values[code] = token
+    session[key] = values
+    session.modified = True
+
+
+def _remove_session_token(key: str, code: str) -> None:
+    values = session.get(key)
+    if not isinstance(values, dict):
+        return
+    values.pop(code, None)
+    session[key] = values
+    session.modified = True
