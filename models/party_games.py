@@ -121,7 +121,7 @@ def join_room(code: str, player_token: str, name: str) -> tuple[dict[str, Any], 
                 (room_id, name, token, is_ready, score, joined_at, last_seen_at)
             VALUES ({ph(7)})
             """,
-            (room["id"], player_name, player_token, 0, 0, now, now),
+            (room["id"], player_name, player_token, False, 0, now, now),
         )
         _touch_room(cur, room["id"], now)
         return room, _select_player_by_token(cur, room["id"], player_token)
@@ -187,7 +187,7 @@ def set_player_ready(code: str, player_token: str, is_ready: bool) -> dict[str, 
             SET is_ready = {ph()}, last_seen_at = {ph()}
             WHERE id = {ph()}
             """,
-            (1 if is_ready else 0, now, player["id"]),
+            (bool(is_ready), now, player["id"]),
         )
         _touch_room(cur, room["id"], now)
         return _select_player_by_token(cur, room["id"], player_token)
@@ -222,7 +222,7 @@ def set_room_status(code: str, host_token: str, status: str) -> dict[str, Any] |
         if status == "lobby":
             cur.execute(
                 f"UPDATE party_players SET is_ready = {ph()} WHERE room_id = {ph()}",
-                (0, room["id"]),
+                (False, room["id"]),
             )
         cur.execute(
             f"UPDATE party_rooms SET status = {ph()}, updated_at = {ph()} WHERE id = {ph()}",
@@ -250,7 +250,7 @@ def reset_room(code: str, host_token: str) -> dict[str, Any] | None:
         )
         cur.execute(
             f"UPDATE party_players SET is_ready = {ph()}, score = {ph()} WHERE room_id = {ph()}",
-            (0, 0, room["id"]),
+            (False, 0, room["id"]),
         )
         return _select_room_by_code(cur, normalized)
 
