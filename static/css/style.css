@@ -1950,7 +1950,7 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
 .party-game-active .party-info-toggle {
     display: inline-flex;
     position: fixed;
-    top: calc(var(--nav-height) + 0.75rem);
+    top: calc(var(--nav-height) + 0.25rem);
     right: 1rem;
     z-index: 1200;
 }
@@ -1962,7 +1962,7 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
 .party-game-active.party-info-open .party-info-drawer {
     display: flex;
     position: fixed;
-    top: calc(var(--nav-height) + 3.65rem);
+    top: calc(var(--nav-height) + 3.15rem);
     right: 1rem;
     z-index: 1190;
     width: min(430px, calc(100vw - 2rem));
@@ -2252,6 +2252,17 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
 
     .scenes-letter-bank {
         grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .party-game-active .party-info-toggle {
+        top: calc(var(--nav-height) + 0.1rem);
+        right: 0.65rem;
+    }
+
+    .party-game-active.party-info-open .party-info-drawer {
+        top: calc(var(--nav-height) + 3rem);
+        right: 0.65rem;
+        width: calc(100vw - 1.3rem);
     }
 
     .party-code-panel .btn,

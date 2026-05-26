@@ -55,6 +55,7 @@
                             <option value="3" selected>3 rounds</option>
                             <option value="5">5 rounds</option>
                             <option value="7">7 rounds</option>
+                            <option value="9">9 rounds</option>
                         </select>
                     </label>
                 </div>
@@ -107,6 +108,8 @@
     const joinLink = document.getElementById('party-join-link');
     const readyBtn = document.getElementById('party-ready');
     const nameEl = document.getElementById('party-player-name');
+    const scenesMode = document.getElementById('scenes-mode');
+    const scenesAnswerSeconds = document.getElementById('scenes-answer-seconds');
     let isReady = Boolean(initialState.current_player && initialState.current_player.is_ready);
 
     function render(state) {
@@ -207,6 +210,13 @@
     startBtn.addEventListener('click', function() { roomAction('start'); });
     resetBtn.addEventListener('click', function() { roomAction('reset'); });
     closeBtn.addEventListener('click', function() { roomAction('close'); });
+    if (scenesMode && scenesAnswerSeconds) {
+        scenesMode.addEventListener('change', function() {
+            if (scenesMode.value === 'jumble') {
+                scenesAnswerSeconds.value = '120';
+            }
+        });
+    }
     readyBtn.addEventListener('click', function() {
         fetch(`/games/party/api/rooms/${code}/ready`, {
             method: 'POST',

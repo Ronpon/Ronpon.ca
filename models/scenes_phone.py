@@ -17,7 +17,7 @@ from models import party_games
 GAME_KEY = "scenes-from-your-phone"
 MODES = {"standard", "jumble", "draw"}
 ANSWER_SECONDS = {30, 60, 120}
-ROUND_COUNTS = {3, 5, 7}
+ROUND_COUNTS = {3, 5, 7, 9}
 VOTE_SECONDS = 30
 REVEAL_SECONDS_PER_ANSWER = 2.0
 MAX_TEXT_LENGTH = 180
