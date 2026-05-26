@@ -27,6 +27,34 @@
                 <span class="party-label">Status</span>
                 <span id="party-status" class="party-status-pill">{{ snapshot.room.status }}</span>
             </div>
+            {% if game.key == 'scenes-from-your-phone' %}
+            <div id="scenes-settings" class="scenes-settings">
+                <label>
+                    Time
+                    <select id="scenes-answer-seconds">
+                        <option value="30">30 seconds</option>
+                        <option value="60" selected>1 minute</option>
+                        <option value="120">2 minutes</option>
+                    </select>
+                </label>
+                <label>
+                    Mode
+                    <select id="scenes-mode">
+                        <option value="standard">Standard</option>
+                        <option value="jumble">Jumble</option>
+                        <option value="draw">Draw</option>
+                    </select>
+                </label>
+                <label>
+                    Rounds
+                    <select id="scenes-rounds">
+                        <option value="3" selected>3 rounds</option>
+                        <option value="5">5 rounds</option>
+                        <option value="7">7 rounds</option>
+                    </select>
+                </label>
+            </div>
+            {% endif %}
             <div class="party-host-player-box">
                 <span class="party-label">Playing as</span>
                 <h2 id="party-player-name">{{ snapshot.current_player.name if snapshot.current_player else 'Host' }}</h2>
@@ -49,6 +77,10 @@
         </div>
         <div id="party-player-list" class="party-player-list"></div>
     </section>
+
+    {% if game.key == 'scenes-from-your-phone' %}
+    <section id="scenes-game-panel" class="party-panel scenes-panel"></section>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -83,6 +115,10 @@
         resetBtn.disabled = room.status === 'lobby';
         closeBtn.disabled = room.status === 'closed';
         readyBtn.disabled = room.status !== 'lobby';
+        const scenesSettings = document.getElementById('scenes-settings');
+        if (scenesSettings) {
+            scenesSettings.style.display = room.status === 'lobby' ? '' : 'none';
+        }
 
         if (currentPlayer) {
             isReady = Boolean(currentPlayer.is_ready);
@@ -125,10 +161,11 @@
     }
 
     function roomAction(action) {
+        const payload = action === 'start' ? scenesStartSettings() : {};
         return fetch(`/games/party/api/rooms/${code}/${action}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: '{}'
+            body: JSON.stringify(payload)
         }).then(function(response) {
             return response.json();
         }).then(function(data) {
@@ -139,6 +176,16 @@
             }
             render(data);
         });
+    }
+
+    function scenesStartSettings() {
+        const settings = document.getElementById('scenes-settings');
+        if (!settings) { return {}; }
+        return {
+            answer_seconds: Number(document.getElementById('scenes-answer-seconds').value),
+            mode: document.getElementById('scenes-mode').value,
+            rounds: Number(document.getElementById('scenes-rounds').value)
+        };
     }
 
     function escapeHtml(value) {
@@ -185,4 +232,7 @@
     window.setInterval(loadState, 1500);
 })();
 </script>
+{% if game.key == 'scenes-from-your-phone' %}
+{% include "party_games/scenes_runtime.html" %}
+{% endif %}
 {% endblock %}

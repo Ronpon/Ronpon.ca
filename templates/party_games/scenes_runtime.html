@@ -1,0 +1,367 @@
+<script>
+(function() {
+    const root = document.querySelector('.party-room');
+    const panel = document.getElementById('scenes-game-panel');
+    if (!root || !panel) { return; }
+
+    const code = root.dataset.code;
+    const stateUrl = root.dataset.stateUrl;
+    const initialState = {{ snapshot|tojson }};
+    let lastRenderKey = '';
+    let draftKey = '';
+    let draftText = '';
+    let jumbleUsed = [];
+    let canvasApi = null;
+
+    function render(state) {
+        if (!state.game) { return; }
+        const game = state.game;
+        const phase = game.phase || 'lobby';
+        const player = state.current_player || {};
+        const renderKey = [
+            phase,
+            game.round,
+            game.mode,
+            game.submitted_current,
+            game.voted_current,
+            game.reveal_step,
+            game.answer_count,
+            game.vote_count
+        ].join(':');
+
+        updateTimer(game);
+        if (renderKey === lastRenderKey) { return; }
+        lastRenderKey = renderKey;
+
+        if (phase === 'answer') {
+            renderAnswer(game, player);
+        } else if (phase === 'vote') {
+            renderVote(game);
+        } else if (phase === 'reveal') {
+            renderReveal(game, false);
+        } else if (phase === 'results') {
+            renderReveal(game, true);
+        } else {
+            renderLobby();
+        }
+        updateTimer(game);
+    }
+
+    function renderLobby() {
+        panel.innerHTML = `
+            <div class="scenes-topline">
+                <span class="party-kicker">Scenes From Your Phone</span>
+                <span class="scenes-timer">Lobby</span>
+            </div>
+            <h2>Waiting to start</h2>
+        `;
+    }
+
+    function renderAnswer(game) {
+        canvasApi = null;
+        const nextDraftKey = `${game.round}:${game.mode}:${game.prompt}`;
+        if (draftKey !== nextDraftKey) {
+            draftKey = nextDraftKey;
+            draftText = '';
+            jumbleUsed = game.letters.map(function() { return false; });
+        }
+        const submitted = Boolean(game.submitted_current);
+        panel.innerHTML = `
+            ${header(game, 'Answer')}
+            <h2 class="scenes-prompt">${escapeHtml(game.prompt)}</h2>
+            <div id="scenes-input-wrap"></div>
+            <div class="scenes-action-row">
+                <button type="button" id="scenes-submit-answer" class="btn">${submitted ? 'Submitted' : 'Done'}</button>
+            </div>
+        `;
+        const wrap = document.getElementById('scenes-input-wrap');
+        const submitBtn = document.getElementById('scenes-submit-answer');
+        submitBtn.disabled = submitted;
+
+        if (submitted) {
+            wrap.innerHTML = '<p class="party-empty">Answer locked in. Waiting for everyone else.</p>';
+            return;
+        }
+
+        if (game.mode === 'draw') {
+            wrap.innerHTML = `
+                <canvas id="scenes-canvas" class="scenes-canvas" width="640" height="420"></canvas>
+                <div class="scenes-action-row">
+                    <button type="button" id="scenes-clear-canvas" class="btn btn-small btn-secondary">Clear</button>
+                </div>
+            `;
+            canvasApi = setupCanvas(document.getElementById('scenes-canvas'));
+            document.getElementById('scenes-clear-canvas').addEventListener('click', canvasApi.clear);
+        } else if (game.mode === 'jumble') {
+            if (jumbleUsed.length !== game.letters.length) {
+                jumbleUsed = game.letters.map(function() { return false; });
+                draftText = '';
+            }
+            wrap.innerHTML = `
+                <div id="scenes-jumble-output" class="scenes-jumble-output"></div>
+                <div id="scenes-letter-bank" class="scenes-letter-bank"></div>
+                <div class="scenes-action-row">
+                    <button type="button" id="scenes-space" class="btn btn-small btn-secondary">Space</button>
+                    <button type="button" id="scenes-delete" class="btn btn-small btn-secondary">Delete</button>
+                    <button type="button" id="scenes-clear" class="btn btn-small btn-secondary">Clear</button>
+                </div>
+            `;
+            renderLetters(game.letters);
+        } else {
+            wrap.innerHTML = `
+                <textarea id="scenes-answer-text" class="scenes-answer-text" maxlength="180" placeholder="Type your best/funniest answer">${escapeHtml(draftText)}</textarea>
+            `;
+            document.getElementById('scenes-answer-text').addEventListener('input', function(event) {
+                draftText = event.target.value;
+            });
+        }
+
+        submitBtn.addEventListener('click', function() {
+            submitAnswer(game.mode);
+        });
+    }
+
+    function renderLetters(letters) {
+        const output = document.getElementById('scenes-jumble-output');
+        const bank = document.getElementById('scenes-letter-bank');
+        output.textContent = draftText || 'Tap letters to build your answer';
+        output.classList.toggle('empty', !draftText);
+        bank.innerHTML = letters.map(function(letter, index) {
+            const used = jumbleUsed[index] ? ' used' : '';
+            return `<button type="button" class="scenes-letter${used}" data-index="${index}" ${jumbleUsed[index] ? 'disabled' : ''}>${escapeHtml(letter)}</button>`;
+        }).join('');
+        bank.querySelectorAll('button').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const index = Number(button.dataset.index);
+                if (jumbleUsed[index]) { return; }
+                jumbleUsed[index] = true;
+                draftText += letters[index];
+                renderLetters(letters);
+            });
+        });
+        document.getElementById('scenes-space').onclick = function() {
+            if (draftText && !draftText.endsWith(' ')) { draftText += ' '; }
+            renderLetters(letters);
+        };
+        document.getElementById('scenes-delete').onclick = function() {
+            const trimmed = draftText.replace(/\s+$/, '');
+            const removed = trimmed.slice(-1).toUpperCase();
+            draftText = trimmed.slice(0, -1);
+            const index = jumbleUsed.findIndex(function(used, idx) {
+                return used && letters[idx].toUpperCase() === removed;
+            });
+            if (index >= 0) { jumbleUsed[index] = false; }
+            renderLetters(letters);
+        };
+        document.getElementById('scenes-clear').onclick = function() {
+            draftText = '';
+            jumbleUsed = letters.map(function() { return false; });
+            renderLetters(letters);
+        };
+    }
+
+    function renderVote(game) {
+        const voted = Boolean(game.voted_current);
+        const votable = game.answers.filter(function(answer) { return !answer.is_own; });
+        panel.innerHTML = `
+            ${header(game, 'Vote')}
+            <h2 class="scenes-prompt">${escapeHtml(game.prompt)}</h2>
+            <div class="scenes-answer-grid">
+                ${game.answers.map(function(answer) { return answerCard(answer, false, !voted && !answer.is_own); }).join('')}
+            </div>
+            ${voted ? '<p class="party-empty">Vote locked in.</p>' : ''}
+            ${!voted && !votable.length ? '<p class="party-empty">No votable answers this round.</p>' : ''}
+        `;
+        panel.querySelectorAll('[data-vote-answer]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                submitVote(Number(button.dataset.voteAnswer));
+            });
+        });
+    }
+
+    function renderReveal(game, finalResults) {
+        panel.innerHTML = `
+            ${header(game, finalResults ? 'Results' : 'Reveal')}
+            <h2 class="scenes-prompt">${escapeHtml(game.prompt)}</h2>
+            <div class="scenes-answer-grid">
+                ${game.answers.map(function(answer) { return answerCard(answer, true, false); }).join('')}
+            </div>
+            <div class="scenes-scoreboard ${finalResults ? 'final' : ''}">
+                ${game.scoreboard.map(scoreRow).join('')}
+            </div>
+        `;
+    }
+
+    function answerCard(answer, showReveal, canVote) {
+        const revealed = showReveal && answer.is_revealed;
+        const owner = revealed ? escapeHtml(answer.owner_name) : (showReveal ? '???' : 'Anonymous');
+        const voteText = answer.vote_count === 1 ? '1 vote' : `${answer.vote_count || 0} votes`;
+        return `
+            <div class="scenes-answer-card ${answer.is_own ? 'own' : ''} ${revealed ? 'revealed' : ''}">
+                <div class="scenes-answer-body">
+                    ${answer.kind === 'draw'
+                        ? `<img src="${answer.image}" alt="Drawn answer">`
+                        : `<p>${escapeHtml(answer.text)}</p>`}
+                </div>
+                <div class="scenes-answer-meta">
+                    <span>${owner}</span>
+                    ${showReveal && revealed ? `<strong>${voteText}</strong>` : ''}
+                </div>
+                ${canVote ? `<button type="button" class="btn btn-small" data-vote-answer="${answer.answer_id}">Vote</button>` : ''}
+            </div>
+        `;
+    }
+
+    function scoreRow(player) {
+        const medalClass = player.rank === 1 ? 'gold' : player.rank === 2 ? 'silver' : player.rank === 3 ? 'bronze' : '';
+        return `
+            <div class="scenes-score-row ${medalClass}">
+                <span>${player.rank}. ${escapeHtml(player.name)}</span>
+                <strong>${player.score}</strong>
+            </div>
+        `;
+    }
+
+    function header(game, label) {
+        return `
+            <div class="scenes-topline">
+                <span class="party-kicker">${label} · Round ${game.round} of ${game.rounds} · ${modeLabel(game.mode)}</span>
+                <span id="scenes-timer" class="scenes-timer"></span>
+            </div>
+        `;
+    }
+
+    function updateTimer(game) {
+        const timer = document.getElementById('scenes-timer');
+        if (!timer) { return; }
+        if (!['answer', 'vote'].includes(game.phase)) {
+            timer.textContent = game.phase === 'reveal' ? 'Revealing' : '';
+            return;
+        }
+        timer.textContent = formatSeconds(game.seconds_left || 0);
+    }
+
+    function submitAnswer(mode) {
+        let payload = {};
+        if (mode === 'draw') {
+            if (!canvasApi || !canvasApi.hasInk()) { return; }
+            payload.answer_image = canvasApi.toDataURL();
+        } else {
+            payload.answer_text = draftText;
+        }
+        fetch(`/games/party/api/rooms/${code}/scenes/answer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.error) { return; }
+            render(data);
+        });
+    }
+
+    function submitVote(answerId) {
+        fetch(`/games/party/api/rooms/${code}/scenes/vote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer_id: answerId })
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.error) { return; }
+            render(data);
+        });
+    }
+
+    function loadState() {
+        fetch(stateUrl)
+            .then(function(response) {
+                if (!response.ok) { throw new Error('state'); }
+                return response.json();
+            })
+            .then(render)
+            .catch(function() {});
+    }
+
+    function setupCanvas(canvas) {
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let ink = false;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#08080f';
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        function pos(event) {
+            const rect = canvas.getBoundingClientRect();
+            const point = event.touches ? event.touches[0] : event;
+            return {
+                x: (point.clientX - rect.left) * (canvas.width / rect.width),
+                y: (point.clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+        function start(event) {
+            event.preventDefault();
+            drawing = true;
+            ink = true;
+            const p = pos(event);
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+        }
+        function move(event) {
+            if (!drawing) { return; }
+            event.preventDefault();
+            const p = pos(event);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+        }
+        function stop(event) {
+            if (event) { event.preventDefault(); }
+            drawing = false;
+        }
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', stop);
+        canvas.addEventListener('touchstart', start, { passive: false });
+        canvas.addEventListener('touchmove', move, { passive: false });
+        canvas.addEventListener('touchend', stop, { passive: false });
+        return {
+            clear: function() {
+                ink = false;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            },
+            hasInk: function() { return ink; },
+            toDataURL: function() { return canvas.toDataURL('image/png'); }
+        };
+    }
+
+    function modeLabel(mode) {
+        return ({ standard: 'Standard', jumble: 'Jumble', draw: 'Draw' })[mode] || 'Standard';
+    }
+
+    function formatSeconds(total) {
+        const minutes = Math.floor(total / 60);
+        const seconds = String(total % 60).padStart(2, '0');
+        return `${minutes}:${seconds}`;
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+            return ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char];
+        });
+    }
+
+    render(initialState);
+    window.setInterval(loadState, 1000);
+})();
+</script>

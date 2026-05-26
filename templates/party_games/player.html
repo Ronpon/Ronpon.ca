@@ -32,6 +32,10 @@
         </div>
         <div id="party-player-list" class="party-player-list"></div>
     </section>
+
+    {% if game.key == 'scenes-from-your-phone' %}
+    <section id="scenes-game-panel" class="party-panel scenes-panel"></section>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -136,4 +140,7 @@
     window.setInterval(loadState, 1500);
 })();
 </script>
+{% if game.key == 'scenes-from-your-phone' %}
+{% include "party_games/scenes_runtime.html" %}
+{% endif %}
 {% endblock %}

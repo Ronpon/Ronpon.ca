@@ -4,12 +4,18 @@ from __future__ import annotations
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user
 
-from models import party_games
+from models import party_games, scenes_phone
 
 
 party_games_bp = Blueprint("party_games", __name__)
 
 PARTY_GAME_CATALOG = {
+    "scenes-from-your-phone": {
+        "key": "scenes-from-your-phone",
+        "title": "Scenes From Your Phone",
+        "description": "Write, jumble, or draw anonymous prompt answers, then vote for the funniest.",
+        "player_range": "2-12",
+    },
     "lobby-test": {
         "key": "lobby-test",
         "title": "Lobby Test",
@@ -138,6 +144,18 @@ def room_state(code):
 def start_room(code):
     normalized = party_games.normalize_code(code)
     host_token = _session_token(HOST_SESSION_KEY, normalized)
+    room = party_games.get_room(normalized)
+    if room and room["game_key"] == scenes_phone.GAME_KEY:
+        try:
+            scenes_phone.start_game(normalized, host_token or "", request.get_json(silent=True) or {})
+        except scenes_phone.ScenesError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return _snapshot_json(
+            normalized,
+            host_token=host_token,
+            player_token=_session_token(PLAYER_SESSION_KEY, normalized),
+        )
+
     if not party_games.set_room_status(normalized, host_token or "", "playing"):
         return jsonify({"error": "Host access required."}), 403
     return _snapshot_json(
@@ -151,6 +169,18 @@ def start_room(code):
 def reset_room(code):
     normalized = party_games.normalize_code(code)
     host_token = _session_token(HOST_SESSION_KEY, normalized)
+    room = party_games.get_room(normalized)
+    if room and room["game_key"] == scenes_phone.GAME_KEY:
+        try:
+            scenes_phone.reset_room(normalized, host_token or "")
+        except scenes_phone.ScenesError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return _snapshot_json(
+            normalized,
+            host_token=host_token,
+            player_token=_session_token(PLAYER_SESSION_KEY, normalized),
+        )
+
     if not party_games.reset_room(normalized, host_token or ""):
         return jsonify({"error": "Host access required."}), 403
     return _snapshot_json(
@@ -192,6 +222,37 @@ def leave_room(code):
     return jsonify({"ok": True, "redirect": url_for("party_games.index", code=normalized)})
 
 
+@party_games_bp.post("/api/rooms/<code>/scenes/answer")
+def scenes_answer(code):
+    normalized = party_games.normalize_code(code)
+    player_token = _session_token(PLAYER_SESSION_KEY, normalized)
+    try:
+        scenes_phone.submit_answer(normalized, player_token or "", request.get_json(silent=True) or {})
+    except scenes_phone.ScenesError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return _snapshot_json(
+        normalized,
+        host_token=_session_token(HOST_SESSION_KEY, normalized),
+        player_token=player_token,
+    )
+
+
+@party_games_bp.post("/api/rooms/<code>/scenes/vote")
+def scenes_vote(code):
+    normalized = party_games.normalize_code(code)
+    player_token = _session_token(PLAYER_SESSION_KEY, normalized)
+    payload = request.get_json(silent=True) or {}
+    try:
+        scenes_phone.submit_vote(normalized, player_token or "", int(payload.get("answer_id") or 0))
+    except (ValueError, scenes_phone.ScenesError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return _snapshot_json(
+        normalized,
+        host_token=_session_token(HOST_SESSION_KEY, normalized),
+        player_token=player_token,
+    )
+
+
 def _snapshot(code: str, *, host_token: str | None = None, player_token: str | None = None):
     snapshot = party_games.snapshot_room(code, host_token=host_token, player_token=player_token)
     if not snapshot:
@@ -199,6 +260,8 @@ def _snapshot(code: str, *, host_token: str | None = None, player_token: str | N
     snapshot["room"]["game_title"] = _game_for_snapshot(snapshot)["title"]
     snapshot["room"]["game_description"] = _game_for_snapshot(snapshot)["description"]
     snapshot["room"]["player_range"] = _game_for_snapshot(snapshot)["player_range"]
+    if snapshot["room"]["game_key"] == scenes_phone.GAME_KEY:
+        snapshot = scenes_phone.enrich_snapshot(code, snapshot)
     return snapshot
 
 

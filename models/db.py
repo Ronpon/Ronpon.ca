@@ -359,6 +359,56 @@ def init_db(app_config) -> None:
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_party_players_room ON party_players(room_id)")
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_scene_answers (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id       INTEGER NOT NULL REFERENCES party_rooms(id) ON DELETE CASCADE,
+                round_number  INTEGER NOT NULL,
+                player_id     INTEGER NOT NULL REFERENCES party_players(id) ON DELETE CASCADE,
+                answer_kind   TEXT    NOT NULL DEFAULT 'text',
+                answer_text   TEXT    NOT NULL DEFAULT '',
+                answer_image  TEXT    NOT NULL DEFAULT '',
+                submitted_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(room_id, round_number, player_id)
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_scene_answers (
+                id            SERIAL PRIMARY KEY,
+                room_id       INTEGER NOT NULL REFERENCES party_rooms(id) ON DELETE CASCADE,
+                round_number  INTEGER NOT NULL,
+                player_id     INTEGER NOT NULL REFERENCES party_players(id) ON DELETE CASCADE,
+                answer_kind   TEXT    NOT NULL DEFAULT 'text',
+                answer_text   TEXT    NOT NULL DEFAULT '',
+                answer_image  TEXT    NOT NULL DEFAULT '',
+                submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(room_id, round_number, player_id)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_party_scene_answers_room_round ON party_scene_answers(room_id, round_number)")
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_scene_votes (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id          INTEGER NOT NULL REFERENCES party_rooms(id) ON DELETE CASCADE,
+                round_number     INTEGER NOT NULL,
+                voter_player_id  INTEGER NOT NULL REFERENCES party_players(id) ON DELETE CASCADE,
+                answer_player_id INTEGER NOT NULL REFERENCES party_players(id) ON DELETE CASCADE,
+                voted_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(room_id, round_number, voter_player_id)
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS party_scene_votes (
+                id               SERIAL PRIMARY KEY,
+                room_id          INTEGER NOT NULL REFERENCES party_rooms(id) ON DELETE CASCADE,
+                round_number     INTEGER NOT NULL,
+                voter_player_id  INTEGER NOT NULL REFERENCES party_players(id) ON DELETE CASCADE,
+                answer_player_id INTEGER NOT NULL REFERENCES party_players(id) ON DELETE CASCADE,
+                voted_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(room_id, round_number, voter_player_id)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_party_scene_votes_room_round ON party_scene_votes(room_id, round_number)")
+
         # ── Pulse Videos (Game Show & Podcast episodes) ─────────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS pulse_videos (

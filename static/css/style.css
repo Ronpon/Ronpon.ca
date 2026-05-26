@@ -1931,6 +1931,195 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     font-size: 1.1rem;
 }
 
+.scenes-settings {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.scenes-panel {
+    gap: 1rem;
+}
+
+.scenes-topline,
+.scenes-answer-meta,
+.scenes-score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.scenes-timer {
+    flex-shrink: 0;
+    min-width: 4rem;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: #f4d35e;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    text-align: center;
+}
+
+.scenes-prompt {
+    font-size: clamp(1.3rem, 3vw, 2rem);
+}
+
+.scenes-answer-text {
+    width: 100%;
+    min-height: 150px;
+    padding: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    resize: vertical;
+}
+
+.scenes-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.scenes-jumble-output {
+    min-height: 48px;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 1.25rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.scenes-jumble-output.empty {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.scenes-letter-bank {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.scenes-letter {
+    min-height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: 800;
+}
+
+.scenes-letter.used {
+    opacity: 0.28;
+}
+
+.scenes-canvas {
+    width: 100%;
+    max-height: 58vh;
+    aspect-ratio: 16 / 10.5;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    touch-action: none;
+}
+
+.scenes-answer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.85rem;
+}
+
+.scenes-answer-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 150px;
+    padding: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+}
+
+.scenes-answer-card.own {
+    border-color: rgba(78, 205, 196, 0.55);
+}
+
+.scenes-answer-card.revealed {
+    border-color: #f4d35e;
+}
+
+.scenes-answer-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 90px;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+.scenes-answer-body p {
+    font-size: 1.08rem;
+    font-weight: 700;
+}
+
+.scenes-answer-body img {
+    display: block;
+    max-width: 100%;
+    max-height: 230px;
+    border-radius: var(--radius-sm);
+    background: #fff;
+}
+
+.scenes-answer-meta {
+    color: var(--color-text-muted);
+    font-size: 0.86rem;
+}
+
+.scenes-answer-meta strong {
+    color: #f4d35e;
+}
+
+.scenes-scoreboard {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.scenes-score-row {
+    min-height: 42px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+}
+
+.scenes-score-row.gold {
+    border-color: #f4d35e;
+    box-shadow: 0 0 18px rgba(244, 211, 94, 0.25);
+}
+
+.scenes-score-row.silver {
+    border-color: #bfc7d5;
+    box-shadow: 0 0 18px rgba(191, 199, 213, 0.18);
+}
+
+.scenes-score-row.bronze {
+    border-color: #c47a3b;
+    box-shadow: 0 0 18px rgba(196, 122, 59, 0.18);
+}
+
 @media (max-width: 768px) {
     .party-index-grid,
     .party-host-layout {
@@ -1952,8 +2141,18 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
         grid-template-columns: 1fr;
     }
 
+    .scenes-settings,
+    .scenes-answer-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .scenes-letter-bank {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
     .party-code-panel .btn,
-    .party-action-row .btn {
+    .party-action-row .btn,
+    .scenes-action-row .btn {
         width: 100%;
     }
 }
