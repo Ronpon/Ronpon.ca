@@ -210,7 +210,7 @@ a:hover { color: var(--color-primary-hover); }
     background:
         linear-gradient(180deg, rgba(8,8,15,0.28) 0%, rgba(8,8,15,0.62) 62%, var(--color-bg) 100%),
         radial-gradient(ellipse at 50% 36%, rgba(8,8,15,0.1) 0%, rgba(8,8,15,0.7) 72%),
-        url('/images/General%20Website%20Images/home-hero-ronpon-world.png') center / cover no-repeat;
+        url('/images/General%20Website%20Images/home-hero-ronpon-world.png') center top / cover no-repeat;
     pointer-events: none;
     z-index: -1;
 }
