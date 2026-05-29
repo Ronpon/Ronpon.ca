@@ -131,16 +131,6 @@ class InteractiveTurnMixin:
                         "equips": [e.name for e in unlocked],
                     })
 
-        for item in player.weapons:
-            if item.effect_id == "mages_gauntlet" and player.traits:
-                abilities.append({
-                    "id": "mages_gauntlet",
-                    "label": "Mage's Gauntlet",
-                    "description": "Discard a trait to add a permanent +1 Str token to your Gauntlet.",
-                    "type": "select_trait",
-                    "traits": [t.name for t in player.traits],
-                })
-
         # Wheelies — replaces card play entirely
         if player.has_equipped_item("wheelies") and player.last_card_played is not None:
             abilities.append({

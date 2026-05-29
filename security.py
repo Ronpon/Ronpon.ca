@@ -22,6 +22,8 @@ def csrf_token() -> str:
 def validate_csrf() -> None:
     if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
         return
+    if request.endpoint == "shop.stripe_webhook":
+        return
 
     expected = session.get(CSRF_SESSION_KEY)
     supplied = (

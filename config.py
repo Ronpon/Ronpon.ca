@@ -48,6 +48,9 @@ class Config:
     ]
     DISCORD_CLIENT_ID = _env_first("DISCORD_CLIENT_ID", "DISCORD_OAUTH_CLIENT_ID")
     DISCORD_CLIENT_SECRET = _env_first("DISCORD_CLIENT_SECRET", "DISCORD_OAUTH_CLIENT_SECRET")
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_PULSE_QUESTION_PRICE_ID = os.environ.get("STRIPE_PULSE_QUESTION_PRICE_ID", "")
     PUBLIC_ORIGIN = os.environ.get("PUBLIC_ORIGIN", "").rstrip("/")
     TRUSTED_HOSTS = _csv_env("TRUSTED_HOSTS") or None
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))

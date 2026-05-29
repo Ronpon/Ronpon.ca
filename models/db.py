@@ -33,6 +33,11 @@ def ph(n: int = 1) -> str:
     return ", ".join([p] * n)
 
 
+def is_postgres() -> bool:
+    """Return whether the active database connection uses PostgreSQL."""
+    return bool(_pg and DATABASE_URL)
+
+
 def _column_exists(cur, table: str, column: str) -> bool:
     if _pg and DATABASE_URL:
         cur.execute(
@@ -435,5 +440,54 @@ def init_db(app_config) -> None:
                 value TEXT NOT NULL DEFAULT ''
             )
         """)
+
+        # Shop orders and paid Pulse question submissions.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop_orders (
+                id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id                    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                product_key                TEXT    NOT NULL,
+                status                     TEXT    NOT NULL DEFAULT 'pending',
+                stripe_checkout_session_id TEXT    NOT NULL DEFAULT '',
+                stripe_payment_intent_id   TEXT    NOT NULL DEFAULT '',
+                amount_cents               INTEGER NOT NULL DEFAULT 0,
+                currency                   TEXT    NOT NULL DEFAULT 'cad',
+                customer_email             TEXT    NOT NULL DEFAULT '',
+                question                   TEXT    NOT NULL DEFAULT '',
+                option_a                   TEXT    NOT NULL DEFAULT '',
+                option_b                   TEXT    NOT NULL DEFAULT '',
+                option_c                   TEXT    NOT NULL DEFAULT '',
+                option_d                   TEXT    NOT NULL DEFAULT '',
+                display_name               TEXT    NOT NULL DEFAULT '',
+                anonymous                  INTEGER NOT NULL DEFAULT 0,
+                notes                      TEXT    NOT NULL DEFAULT '',
+                created_at                 TEXT    NOT NULL DEFAULT (datetime('now')),
+                paid_at                    TEXT
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS shop_orders (
+                id                         SERIAL PRIMARY KEY,
+                user_id                    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                product_key                TEXT    NOT NULL,
+                status                     TEXT    NOT NULL DEFAULT 'pending',
+                stripe_checkout_session_id TEXT    NOT NULL DEFAULT '',
+                stripe_payment_intent_id   TEXT    NOT NULL DEFAULT '',
+                amount_cents               INTEGER NOT NULL DEFAULT 0,
+                currency                   TEXT    NOT NULL DEFAULT 'cad',
+                customer_email             TEXT    NOT NULL DEFAULT '',
+                question                   TEXT    NOT NULL DEFAULT '',
+                option_a                   TEXT    NOT NULL DEFAULT '',
+                option_b                   TEXT    NOT NULL DEFAULT '',
+                option_c                   TEXT    NOT NULL DEFAULT '',
+                option_d                   TEXT    NOT NULL DEFAULT '',
+                display_name               TEXT    NOT NULL DEFAULT '',
+                anonymous                  BOOLEAN NOT NULL DEFAULT FALSE,
+                notes                      TEXT    NOT NULL DEFAULT '',
+                created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+                paid_at                    TIMESTAMPTZ
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_status ON shop_orders(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_checkout_session ON shop_orders(stripe_checkout_session_id)")
 
         conn.commit()

@@ -2866,6 +2866,56 @@ function renderPlayerSheetMini(p) {
     </div>`;
 }
 
+function _playerHasEquippedMagesGauntlet(p) {
+  return !!(p && (p.weapons || []).some(w => w.effect_id === 'mages_gauntlet'));
+}
+
+function _onPlayerSheetTraitClick(event, traitIndex) {
+  event.stopPropagation();
+  const p = gameState && (gameState.players.find(x => x.player_id === viewingPlayerId) || gameState.players[0]);
+  const isCurrentPlayer = gameState && p && p.player_id === gameState.current_player_id;
+  if (!isCurrentPlayer || !_playerHasEquippedMagesGauntlet(p)) {
+    event.currentTarget.classList.toggle('ps-tc-expanded');
+    return;
+  }
+  const trait = (p.traits || [])[traitIndex];
+  if (!trait) return;
+  _showMagesGauntletTraitModal(traitIndex, trait.name);
+}
+
+function _showMagesGauntletTraitModal(traitIndex, traitName) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:2200;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--card-bg,#1a1a2e);border:1px solid var(--border,#444);border-radius:8px;padding:20px 24px;max-width:360px;text-align:center';
+  const safeName = (traitName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  box.innerHTML = `
+    <div style="font-family:'Cinzel',serif;font-size:15px;color:var(--gold,#c9a84c);margin-bottom:10px">Mage's Gauntlet</div>
+    <div style="font-size:13px;color:var(--text,#e0e0e0);margin-bottom:18px">Discard <b>${safeName}</b>?</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn-danger" id="btn-gauntlet-discard">Discard? (Mage's Gauntlet)</button>
+      <button class="btn-secondary" id="btn-gauntlet-cancel">Cancel</button>
+    </div>`;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  box.querySelector('#btn-gauntlet-cancel').onclick = () => overlay.remove();
+  box.querySelector('#btn-gauntlet-discard').onclick = async () => {
+    const resp = await fetch('/games/werblers/api/use_mages_gauntlet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trait_index: traitIndex }),
+    });
+    const data = await resp.json();
+    overlay.remove();
+    if (!resp.ok) {
+      alert(data.error || "Could not use Mage's Gauntlet.");
+      return;
+    }
+    if (data.state) applyState(data.state);
+    await loadAndRenderAbilities();
+  };
+}
+
 function renderPlayerSheetFull(state) {
   const p = state.players.find(x => x.player_id === viewingPlayerId) || state.players[0];
   if (!p) return;
@@ -2888,7 +2938,7 @@ function renderPlayerSheetFull(state) {
 
   // ---- Pack slots ----
   const packItems = [
-    ...p.pack.map((i, realIdx) => ({ label: i.name, sub: i.strength_bonus !== 0 ? ((i.strength_bonus >= 0 ? '+' : '') + i.strength_bonus + ' Str') : '', card_image: i.card_image, realPackIdx: realIdx, isConsumable: i.is_consumable || false, isCapturedMonster: false })),
+    ...p.pack.map((i, realIdx) => ({ label: i.name, sub: i.strength_bonus !== 0 ? ((i.strength_bonus >= 0 ? '+' : '') + i.strength_bonus + ' Str') : '', card_image: i.card_image, tokens: i.tokens || 0, realPackIdx: realIdx, isConsumable: i.is_consumable || false, isCapturedMonster: false })),
     ...(p.consumables || []).map((c, ci) => ({ label: c.name, sub: 'Consumable', card_image: c.card_image, realPackIdx: -1, isConsumable: true, isCapturedMonster: false, consumableIdx: ci, effectId: c.effect_id })),
     ...(p.captured_monsters || []).map((m, ci) => ({ label: m.name, sub: 'Captured Monster', card_image: m.card_image, realPackIdx: -1, isConsumable: false, isCapturedMonster: true, capturedMonsterIdx: ci, level: m.level || 1 })),
   ];
@@ -2920,6 +2970,7 @@ function renderPlayerSheetFull(state) {
       packHtml += `<div class="ps-slot ps-slot-card${placementClass}${previewClass}" ${previewData} ${ctxAttr}${consumableClickAttr}>
         <div class="ps-slot-label">Pack</div>
         <img class="ps-slot-card-img" src="/games/werblers/images/${item.card_image}" alt="${item.label}">
+        ${item.tokens ? `<div class="ps-slot-tokens">${tokenBadges(item.tokens)}</div>` : ''}
       </div>`;
     } else if (item) {
       const ctxAttr = inPlacement
@@ -2950,10 +3001,10 @@ function renderPlayerSheetFull(state) {
   let traitsHtml = '';
   let cursesHtml = '';
   if (p.traits && p.traits.length) {
-    const traitCards = p.traits.map(t => {
+    const traitCards = p.traits.map((t, traitIdx) => {
       const badges = t.tokens ? ' ' + tokenBadges(t.tokens) : '';
       const desc = t.description ? ` data-tc-desc="${t.description.replace(/"/g, '&quot;')}"` : '';
-      return `<div class="ps-tc-card is-trait tc-hoverable" data-tc-name="${t.name}"${desc} onclick="this.classList.toggle('ps-tc-expanded')">${t.name}${badges}</div>`;
+      return `<div class="ps-tc-card is-trait tc-hoverable" data-tc-name="${t.name}"${desc} onclick="_onPlayerSheetTraitClick(event, ${traitIdx})">${t.name}${badges}</div>`;
     }).join('');
     traitsHtml = `<div class="ps-tc-label ps-tc-label-trait">Traits</div><div class="ps-tc-stack">${traitCards}</div>`;
   }
@@ -3054,10 +3105,12 @@ function _psSlotCell(label, item, slotKey, slotIdx) {
       const cls = previewAttrs
         ? previewAttrs
         : `class="ps-slot ps-slot-card${placementClass}"`;
+      const badges = item.tokens ? `<div class="ps-slot-tokens">${tokenBadges(item.tokens)}</div>` : '';
       return `<div class="ps-equip-cell">
         <div class="ps-slot-title-above">${label}</div>
         <div ${cls} ${placementAttr}>
           <img class="ps-slot-card-img" src="${imgSrc}" alt="${item.name}">
+          ${badges}
         </div></div>`;
     }
     const strSign = item.strength_bonus >= 0 ? '+' : '';

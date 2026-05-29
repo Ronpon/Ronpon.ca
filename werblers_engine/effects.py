@@ -329,14 +329,9 @@ def on_trait_gained(player: Player, trait: Trait, log: list[str]) -> tuple[list[
     pending_minions: list[Minion] = []
 
     if eid == "ball_and_chain":
-        item = Item("Ball and Chain", EquipSlot.WEAPON, strength_bonus=7)
-        used_hands = sum(w.hands for w in player.weapons)
-        if player.weapon_hands - used_hands >= item.hands:
-            player.weapons.append(item)
-            log.append("  Ball and Chain: received Ball and Chain (+5 weapon)!")
-        else:
-            pending_items.append(item)
-            log.append("  Ball and Chain: received Ball and Chain (+5 weapon) — no slot available!")
+        item = Item("Ball and Chain", EquipSlot.WEAPON, strength_bonus=5)
+        pending_items.append(item)
+        log.append("  Ball and Chain: received Ball and Chain (+5 weapon) — choose where to put it.")
 
     elif eid == "birdie":
         item = Item("Power Driver", EquipSlot.WEAPON, strength_bonus=10, hands=2)

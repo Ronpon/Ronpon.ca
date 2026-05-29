@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Pulse Question Submissions - Ronpon.ca{% endblock %}
+
+{% block content %}
+<div class="shop-page">
+    <div class="section-header">
+        <h1>Pulse Question Submissions</h1>
+        <a href="{{ url_for('shop.pulse_question') }}" class="btn btn-small btn-secondary">Question Form</a>
+    </div>
+
+    <div class="shop-status-tabs">
+        {% for tab in ["paid", "pending", "expired", "failed", "all"] %}
+        <a href="{{ url_for('shop.pulse_question_submissions', status=tab) }}"
+           class="shop-status-tab {% if status == tab %}active{% endif %}">
+            {{ tab|title }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if not orders %}
+    <p class="empty-state">No submissions found.</p>
+    {% endif %}
+
+    <div class="shop-submission-list">
+        {% for order in orders %}
+        <article class="shop-submission-card">
+            <div class="shop-submission-header">
+                <div>
+                    <span class="shop-product-kind">{{ order.status }}</span>
+                    <h2>{{ order.question }}</h2>
+                </div>
+                <span class="shop-price">$10.00 CAD</span>
+            </div>
+
+            <dl class="shop-order-summary">
+                <div>
+                    <dt>Options</dt>
+                    <dd>
+                        A. {{ order.option_a }}<br>
+                        B. {{ order.option_b }}
+                        {% if order.option_c %}<br>C. {{ order.option_c }}{% endif %}
+                        {% if order.option_d %}<br>D. {{ order.option_d }}{% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt>Credit</dt>
+                    <dd>{% if order.anonymous %}Anonymous{% else %}{{ order.display_name or "No display name" }}{% endif %}</dd>
+                </div>
+                <div>
+                    <dt>Email</dt>
+                    <dd>{{ order.customer_email }}</dd>
+                </div>
+                {% if order.notes %}
+                <div>
+                    <dt>Notes</dt>
+                    <dd>{{ order.notes }}</dd>
+                </div>
+                {% endif %}
+                <div>
+                    <dt>Created</dt>
+                    <dd>{{ order.created_at }}</dd>
+                </div>
+                {% if order.paid_at %}
+                <div>
+                    <dt>Paid</dt>
+                    <dd>{{ order.paid_at }}</dd>
+                </div>
+                {% endif %}
+                {% if order.stripe_checkout_session_id %}
+                <div>
+                    <dt>Stripe Session</dt>
+                    <dd><code>{{ order.stripe_checkout_session_id }}</code></dd>
+                </div>
+                {% endif %}
+            </dl>
+        </article>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

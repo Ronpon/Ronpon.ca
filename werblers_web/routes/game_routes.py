@@ -280,6 +280,30 @@ def api_place_trait_item():
     return jsonify({"ok": True, "state": _build_state(), "log": log})
 
 
+@game_bp.route("/api/use_mages_gauntlet", methods=["POST"])
+def api_use_mages_gauntlet():
+    """Discard one of the current player's traits to add a +1 Str token to Mage's Gauntlet."""
+    _game = _get_state()["game"]
+    if _game is None:
+        return jsonify({"error": "No game in progress"}), 400
+    data: dict = json_body()
+    trait_index = int(data.get("trait_index", 0))
+    player = _game.current_player
+    gauntlet = next((w for w in player.weapons if w.effect_id == "mages_gauntlet"), None)
+    if gauntlet is None:
+        return jsonify({"error": "Mage's Gauntlet is not equipped"}), 400
+    if trait_index < 0 or trait_index >= len(player.traits):
+        return jsonify({"error": "Invalid trait index"}), 400
+
+    discarded = player.traits.pop(trait_index)
+    log = [f"  Mage's Gauntlet: discarded '{discarded.name}'."]
+    _fx.on_trait_lost(player, discarded, log)
+    gauntlet.tokens += 1
+    _fx.refresh_tokens(player)
+    log.append(f"  Mage's Gauntlet: +1 Str token added (total: +{gauntlet.tokens}).")
+    return jsonify({"ok": True, "state": _build_state(), "log": log})
+
+
 @game_bp.route("/api/resolve_minion", methods=["POST"])
 def api_resolve_minion():
     """Replace an existing minion with a pending one, or discard the pending minion."""

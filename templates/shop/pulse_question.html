@@ -5,9 +5,12 @@
 <div class="shop-page shop-detail-page">
     <div class="section-header">
         <h1>Write Your Own Question for The Pulse<a href="#pulse-question-detail-note" class="shop-asterisk" aria-label="Read submission note">*</a></h1>
+        {% if is_admin %}
+        <a href="{{ url_for('shop.pulse_question_submissions') }}" class="btn btn-small btn-secondary">Submissions</a>
+        {% endif %}
     </div>
     <p class="shop-intro">
-        A $10.00 CAD question submission flow is being prepared. This preview shows the information the finished checkout will collect.
+        Submit a multiple-choice question for The Pulse. Checkout is $10.00 CAD and runs securely through Stripe.
     </p>
 
     <div class="shop-detail-layout">
@@ -15,7 +18,7 @@
             <span class="shop-product-kind">The Pulse</span>
             <p class="shop-detail-price">$10.00 CAD</p>
             <p>
-                Send in a multiple-choice poll question for possible use in The Pulse, where players try to predict how people answer.
+                Send in a poll question for possible use in The Pulse, where players try to predict how people answer.
             </p>
             <p id="pulse-question-detail-note" class="shop-fine-print">
                 *Submissions are reviewed before use, and may be edited for clarity/conciseness. Inappropriate questions will be rejected and no refund will be given, so be smart and keep it PG!
@@ -23,55 +26,57 @@
             <a href="{{ url_for('shop.index') }}" class="btn btn-secondary">Back to Shop</a>
         </section>
 
-        <form class="shop-preview-form" aria-disabled="true">
-            <fieldset disabled>
-                <legend>Submission Preview</legend>
+        <form class="shop-preview-form" method="post" action="{{ url_for('shop.pulse_question_checkout') }}">
+            <fieldset>
+                <legend>Question Submission</legend>
 
                 <label>
                     Poll question
-                    <textarea rows="4" placeholder="What question should The Pulse ask?"></textarea>
+                    <textarea name="question" rows="4" maxlength="500" required placeholder="What question should The Pulse ask?">{{ form_data.question }}</textarea>
                 </label>
 
                 <div class="shop-option-grid">
                     <label>
                         Option A
-                        <input type="text" placeholder="First answer">
+                        <input type="text" name="option_a" maxlength="160" required placeholder="First answer" value="{{ form_data.option_a }}">
                     </label>
                     <label>
                         Option B
-                        <input type="text" placeholder="Second answer">
+                        <input type="text" name="option_b" maxlength="160" required placeholder="Second answer" value="{{ form_data.option_b }}">
                     </label>
                     <label>
                         Option C
-                        <input type="text" placeholder="Third answer">
+                        <input type="text" name="option_c" maxlength="160" placeholder="Third answer" value="{{ form_data.option_c }}">
                     </label>
                     <label>
                         Option D
-                        <input type="text" placeholder="Fourth answer">
+                        <input type="text" name="option_d" maxlength="160" placeholder="Fourth answer" value="{{ form_data.option_d }}">
                     </label>
                 </div>
 
                 <label>
                     Display name
-                    <input type="text" placeholder="How should we credit you?">
+                    <input type="text" name="display_name" maxlength="100" placeholder="How should we credit you?" value="{{ form_data.display_name }}">
                 </label>
 
                 <label class="shop-check-row">
-                    <input type="checkbox">
+                    <input type="checkbox" name="anonymous" value="1" {% if form_data.anonymous %}checked{% endif %}>
                     Submit anonymously
                 </label>
 
                 <label>
-                    Email or contact info
-                    <input type="email" placeholder="you@example.com">
+                    Email
+                    <input type="email" name="customer_email" maxlength="254" required placeholder="you@example.com" value="{{ form_data.customer_email }}">
                 </label>
 
                 <label>
                     Optional notes
-                    <textarea rows="3" placeholder="Anything else we should know?"></textarea>
+                    <textarea name="notes" rows="3" maxlength="700" placeholder="Anything else we should know?">{{ form_data.notes }}</textarea>
                 </label>
 
-                <button type="button" class="btn" disabled>Checkout Coming Soon</button>
+                <button type="submit" class="btn" {% if not stripe_configured %}disabled{% endif %}>
+                    {% if stripe_configured %}Continue to Checkout{% else %}Stripe Setup Needed{% endif %}
+                </button>
             </fieldset>
         </form>
     </div>

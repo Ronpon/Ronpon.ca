@@ -2043,6 +2043,22 @@ body {
   z-index: 2;
   color: rgba(255,255,255,0.8);
 }
+.ps-slot-tokens {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  gap: 1px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+.ps-slot-tokens .str-token {
+  width: 22px;
+  height: 22px;
+}
 
 /* ================================================================ TRAITS / CURSES ON PLAYER SHEET */
 #ps-tc-area {
