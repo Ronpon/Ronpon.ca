@@ -7,7 +7,17 @@
         <h1>Payment Complete</h1>
     </div>
 
-    {% if order and order.status == "paid" %}
+    {% if is_support_payment %}
+    <div class="shop-status-panel shop-status-success">
+        <h2>Thanks for the support</h2>
+        {% if checkout_session and checkout_session.payment_status == "paid" %}
+            <p>Your donation went through. Thank you for helping keep the work moving.</p>
+        {% else %}
+            <p>Stripe has sent you back to Ronpon.ca. The payment is still being confirmed.</p>
+        {% endif %}
+        <a href="{{ url_for('shop.index') }}" class="btn">Back to Shop</a>
+    </div>
+    {% elif order and order.status == "paid" %}
     <div class="shop-status-panel shop-status-success">
         <h2>Question submitted</h2>
         <p>Thanks. Your Pulse question is paid and queued for review.</p>
