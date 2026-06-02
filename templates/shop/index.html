@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Shop - Ronpon.ca{% endblock %}
+{% block head %}
+{{ super() }}
+<style>
+.shop-card .shop-fine-print { font-size: 0.6rem !important; }
+.shop-card-button-only { min-height: 180px; justify-content: center; }
+.shop-card-button-only .shop-card-body { align-items: center; justify-content: center; padding: 2rem; }
+.shop-card-button-only .shop-card-actions { width: min(100%, 260px); margin-top: 0; padding-top: 0; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="shop-page">
@@ -12,48 +21,60 @@
 
     <div class="shop-grid">
         {% for product in products %}
-        <article class="shop-card {% if product.featured %}shop-card-featured{% endif %}">
-            <div class="shop-media">
-                {% if product.image_url %}
-                    <img src="{{ product.image_url }}" alt="{{ product.title }} cover">
-                {% else %}
-                    <div class="shop-cover-placeholder">
-                        <span>{{ product.placeholder }}</span>
+        <article class="shop-card {% if product.featured %}shop-card-featured{% endif %} {% if product.button_only %}shop-card-button-only{% endif %}">
+            {% if product.button_only %}
+                <div class="shop-card-body">
+                    <div class="shop-card-actions">
+                        <a href="{{ product.action_url }}"
+                           class="btn"
+                           {% if product.external %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                            {{ product.action_label }}
+                        </a>
                     </div>
-                {% endif %}
-            </div>
-
-            <div class="shop-card-body">
-                <div class="shop-card-meta">
-                    <span class="shop-product-kind">{{ product.kind }}</span>
-                    {% if product.price %}
-                        <span class="shop-price">{{ product.price }}</span>
-                    {% endif %}
                 </div>
-
-                <h2>
-                    {% if product.title.endswith("*") %}
-                        {{ product.title[:-1] }}<a href="#pulse-question-note" class="shop-asterisk" aria-label="Read submission note">*</a>
+            {% else %}
+                <div class="shop-media">
+                    {% if product.image_url %}
+                        <img src="{{ product.image_url }}" alt="{{ product.title }} cover">
                     {% else %}
-                        {{ product.title }}
+                        <div class="shop-cover-placeholder">
+                            <span>{{ product.placeholder }}</span>
+                        </div>
                     {% endif %}
-                </h2>
-                <p>{{ product.description }}</p>
-
-                {% if product.title.endswith("*") %}
-                    <p id="pulse-question-note" class="shop-fine-print">
-                        *Submissions are reviewed before use, and may be edited for clarity/conciseness. Inappropriate questions will be rejected and no refund will be given, so be smart and keep it PG!
-                    </p>
-                {% endif %}
-
-                <div class="shop-card-actions">
-                    <a href="{{ product.action_url }}"
-                       class="btn {% if not product.featured %}btn-secondary{% endif %}"
-                       {% if product.external %}target="_blank" rel="noopener noreferrer"{% endif %}>
-                        {{ product.action_label }}
-                    </a>
                 </div>
-            </div>
+
+                <div class="shop-card-body">
+                    <div class="shop-card-meta">
+                        <span class="shop-product-kind">{{ product.kind }}</span>
+                        {% if product.price %}
+                            <span class="shop-price">{{ product.price }}</span>
+                        {% endif %}
+                    </div>
+
+                    <h2>
+                        {% if product.title.endswith("*") %}
+                            {{ product.title[:-1] }}<a href="#pulse-question-note" class="shop-asterisk" aria-label="Read submission note">*</a>
+                        {% else %}
+                            {{ product.title }}
+                        {% endif %}
+                    </h2>
+                    <p>{{ product.description }}</p>
+
+                    {% if product.title.endswith("*") %}
+                        <p id="pulse-question-note" class="shop-fine-print">
+                            *Submissions are reviewed before use, and may be edited for clarity/conciseness. Inappropriate questions will be rejected and no refund will be given, so be smart and keep it PG!
+                        </p>
+                    {% endif %}
+
+                    <div class="shop-card-actions">
+                        <a href="{{ product.action_url }}"
+                           class="btn {% if not product.featured %}btn-secondary{% endif %}"
+                           {% if product.external %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                            {{ product.action_label }}
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
         </article>
         {% endfor %}
     </div>
