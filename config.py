@@ -28,6 +28,16 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _int_env(name: str, default: int) -> int:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        return int(raw_value)
+    except ValueError:
+        return default
+
+
 class Config:
     APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "development"))
     INSECURE_DEV_SECRET = "ronpon-dev-secret-change-me"
@@ -51,6 +61,8 @@ class Config:
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
     STRIPE_PULSE_QUESTION_PRICE_ID = os.environ.get("STRIPE_PULSE_QUESTION_PRICE_ID", "")
+    STRIPE_SUPPORT_MY_WORK_PRICE_ID = os.environ.get("STRIPE_SUPPORT_MY_WORK_PRICE_ID", "")
+    SUPPORT_MY_WORK_AMOUNT_CENTS = _int_env("SUPPORT_MY_WORK_AMOUNT_CENTS", 500)
     PUBLIC_ORIGIN = os.environ.get("PUBLIC_ORIGIN", "").rstrip("/")
     TRUSTED_HOSTS = _csv_env("TRUSTED_HOSTS") or None
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))
