@@ -20,6 +20,9 @@ shop_bp = Blueprint("shop", __name__)
 _PULSE_QUESTION_PRODUCT_KEY = "pulse_question"
 _PULSE_QUESTION_AMOUNT_CENTS = 1000
 _PULSE_QUESTION_CURRENCY = "cad"
+_SUPPORT_MY_WORK_PRODUCT_KEY = "support_my_work"
+_SUPPORT_MY_WORK_AMOUNT_CENTS = 500
+_SUPPORT_MY_WORK_CURRENCY = "cad"
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -27,7 +30,7 @@ def _shop_products():
     """Return display data for the shop."""
     return [
         {
-            "kind": "Amazon book",
+            "kind": "Picture Book",
             "title": "Make Someone Read You This Book",
             "description": (
                 "A hilariously frustrating book to read aloud, that will have the "
@@ -41,7 +44,7 @@ def _shop_products():
             "external": True,
         },
         {
-            "kind": "Amazon book",
+            "kind": "Picture Book",
             "title": "Ronpon's Nursery Rhymes for Sarcastic A**holes",
             "description": (
                 "Nursery rhymes for cynics who like to poke holes in things. "
@@ -62,12 +65,24 @@ def _shop_products():
                 "the man-on-the-street game show segment where people predict poll answers."
             ),
             "price": "$10.00 CAD",
-            "image_url": "",
+            "image_url": url_for("serve_site_image", filename="Shop/Pulse Question.png"),
             "placeholder": "PULSE",
             "action_label": "Write a Question",
             "action_url": url_for("shop.pulse_question"),
             "external": False,
             "featured": True,
+        },
+        {
+            "kind": "Donate",
+            "title": "Support My Work",
+            "description": "",
+            "price": "",
+            "image_url": "",
+            "placeholder": "",
+            "action_label": "Support My Work",
+            "action_url": url_for("shop.support"),
+            "external": False,
+            "button_only": True,
         },
     ]
 
@@ -245,6 +260,31 @@ def _line_item() -> dict:
     }
 
 
+def _support_amount_cents() -> int:
+    try:
+        amount = int(current_app.config.get("SUPPORT_MY_WORK_AMOUNT_CENTS", _SUPPORT_MY_WORK_AMOUNT_CENTS))
+    except (TypeError, ValueError):
+        amount = _SUPPORT_MY_WORK_AMOUNT_CENTS
+    return max(amount, 100)
+
+
+def _support_line_item() -> dict:
+    price_id = current_app.config.get("STRIPE_SUPPORT_MY_WORK_PRICE_ID", "")
+    if price_id:
+        return {"price": price_id, "quantity": 1}
+    return {
+        "price_data": {
+            "currency": _SUPPORT_MY_WORK_CURRENCY,
+            "unit_amount": _support_amount_cents(),
+            "product_data": {
+                "name": "Support My Work",
+                "description": "Donation to support Ronpon.ca.",
+            },
+        },
+        "quantity": 1,
+    }
+
+
 def _create_checkout_session(order_id: int, customer_email: str):
     _set_stripe_key()
     metadata = {
@@ -263,10 +303,37 @@ def _create_checkout_session(order_id: int, customer_email: str):
     )
 
 
+def _create_support_checkout_session():
+    _set_stripe_key()
+    metadata = {"product_key": _SUPPORT_MY_WORK_PRODUCT_KEY}
+    return stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[_support_line_item()],
+        success_url=f"{_external_url('shop.payment_success')}?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=_external_url("shop.index"),
+        metadata=metadata,
+        payment_intent_data={"metadata": metadata},
+    )
+
+
 @shop_bp.route("/shop")
 @shop_bp.route("/shop/")
 def index():
     return render_template("shop/index.html", products=_shop_products())
+
+
+@shop_bp.route("/shop/support")
+def support():
+    if not _stripe_configured():
+        flash("Stripe checkout is not configured yet.", "error")
+        return redirect(url_for("shop.index"))
+    try:
+        checkout_session = _create_support_checkout_session()
+    except Exception:
+        current_app.logger.exception("Support checkout session creation failed")
+        flash("Donation checkout could not be started. Please try again in a moment.", "error")
+        return redirect(url_for("shop.index"))
+    return redirect(checkout_session.url, code=303)
 
 
 @shop_bp.route("/shop/pulse-question")
@@ -325,17 +392,29 @@ def payment_success():
         flash("Stripe checkout is not configured yet.", "error")
         return redirect(url_for("shop.index"))
 
+    checkout_session = None
+    is_support_payment = False
     try:
         _set_stripe_key()
         checkout_session = stripe.checkout.Session.retrieve(session_id)
-        if checkout_session.get("payment_status") == "paid":
+        metadata = checkout_session.get("metadata") or {}
+        is_support_payment = metadata.get("product_key") == _SUPPORT_MY_WORK_PRODUCT_KEY
+        if (
+            metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY
+            and checkout_session.get("payment_status") == "paid"
+        ):
             _mark_order_paid(checkout_session)
     except Exception:
         current_app.logger.exception("Stripe Checkout Session lookup failed")
         flash("Payment status could not be checked. We will confirm it by webhook.", "info")
 
     order = _fetch_order_by_session(session_id)
-    return render_template("shop/payment_success.html", order=order)
+    return render_template(
+        "shop/payment_success.html",
+        order=order,
+        checkout_session=checkout_session,
+        is_support_payment=is_support_payment,
+    )
 
 
 @shop_bp.route("/shop/pulse-question/submissions")
