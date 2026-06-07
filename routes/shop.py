@@ -23,6 +23,7 @@ _PULSE_QUESTION_CURRENCY = "cad"
 _SUPPORT_MY_WORK_PRODUCT_KEY = "support_my_work"
 _SUPPORT_MY_WORK_AMOUNT_CENTS = 500
 _SUPPORT_MY_WORK_CURRENCY = "cad"
+_SHOP_CATEGORY_ORDER = ("Ronpon Books", "The Pulse", "Other")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -30,6 +31,7 @@ def _shop_products():
     """Return display data for the shop."""
     return [
         {
+            "category": "Ronpon Books",
             "kind": "Picture Book",
             "title": "Make Someone Read You This Book",
             "description": (
@@ -44,6 +46,7 @@ def _shop_products():
             "external": True,
         },
         {
+            "category": "Ronpon Books",
             "kind": "Picture Book",
             "title": "Ronpon's Nursery Rhymes for Sarcastic A**holes",
             "description": (
@@ -58,6 +61,7 @@ def _shop_products():
             "external": True,
         },
         {
+            "category": "The Pulse",
             "kind": "The Pulse",
             "title": "Write Your Own Question for The Pulse*",
             "description": (
@@ -73,6 +77,7 @@ def _shop_products():
             "featured": True,
         },
         {
+            "category": "Other",
             "kind": "Donate",
             "title": "Support My Work",
             "description": "",
@@ -85,6 +90,20 @@ def _shop_products():
             "button_only": True,
         },
     ]
+
+
+def _shop_categories():
+    """Return shop products grouped in display order."""
+    products_by_category = {category: [] for category in _SHOP_CATEGORY_ORDER}
+    for product in _shop_products():
+        products_by_category.setdefault(product["category"], []).append(product)
+
+    categories = []
+    for category in _SHOP_CATEGORY_ORDER:
+        products = products_by_category.get(category, [])
+        if products:
+            categories.append({"name": category, "products": products})
+    return categories
 
 
 def _is_admin() -> bool:
@@ -319,7 +338,7 @@ def _create_support_checkout_session():
 @shop_bp.route("/shop")
 @shop_bp.route("/shop/")
 def index():
-    return render_template("shop/index.html", products=_shop_products())
+    return render_template("shop/index.html", shop_categories=_shop_categories())
 
 
 @shop_bp.route("/shop/support")
