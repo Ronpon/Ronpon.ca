@@ -27,6 +27,7 @@
         </section>
 
         <form class="shop-preview-form" method="post" action="{{ url_for('shop.pulse_question_checkout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <fieldset>
                 <legend>Question Submission</legend>
 

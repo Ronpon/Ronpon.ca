@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import html as html_lib
 from datetime import datetime, timezone
 from urllib.parse import urljoin
 
@@ -9,6 +10,7 @@ from flask import Blueprint, abort, current_app, flash, jsonify, redirect, rende
 from flask_login import current_user
 
 from models.db import get_conn, is_postgres, ph
+from email_service import email_configured, send_email
 
 try:
     import stripe
@@ -20,11 +22,103 @@ shop_bp = Blueprint("shop", __name__)
 _PULSE_QUESTION_PRODUCT_KEY = "pulse_question"
 _PULSE_QUESTION_AMOUNT_CENTS = 1000
 _PULSE_QUESTION_CURRENCY = "cad"
-_SUPPORT_MY_WORK_PRODUCT_KEY = "support_my_work"
-_SUPPORT_MY_WORK_AMOUNT_CENTS = 500
-_SUPPORT_MY_WORK_CURRENCY = "cad"
-_SHOP_CATEGORY_ORDER = ("Ronpon Books", "The Pulse", "Other")
+_SUPPORT_RONPON_PRODUCT_KEY = "support_ronpon_productions"
+_SUPPORT_RONPON_BRONZE_PRODUCT_KEY = "support_ronpon_recurring_bronze"
+_SUPPORT_RONPON_SILVER_PRODUCT_KEY = "support_ronpon_recurring_silver"
+_SUPPORT_RONPON_GOLD_PRODUCT_KEY = "support_ronpon_recurring_gold"
+_SHOP_CATEGORY_ORDER = ("Ronpon Books", "The Pulse", "Support Ronpon Productions")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+_SUPPORT_PRODUCTS = (
+    {
+        "slug": "one-time",
+        "product_key": _SUPPORT_RONPON_PRODUCT_KEY,
+        "kind": "One-time Support",
+        "title": "Support Ronpon Productions",
+        "description": (
+            "Make a one-time pay-what-you-want contribution to help fund "
+            "Ronpon games, videos, and new projects."
+        ),
+        "price": "Pay what you want",
+        "image_filename": "Shop/Support Ronpon Productions.png",
+        "action_label": "Choose Amount",
+        "mode": "payment",
+        "price_config": "STRIPE_SUPPORT_RONPON_PRICE_ID",
+        "submit_type": "donate",
+        "card_class": "shop-card-support shop-card-pay-what-you-want",
+    },
+    {
+        "slug": "bronze",
+        "product_key": _SUPPORT_RONPON_BRONZE_PRODUCT_KEY,
+        "kind": "Recurring Support",
+        "title": "Support Ronpon Productions - Bronze",
+        "description": (
+            "A monthly $5 contribution for keeping the whole Ronpon machine humming."
+        ),
+        "price": "$5/month",
+        "image_filename": "Shop/Bronze Recurring.jpg",
+        "action_label": "Join Bronze",
+        "mode": "subscription",
+        "price_config": "STRIPE_SUPPORT_RONPON_BRONZE_PRICE_ID",
+        "card_class": "shop-card-support shop-card-recurring shop-card-bronze",
+    },
+    {
+        "slug": "silver",
+        "product_key": _SUPPORT_RONPON_SILVER_PRODUCT_KEY,
+        "kind": "Recurring Support",
+        "title": "Support Ronpon Productions - Silver",
+        "description": (
+            "A monthly $10 contribution for backing bigger games, videos, and experiments."
+        ),
+        "price": "$10/month",
+        "image_filename": "Shop/Silver Recurring.jpg",
+        "action_label": "Join Silver",
+        "mode": "subscription",
+        "price_config": "STRIPE_SUPPORT_RONPON_SILVER_PRICE_ID",
+        "card_class": "shop-card-support shop-card-recurring shop-card-silver",
+    },
+    {
+        "slug": "gold",
+        "product_key": _SUPPORT_RONPON_GOLD_PRODUCT_KEY,
+        "kind": "Recurring Support",
+        "title": "Support Ronpon Productions - Gold",
+        "description": (
+            "A monthly $20 contribution for giving Ronpon Productions extra room to grow."
+        ),
+        "price": "$20/month",
+        "image_filename": "Shop/Gold Recurring.jpg",
+        "action_label": "Join Gold",
+        "mode": "subscription",
+        "price_config": "STRIPE_SUPPORT_RONPON_GOLD_PRICE_ID",
+        "card_class": "shop-card-support shop-card-recurring shop-card-gold",
+    },
+)
+_SUPPORT_PRODUCTS_BY_SLUG = {product["slug"]: product for product in _SUPPORT_PRODUCTS}
+_SUPPORT_PRODUCTS_BY_KEY = {product["product_key"]: product for product in _SUPPORT_PRODUCTS}
+_SUPPORT_PRODUCT_KEYS = set(_SUPPORT_PRODUCTS_BY_KEY)
+
+
+def _support_product_cards():
+    """Return display cards for Stripe-backed support products."""
+    cards = []
+    for product in _SUPPORT_PRODUCTS:
+        cards.append(
+            {
+                "category": "Support Ronpon Productions",
+                "kind": product["kind"],
+                "title": product["title"],
+                "description": product["description"],
+                "price": product["price"],
+                "image_url": url_for("serve_site_image", filename=product["image_filename"]),
+                "image_alt": product["title"],
+                "placeholder": "SUPPORT",
+                "action_label": product["action_label"],
+                "action_url": url_for("shop.support_checkout", support_slug=product["slug"]),
+                "external": False,
+                "card_class": product["card_class"],
+            }
+        )
+    return cards
 
 
 def _shop_products():
@@ -76,19 +170,7 @@ def _shop_products():
             "external": False,
             "featured": True,
         },
-        {
-            "category": "Other",
-            "kind": "Donate",
-            "title": "Support My Work",
-            "description": "",
-            "price": "",
-            "image_url": "",
-            "placeholder": "",
-            "action_label": "Support My Work",
-            "action_url": url_for("shop.support"),
-            "external": False,
-            "button_only": True,
-        },
+        *_support_product_cards(),
     ]
 
 
@@ -200,15 +282,25 @@ def _update_order_checkout_session(order_id: int, session_id: str) -> None:
         )
 
 
-def _mark_order_paid(session) -> None:
+def _fetch_order_by_id(order_id: int):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT * FROM shop_orders WHERE id = {ph()}",
+            (order_id,),
+        )
+        return cur.fetchone()
+
+
+def _mark_order_paid(session):
     metadata = session.get("metadata") or {}
     order_id = session.get("client_reference_id") or metadata.get("order_id")
     if not order_id:
-        return
+        return None
     try:
         order_id = int(order_id)
     except (TypeError, ValueError):
-        return
+        return None
 
     customer_details = session.get("customer_details") or {}
     email = customer_details.get("email") or session.get("customer_email") or ""
@@ -236,6 +328,104 @@ def _mark_order_paid(session) -> None:
                 _PULSE_QUESTION_PRODUCT_KEY,
             ),
         )
+    return _fetch_order_by_id(order_id)
+
+
+def _set_order_email_sent_at(order_id: int, column: str) -> None:
+    if column not in {"customer_email_sent_at", "admin_email_sent_at"}:
+        raise ValueError("Invalid email timestamp column.")
+    with get_conn() as conn:
+        conn.cursor().execute(
+            f"UPDATE shop_orders SET {column} = {ph()} WHERE id = {ph()}",
+            (_utc_now_iso(), order_id),
+        )
+
+
+def _order_option_lines(order: dict) -> list[str]:
+    options = [
+        ("A", order.get("option_a", "")),
+        ("B", order.get("option_b", "")),
+        ("C", order.get("option_c", "")),
+        ("D", order.get("option_d", "")),
+    ]
+    return [f"{label}. {value}" for label, value in options if value]
+
+
+def _paragraph_html(*paragraphs: str) -> str:
+    return "\n".join(
+        f"<p>{html_lib.escape(paragraph).replace(chr(10), '<br>')}</p>"
+        for paragraph in paragraphs
+        if paragraph
+    )
+
+
+def _send_paid_pulse_question_emails(order) -> None:
+    if not order or not email_configured():
+        return
+
+    order_data = dict(order)
+    order_id = int(order_data["id"])
+    question = order_data.get("question", "")
+    option_text = "\n".join(_order_option_lines(order_data))
+
+    if order_data.get("customer_email") and not order_data.get("customer_email_sent_at"):
+        text = (
+            "Thanks for submitting a question for The Pulse.\n\n"
+            "Your payment went through, and your question is queued for review.\n\n"
+            f"Question:\n{question}\n\n"
+            f"Options:\n{option_text}\n\n"
+            "Submissions may be edited for clarity or conciseness before use."
+        )
+        html_body = _paragraph_html(
+            "Thanks for submitting a question for The Pulse.",
+            "Your payment went through, and your question is queued for review.",
+            f"Question:\n{question}",
+            f"Options:\n{option_text}",
+            "Submissions may be edited for clarity or conciseness before use.",
+        )
+        try:
+            if send_email(
+                order_data["customer_email"],
+                "Your Pulse question is queued for review",
+                text,
+                html_body,
+            ):
+                _set_order_email_sent_at(order_id, "customer_email_sent_at")
+        except Exception:
+            current_app.logger.exception("Pulse question customer email failed.")
+
+    admin_email = current_app.config.get("ADMIN_EMAIL", "")
+    if admin_email and not order_data.get("admin_email_sent_at"):
+        submissions_url = _external_url("shop.pulse_question_submissions")
+        display_name = order_data.get("display_name", "") or "Not provided"
+        notes = order_data.get("notes", "") or "None"
+        text = (
+            "New paid Pulse question submission.\n\n"
+            f"Order ID: {order_id}\n"
+            f"Customer email: {order_data.get('customer_email', '')}\n"
+            f"Display name: {display_name}\n\n"
+            f"Question:\n{question}\n\n"
+            f"Options:\n{option_text}\n\n"
+            f"Notes:\n{notes}\n\n"
+            f"Review submissions:\n{submissions_url}"
+        )
+        html_body = _paragraph_html(
+            "New paid Pulse question submission.",
+            (
+                f"Order ID: {order_id}\n"
+                f"Customer email: {order_data.get('customer_email', '')}\n"
+                f"Display name: {display_name}"
+            ),
+            f"Question:\n{question}",
+            f"Options:\n{option_text}",
+            f"Notes:\n{notes}",
+            f"Review submissions:\n{submissions_url}",
+        )
+        try:
+            if send_email(admin_email, "New paid Pulse question submission", text, html_body):
+                _set_order_email_sent_at(order_id, "admin_email_sent_at")
+        except Exception:
+            current_app.logger.exception("Pulse question admin email failed.")
 
 
 def _set_order_status_by_session(session_id: str, status: str) -> None:
@@ -279,29 +469,8 @@ def _line_item() -> dict:
     }
 
 
-def _support_amount_cents() -> int:
-    try:
-        amount = int(current_app.config.get("SUPPORT_MY_WORK_AMOUNT_CENTS", _SUPPORT_MY_WORK_AMOUNT_CENTS))
-    except (TypeError, ValueError):
-        amount = _SUPPORT_MY_WORK_AMOUNT_CENTS
-    return max(amount, 100)
-
-
-def _support_line_item() -> dict:
-    price_id = current_app.config.get("STRIPE_SUPPORT_MY_WORK_PRICE_ID", "")
-    if price_id:
-        return {"price": price_id, "quantity": 1}
-    return {
-        "price_data": {
-            "currency": _SUPPORT_MY_WORK_CURRENCY,
-            "unit_amount": _support_amount_cents(),
-            "product_data": {
-                "name": "Support My Work",
-                "description": "Donation to support Ronpon.ca.",
-            },
-        },
-        "quantity": 1,
-    }
+def _support_price_id(product: dict) -> str:
+    return current_app.config.get(product["price_config"], "").strip()
 
 
 def _create_checkout_session(order_id: int, customer_email: str):
@@ -322,17 +491,31 @@ def _create_checkout_session(order_id: int, customer_email: str):
     )
 
 
-def _create_support_checkout_session():
+def _create_support_checkout_session(product: dict):
     _set_stripe_key()
-    metadata = {"product_key": _SUPPORT_MY_WORK_PRODUCT_KEY}
-    return stripe.checkout.Session.create(
-        mode="payment",
-        line_items=[_support_line_item()],
+    price_id = _support_price_id(product)
+    if not price_id:
+        raise ValueError(f"{product['price_config']} is not configured.")
+
+    metadata = {
+        "product_key": product["product_key"],
+        "support_slug": product["slug"],
+        "support_name": product["title"],
+    }
+    checkout_params = dict(
+        mode=product["mode"],
+        line_items=[{"price": price_id, "quantity": 1}],
         success_url=f"{_external_url('shop.payment_success')}?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=_external_url("shop.index"),
         metadata=metadata,
-        payment_intent_data={"metadata": metadata},
     )
+    if product["mode"] == "subscription":
+        checkout_params["subscription_data"] = {"metadata": metadata}
+    else:
+        checkout_params["payment_intent_data"] = {"metadata": metadata}
+        if product.get("submit_type"):
+            checkout_params["submit_type"] = product["submit_type"]
+    return stripe.checkout.Session.create(**checkout_params)
 
 
 @shop_bp.route("/shop")
@@ -343,14 +526,38 @@ def index():
 
 @shop_bp.route("/shop/support")
 def support():
+    return _start_support_checkout("one-time")
+
+
+@shop_bp.route("/shop/support/<support_slug>")
+def support_checkout(support_slug):
+    return _start_support_checkout(support_slug)
+
+
+def _start_support_checkout(support_slug: str):
+    product = _SUPPORT_PRODUCTS_BY_SLUG.get(support_slug)
+    if not product:
+        abort(404)
+
     if not _stripe_configured():
         flash("Stripe checkout is not configured yet.", "error")
         return redirect(url_for("shop.index"))
+    if not _support_price_id(product):
+        current_app.logger.warning(
+            "Support checkout missing Stripe price config: %s",
+            product["price_config"],
+        )
+        flash(f"{product['title']} checkout is not configured yet.", "error")
+        return redirect(url_for("shop.index"))
+
     try:
-        checkout_session = _create_support_checkout_session()
+        checkout_session = _create_support_checkout_session(product)
     except Exception:
-        current_app.logger.exception("Support checkout session creation failed")
-        flash("Donation checkout could not be started. Please try again in a moment.", "error")
+        current_app.logger.exception(
+            "Support checkout session creation failed for %s",
+            product["product_key"],
+        )
+        flash("Support checkout could not be started. Please try again in a moment.", "error")
         return redirect(url_for("shop.index"))
     return redirect(checkout_session.url, code=303)
 
@@ -413,16 +620,19 @@ def payment_success():
 
     checkout_session = None
     is_support_payment = False
+    support_product = None
     try:
         _set_stripe_key()
         checkout_session = stripe.checkout.Session.retrieve(session_id)
         metadata = checkout_session.get("metadata") or {}
-        is_support_payment = metadata.get("product_key") == _SUPPORT_MY_WORK_PRODUCT_KEY
+        support_product = _SUPPORT_PRODUCTS_BY_KEY.get(metadata.get("product_key", ""))
+        is_support_payment = support_product is not None
         if (
             metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY
             and checkout_session.get("payment_status") == "paid"
         ):
-            _mark_order_paid(checkout_session)
+            order = _mark_order_paid(checkout_session)
+            _send_paid_pulse_question_emails(order)
     except Exception:
         current_app.logger.exception("Stripe Checkout Session lookup failed")
         flash("Payment status could not be checked. We will confirm it by webhook.", "info")
@@ -433,6 +643,7 @@ def payment_success():
         order=order,
         checkout_session=checkout_session,
         is_support_payment=is_support_payment,
+        support_product=support_product,
     )
 
 
@@ -489,7 +700,13 @@ def stripe_webhook():
     if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
         if data_object.get("metadata", {}).get("product_key") == _PULSE_QUESTION_PRODUCT_KEY:
             if data_object.get("payment_status") in {"paid", "no_payment_required"}:
-                _mark_order_paid(data_object)
+                order = _mark_order_paid(data_object)
+                _send_paid_pulse_question_emails(order)
+        elif data_object.get("metadata", {}).get("product_key") in _SUPPORT_PRODUCT_KEYS:
+            current_app.logger.info(
+                "Support checkout completed: %s",
+                data_object.get("metadata", {}).get("product_key"),
+            )
     elif event_type == "checkout.session.expired":
         _set_order_status_by_session(data_object.get("id", ""), "expired")
     elif event_type == "checkout.session.async_payment_failed":

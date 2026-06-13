@@ -1522,6 +1522,14 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     border-color: rgba(78, 205, 196, 0.45);
 }
 
+.shop-card-support::before {
+    background: linear-gradient(90deg, #4ecdc4, #f4d35e, #e94560);
+}
+
+.shop-card-recurring::before {
+    background: linear-gradient(90deg, #b9c4d4, #f4d35e, #4ecdc4);
+}
+
 .shop-media {
     display: flex;
     align-items: center;
@@ -1541,6 +1549,16 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     object-fit: contain;
     border-radius: 6px;
     box-shadow: 0 14px 28px rgba(0,0,0,0.35);
+}
+
+.shop-card-support .shop-media img {
+    max-width: 86%;
+    max-height: 230px;
+}
+
+.shop-card-pay-what-you-want .shop-media img,
+.shop-card-recurring .shop-media img {
+    width: min(100%, 280px);
 }
 
 .shop-cover-placeholder {

@@ -9,9 +9,18 @@
 
     {% if is_support_payment %}
     <div class="shop-status-panel shop-status-success">
-        <h2>Thanks for the support</h2>
-        {% if checkout_session and checkout_session.payment_status == "paid" %}
-            <p>Your donation went through. Thank you for helping keep the work moving.</p>
+        <h2>Thanks for supporting Ronpon Productions</h2>
+        {% if support_product and support_product.mode == "subscription" %}
+            {% if checkout_session and checkout_session.status == "complete" %}
+                <p>
+                    Your {{ support_product.title }} membership is active.
+                    Thank you for backing the work month after month.
+                </p>
+            {% else %}
+                <p>Stripe has sent you back to Ronpon.ca. Your recurring support is still being confirmed.</p>
+            {% endif %}
+        {% elif checkout_session and checkout_session.payment_status == "paid" %}
+            <p>Your contribution went through. Thank you for helping keep the work moving.</p>
         {% else %}
             <p>Stripe has sent you back to Ronpon.ca. The payment is still being confirmed.</p>
         {% endif %}

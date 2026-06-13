@@ -4,6 +4,14 @@ from datetime import timedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+DEFAULT_STRIPE_PRICE_IDS = {
+    "pulse_question": "price_1ThEuDDK6d8HY9tOVgZLFi6x",
+    "support_ronpon": "price_1ThF8JDK6d8HY9tOjZohv915",
+    "support_ronpon_bronze": "price_1ThFB7DK6d8HY9tOAwhvDmeq",
+    "support_ronpon_silver": "price_1ThFBzDK6d8HY9tOSAZ9UzuP",
+    "support_ronpon_gold": "price_1ThFClDK6d8HY9tOCp6zRZM5",
+}
+
 
 def _env_first(*names: str, default: str = "") -> str:
     for name in names:
@@ -28,16 +36,6 @@ def _bool_env(name: str, default: bool = False) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _int_env(name: str, default: int) -> int:
-    raw_value = os.environ.get(name)
-    if raw_value is None:
-        return default
-    try:
-        return int(raw_value)
-    except ValueError:
-        return default
-
-
 class Config:
     APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "development"))
     INSECURE_DEV_SECRET = "ronpon-dev-secret-change-me"
@@ -60,9 +58,29 @@ class Config:
     DISCORD_CLIENT_SECRET = _env_first("DISCORD_CLIENT_SECRET", "DISCORD_OAUTH_CLIENT_SECRET")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-    STRIPE_PULSE_QUESTION_PRICE_ID = os.environ.get("STRIPE_PULSE_QUESTION_PRICE_ID", "")
-    STRIPE_SUPPORT_MY_WORK_PRICE_ID = os.environ.get("STRIPE_SUPPORT_MY_WORK_PRICE_ID", "")
-    SUPPORT_MY_WORK_AMOUNT_CENTS = _int_env("SUPPORT_MY_WORK_AMOUNT_CENTS", 500)
+    STRIPE_PULSE_QUESTION_PRICE_ID = os.environ.get(
+        "STRIPE_PULSE_QUESTION_PRICE_ID",
+        DEFAULT_STRIPE_PRICE_IDS["pulse_question"],
+    )
+    STRIPE_SUPPORT_RONPON_PRICE_ID = os.environ.get(
+        "STRIPE_SUPPORT_RONPON_PRICE_ID",
+        DEFAULT_STRIPE_PRICE_IDS["support_ronpon"],
+    )
+    STRIPE_SUPPORT_RONPON_BRONZE_PRICE_ID = os.environ.get(
+        "STRIPE_SUPPORT_RONPON_BRONZE_PRICE_ID",
+        DEFAULT_STRIPE_PRICE_IDS["support_ronpon_bronze"],
+    )
+    STRIPE_SUPPORT_RONPON_SILVER_PRICE_ID = os.environ.get(
+        "STRIPE_SUPPORT_RONPON_SILVER_PRICE_ID",
+        DEFAULT_STRIPE_PRICE_IDS["support_ronpon_silver"],
+    )
+    STRIPE_SUPPORT_RONPON_GOLD_PRICE_ID = os.environ.get(
+        "STRIPE_SUPPORT_RONPON_GOLD_PRICE_ID",
+        DEFAULT_STRIPE_PRICE_IDS["support_ronpon_gold"],
+    )
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    EMAIL_FROM = os.environ.get("EMAIL_FROM", "")
+    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")
     PUBLIC_ORIGIN = os.environ.get("PUBLIC_ORIGIN", "").rstrip("/")
     TRUSTED_HOSTS = _csv_env("TRUSTED_HOSTS") or None
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))
