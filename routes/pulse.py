@@ -1,4 +1,4 @@
-"""The Pulse: game show, podcast, polls, and live stream routes."""
+"""The Pulse: game show, podcast, and poll routes."""
 from __future__ import annotations
 
 import re
@@ -11,25 +11,10 @@ _MAX_VIDEO_TITLE_LENGTH = 120
 _MAX_POLL_TITLE_LENGTH = 140
 _MAX_POLL_TEXT_LENGTH = 500
 _MAX_POLL_OPTION_LENGTH = 160
-_TWITCH_CHANNEL_RE = re.compile(r"^[A-Za-z0-9_]{3,25}$")
 
 
 def _is_admin():
     return current_user.is_authenticated and current_user.is_admin
-
-
-def _get_setting(cur, key, default=""):
-    cur.execute(f"SELECT value FROM pulse_settings WHERE key = {ph()}", (key,))
-    row = cur.fetchone()
-    return row[0] if row else default
-
-
-def _set_setting(cur, key, value):
-    cur.execute(f"SELECT 1 FROM pulse_settings WHERE key = {ph()}", (key,))
-    if cur.fetchone():
-        cur.execute(f"UPDATE pulse_settings SET value = {ph()} WHERE key = {ph()}", (value, key))
-    else:
-        cur.execute(f"INSERT INTO pulse_settings (key, value) VALUES ({ph(2)})", (key, value))
 
 
 def _extract_youtube_id(url_or_id: str) -> str | None:
@@ -178,10 +163,6 @@ def _save_poll(cur, title: str, questions: list[dict], poll_id: int | None = Non
 def index():
     with get_conn() as conn:
         cur = conn.cursor()
-        live_active = _get_setting(cur, "live_active", "0") == "1"
-        live_youtube_id = _get_setting(cur, "live_youtube_id")
-        live_twitch_channel = _get_setting(cur, "live_twitch_channel")
-
         cur.execute(
             "SELECT id, youtube_id, title, section, added_at FROM pulse_videos "
             "WHERE section = 'game-show' ORDER BY added_at DESC"
@@ -201,9 +182,6 @@ def index():
         "pulse/index.html",
         available_poll_count=available_poll_count,
         is_admin=_is_admin(),
-        live_active=live_active,
-        live_youtube_id=live_youtube_id,
-        live_twitch_channel=live_twitch_channel,
         game_show_videos=game_show_videos,
         podcast_videos=podcast_videos,
     )
@@ -589,34 +567,3 @@ def delete_video(video_id):
     flash("Video removed.", "success")
     return redirect(url_for("pulse.index"))
 
-
-@pulse_bp.route("/live-settings", methods=["POST"])
-def live_settings():
-    if not _is_admin():
-        flash("Admin access required.", "error")
-        return redirect(url_for("pulse.index"))
-
-    live_active = "1" if request.form.get("live_active") else "0"
-    youtube_id_raw = request.form.get("live_youtube_id", "").strip()
-    twitch_channel = request.form.get("live_twitch_channel", "").strip()
-    yt_id = ""
-    if youtube_id_raw:
-        extracted = _extract_youtube_id(youtube_id_raw)
-        if not extracted:
-            flash("Invalid YouTube stream URL or video ID.", "error")
-            return redirect(url_for("pulse.index"))
-        yt_id = extracted
-    if twitch_channel.startswith("@"):
-        twitch_channel = twitch_channel[1:]
-    if twitch_channel and not _TWITCH_CHANNEL_RE.fullmatch(twitch_channel):
-        flash("Invalid Twitch channel name.", "error")
-        return redirect(url_for("pulse.index"))
-
-    with get_conn() as conn:
-        cur = conn.cursor()
-        _set_setting(cur, "live_active", live_active)
-        _set_setting(cur, "live_youtube_id", yt_id)
-        _set_setting(cur, "live_twitch_channel", twitch_channel)
-
-    flash("Live settings updated!", "success")
-    return redirect(url_for("pulse.index"))

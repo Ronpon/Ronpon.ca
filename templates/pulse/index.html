@@ -7,58 +7,21 @@
         <h1>The Pulse</h1>
     </div>
 
-    {% if live_active and (live_youtube_id or live_twitch_channel) %}
-    <div class="pulse-live-box">
-        <div class="pulse-live-badge">LIVE NOW</div>
-        {% if live_youtube_id %}
-        <div class="pulse-live-embed">
-            <iframe src="https://www.youtube-nocookie.com/embed/{{ live_youtube_id }}?autoplay=1"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowfullscreen loading="lazy"></iframe>
-        </div>
-        {% endif %}
-        <div class="pulse-live-buttons">
-            {% if live_youtube_id %}
-            <a href="https://www.youtube.com/watch?v={{ live_youtube_id }}" target="_blank" rel="noopener"
-               class="btn btn-live btn-live-yt">Watch now on YouTube</a>
-            {% endif %}
-            {% if live_twitch_channel %}
-            <a href="https://www.twitch.tv/{{ live_twitch_channel }}" target="_blank" rel="noopener"
-               class="btn btn-live btn-live-tw">Watch now on Twitch</a>
+    <section class="pulse-section">
+        <div class="pulse-section-header">
+            <h2>The Pulse Polls</h2>
+            {% if is_admin %}
+            <a href="{{ url_for('pulse.create') }}" class="btn btn-small">+ New Poll</a>
             {% endif %}
         </div>
-    </div>
-    {% else %}
-    <div class="pulse-live-box pulse-live-offline">
-        <div class="pulse-live-badge pulse-live-badge-off">OFFLINE</div>
-        <p class="pulse-live-offline-text">Not live right now - check back soon!</p>
-        {% if live_twitch_channel %}
-        <div class="pulse-live-buttons">
-            <a href="https://www.twitch.tv/{{ live_twitch_channel }}" target="_blank" rel="noopener"
-               class="btn btn-live btn-live-tw">Follow on Twitch</a>
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if is_admin %}
-    <details class="pulse-admin-panel">
-        <summary>Admin - Live Settings</summary>
-        <form method="post" action="{{ url_for('pulse.live_settings') }}" class="pulse-admin-form">
-            <label class="pulse-admin-check">
-                <input type="checkbox" name="live_active" {% if live_active %}checked{% endif %}>
-                Live stream is active
-            </label>
-            <label>YouTube Video/Stream ID or URL
-                <input type="text" name="live_youtube_id" value="{{ live_youtube_id }}" placeholder="e.g. dQw4w9WgXcQ">
-            </label>
-            <label>Twitch Channel Name
-                <input type="text" name="live_twitch_channel" value="{{ live_twitch_channel }}" placeholder="e.g. ronpon">
-            </label>
-            <button type="submit" class="btn btn-small">Save Live Settings</button>
-        </form>
-    </details>
-    {% endif %}
+        <a href="{{ url_for('pulse.polls') }}" class="btn poll-available-btn">
+            Available Polls
+            {% if available_poll_count %}
+            <span>{{ available_poll_count }}</span>
+            {% endif %}
+        </a>
+        <p class="empty-state-sm">View open polls, continue one in progress, or check completed status.</p>
+    </section>
 
     <section class="pulse-section">
         <div class="pulse-section-header">
@@ -144,22 +107,6 @@
         {% else %}
         <p class="empty-state-sm">No Podcast episodes yet.</p>
         {% endif %}
-    </section>
-
-    <section class="pulse-section">
-        <div class="pulse-section-header">
-            <h2>The Pulse Polls</h2>
-            {% if is_admin %}
-            <a href="{{ url_for('pulse.create') }}" class="btn btn-small">+ New Poll</a>
-            {% endif %}
-        </div>
-        <a href="{{ url_for('pulse.polls') }}" class="btn poll-available-btn">
-            Available Polls
-            {% if available_poll_count %}
-            <span>{{ available_poll_count }}</span>
-            {% endif %}
-        </a>
-        <p class="empty-state-sm">View open polls, continue one in progress, or check completed status.</p>
     </section>
 </div>
 {% endblock %}
