@@ -36,6 +36,9 @@
                 <a href="{{ url_for('shop.index') }}"
                    class="nav-tab {% if request.path.startswith('/shop') %}active{% endif %}">
                     <span class="nav-icon">&#128717;</span> Shop</a>
+                <a href="{{ url_for('main.contact') }}"
+                   class="nav-tab {% if request.path.startswith('/contact') %}active{% endif %}">
+                    <span class="nav-icon">&#9993;</span> Contact</a>
 
             </div>
             <div class="nav-auth">
@@ -71,6 +74,7 @@
         <div class="footer-content">
             <span class="footer-logo">Ronpon<span class="logo-dot">.ca</span></span>
             <p>&copy; 2026 Ronpon.ca &mdash; Games, videos, and good times.</p>
+            <a href="{{ url_for('main.contact') }}" class="footer-link">Contact Us</a>
         </div>
     </footer>
 
