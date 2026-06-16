@@ -95,7 +95,7 @@ def set_security_headers(response):
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data:; "
+        "img-src 'self' data: https://i.ytimg.com; "
         "media-src 'self'; "
         "connect-src 'self'; "
         "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv; "

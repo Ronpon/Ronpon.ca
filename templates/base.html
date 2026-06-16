@@ -120,6 +120,32 @@
         menu.querySelectorAll('a').forEach(function(link) {
             link.addEventListener('click', closeNav);
         });
+
+        document.querySelectorAll('.youtube-thumbnail[data-fallback-src]').forEach(function(img) {
+            img.addEventListener('error', function() {
+                const fallbackSrc = img.dataset.fallbackSrc;
+                if (!fallbackSrc || img.src === fallbackSrc) { return; }
+                img.src = fallbackSrc;
+                img.removeAttribute('data-fallback-src');
+            }, { once: true });
+        });
+
+        document.querySelectorAll('.youtube-poster').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const videoId = button.dataset.youtubeId || '';
+                if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) { return; }
+
+                const iframe = document.createElement('iframe');
+                iframe.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(videoId) + '?autoplay=1&rel=0';
+                iframe.title = button.dataset.title || 'YouTube video';
+                iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                iframe.allowFullscreen = true;
+                iframe.loading = 'lazy';
+                iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+
+                button.replaceWith(iframe);
+            });
+        });
     })();
     </script>
 

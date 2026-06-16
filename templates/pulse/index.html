@@ -45,10 +45,19 @@
             {% for v in game_show_videos %}
             <div class="video-card">
                 <div class="video-embed">
-                    <iframe src="https://www.youtube-nocookie.com/embed/{{ v['youtube_id'] }}"
-                            title="{{ v['title'] }}" frameborder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowfullscreen loading="lazy"></iframe>
+                    <button class="youtube-poster"
+                            type="button"
+                            data-youtube-id="{{ v['youtube_id'] }}"
+                            data-title="{{ v['title'] }}"
+                            aria-label="Play {{ v['title'] }}">
+                        <img class="youtube-thumbnail"
+                             src="https://i.ytimg.com/vi/{{ v['youtube_id'] }}/maxresdefault.jpg"
+                             data-fallback-src="https://i.ytimg.com/vi/{{ v['youtube_id'] }}/hqdefault.jpg"
+                             alt=""
+                             loading="lazy"
+                             decoding="async">
+                        <span class="youtube-play-button" aria-hidden="true"></span>
+                    </button>
                 </div>
                 <div class="video-card-body">
                     <h3>{{ v['title'] }}</h3>
@@ -88,10 +97,19 @@
             {% for v in podcast_videos %}
             <div class="video-card">
                 <div class="video-embed">
-                    <iframe src="https://www.youtube-nocookie.com/embed/{{ v['youtube_id'] }}"
-                            title="{{ v['title'] }}" frameborder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowfullscreen loading="lazy"></iframe>
+                    <button class="youtube-poster"
+                            type="button"
+                            data-youtube-id="{{ v['youtube_id'] }}"
+                            data-title="{{ v['title'] }}"
+                            aria-label="Play {{ v['title'] }}">
+                        <img class="youtube-thumbnail"
+                             src="https://i.ytimg.com/vi/{{ v['youtube_id'] }}/maxresdefault.jpg"
+                             data-fallback-src="https://i.ytimg.com/vi/{{ v['youtube_id'] }}/hqdefault.jpg"
+                             alt=""
+                             loading="lazy"
+                             decoding="async">
+                        <span class="youtube-play-button" aria-hidden="true"></span>
+                    </button>
                 </div>
                 <div class="video-card-body">
                     <h3>{{ v['title'] }}</h3>

@@ -134,6 +134,13 @@ def init_db(app_config) -> None:
             )
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS video_playlists (
+                name        TEXT PRIMARY KEY,
+                sort_order  INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+
         # ── Polls (The Pulse) ───────────────────────────────────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS polls (

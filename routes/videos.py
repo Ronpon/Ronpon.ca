@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import re
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import current_user
 from models.db import get_conn, ph
 
 videos_bp = Blueprint("videos", __name__)
 _MAX_VIDEO_TITLE_LENGTH = 120
 _MAX_CATEGORY_LENGTH = 60
+_VIDEO_SORTS = {
+    "newest": "DESC",
+    "oldest": "ASC",
+}
 
 
 def _extract_youtube_id(url_or_id: str) -> str | None:
@@ -20,33 +24,80 @@ def _extract_youtube_id(url_or_id: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _is_admin() -> bool:
+    return current_user.is_authenticated and current_user.is_admin
+
+
+def _ensure_video_playlists(cur) -> list[str]:
+    cur.execute("SELECT DISTINCT category FROM videos ORDER BY category")
+    categories = [row[0] for row in cur.fetchall()]
+
+    cur.execute("SELECT name FROM video_playlists")
+    existing = {row[0] for row in cur.fetchall()}
+
+    cur.execute("SELECT COALESCE(MAX(sort_order), -1) FROM video_playlists")
+    max_order = cur.fetchone()[0]
+
+    for category in categories:
+        if category in existing:
+            continue
+        max_order += 1
+        cur.execute(
+            f"INSERT INTO video_playlists (name, sort_order) VALUES ({ph(2)})",
+            (category, max_order),
+        )
+    return categories
+
+
+def _ordered_video_categories(cur) -> list[str]:
+    _ensure_video_playlists(cur)
+    cur.execute(
+        """
+        SELECT name
+        FROM video_playlists
+        WHERE EXISTS (
+            SELECT 1
+            FROM videos
+            WHERE videos.category = video_playlists.name
+        )
+        ORDER BY sort_order, LOWER(name)
+        """
+    )
+    return [row[0] for row in cur.fetchall()]
+
+
 @videos_bp.route("/")
 def index():
+    current_sort = request.args.get("sort", "newest")
+    if current_sort not in _VIDEO_SORTS:
+        current_sort = "newest"
+    direction = _VIDEO_SORTS[current_sort]
+
     with get_conn() as conn:
         cur = conn.cursor()
-
-        cur.execute("SELECT DISTINCT category FROM videos ORDER BY category")
-        categories = [row[0] for row in cur.fetchall()]
-
-        cur.execute("SELECT id, youtube_id, title, category FROM videos ORDER BY category, added_at DESC")
+        categories = _ordered_video_categories(cur)
+        cur.execute(
+            f"SELECT id, youtube_id, title, category, added_at "
+            f"FROM videos ORDER BY added_at {direction}, id {direction}"
+        )
         all_videos = cur.fetchall()
 
-    # Group videos by category
-    grouped = {}
-    for v in all_videos:
-        cat = v[3] if not hasattr(v, 'keys') else v['category']
-        grouped.setdefault(cat, []).append(v)
+    grouped = {category: [] for category in categories}
+    for video in all_videos:
+        category = video[3] if not hasattr(video, "keys") else video["category"]
+        grouped.setdefault(category, []).append(video)
 
     return render_template(
         "videos/index.html",
         grouped=grouped,
         categories=categories,
+        current_sort=current_sort,
     )
 
 
 @videos_bp.route("/add", methods=["GET", "POST"])
 def add():
-    if not (current_user.is_authenticated and current_user.is_admin):
+    if not _is_admin():
         flash("Admin access required.", "error")
         return redirect(url_for("videos.index"))
 
@@ -75,20 +126,20 @@ def add():
                 f"INSERT INTO videos (youtube_id, title, category) VALUES ({ph(3)})",
                 (yt_id, title, category),
             )
+            _ensure_video_playlists(cur)
         flash("Video added!", "success")
         return redirect(url_for("videos.index"))
 
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT category FROM videos ORDER BY category")
-        categories = [row[0] for row in cur.fetchall()]
+        categories = _ordered_video_categories(cur)
 
     return render_template("videos/add.html", categories=categories)
 
 
 @videos_bp.route("/delete/<int:video_id>", methods=["POST"])
 def delete(video_id):
-    if not (current_user.is_authenticated and current_user.is_admin):
+    if not _is_admin():
         flash("Admin access required.", "error")
         return redirect(url_for("videos.index"))
 
@@ -98,3 +149,42 @@ def delete(video_id):
 
     flash("Video removed.", "success")
     return redirect(url_for("videos.index"))
+
+
+@videos_bp.route("/playlists/reorder", methods=["POST"])
+def reorder_playlists():
+    if not _is_admin():
+        return jsonify({"ok": False, "error": "Admin access required."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    incoming_categories = payload.get("categories")
+    if not isinstance(incoming_categories, list):
+        return jsonify({"ok": False, "error": "Expected a playlist order."}), 400
+
+    categories = []
+    seen = set()
+    for value in incoming_categories:
+        if not isinstance(value, str):
+            return jsonify({"ok": False, "error": "Invalid playlist order."}), 400
+        category = value.strip()
+        if not category or len(category) > _MAX_CATEGORY_LENGTH or category in seen:
+            return jsonify({"ok": False, "error": "Invalid playlist order."}), 400
+        categories.append(category)
+        seen.add(category)
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        existing_categories = _ordered_video_categories(cur)
+        if set(categories) != set(existing_categories):
+            return jsonify({
+                "ok": False,
+                "error": "Playlist list changed. Reload and try again.",
+            }), 400
+
+        for position, category in enumerate(categories):
+            cur.execute(
+                f"UPDATE video_playlists SET sort_order = {ph()} WHERE name = {ph()}",
+                (position, category),
+            )
+
+    return jsonify({"ok": True})

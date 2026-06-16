@@ -1,27 +1,48 @@
 {% extends "base.html" %}
-{% block title %}Videos — Ronpon.ca{% endblock %}
+{% block title %}Videos &mdash; Ronpon.ca{% endblock %}
 
 {% block content %}
 <div class="videos-header">
     <h1>Videos</h1>
     {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="videos-header-actions">
         <a href="{{ url_for('videos.add') }}" class="btn btn-small">+ Add Video</a>
+        {% if categories|length > 1 %}
+        <button type="button" class="btn btn-small btn-secondary" id="playlist-position-toggle">Edit Position</button>
+        <button type="button" class="btn btn-small" id="playlist-position-save" hidden>Save Order</button>
+        <button type="button" class="btn btn-small btn-secondary" id="playlist-position-cancel" hidden>Cancel</button>
+        <span class="playlist-position-status" id="playlist-position-status" aria-live="polite"></span>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
 
 {% if grouped %}
-    {% if categories|length > 1 %}
-    <div class="video-filters">
-        <button class="filter-tag active" data-cat="all">All</button>
-        {% for cat in categories %}
-        <button class="filter-tag" data-cat="{{ cat }}">{{ cat }}</button>
-        {% endfor %}
+    <div class="video-controls">
+        {% if categories|length > 1 %}
+        <div class="video-filters">
+            <button type="button" class="filter-tag active" data-cat="all">All</button>
+            {% for cat in categories %}
+            <button type="button" class="filter-tag" data-cat="{{ cat }}">{{ cat }}</button>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <label class="video-sort-control" for="video-sort">
+            <span>Sort</span>
+            <select id="video-sort">
+                <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest to oldest</option>
+                <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>Oldest to newest</option>
+            </select>
+        </label>
     </div>
-    {% endif %}
 
+    <div class="video-playlist-list" id="video-playlist-list" data-reorder-url="{{ url_for('videos.reorder_playlists') }}">
     {% for cat, vids in grouped.items() %}
     <section class="video-category-section" data-cat="{{ cat }}">
     <div class="video-category-header">
+        {% if current_user.is_authenticated and current_user.is_admin and categories|length > 1 %}
+        <button type="button" class="playlist-drag-handle" aria-label="Move {{ cat }}" title="Move playlist">&#9776;</button>
+        {% endif %}
         <span class="video-category-label">{{ cat }}</span>
         <span class="video-category-count">{{ vids|length }}</span>
     </div>
@@ -29,12 +50,19 @@
         {% for v in vids %}
         <div class="video-card">
             <div class="video-embed">
-                <iframe src="https://www.youtube-nocookie.com/embed/{{ v['youtube_id'] }}"
-                        title="{{ v['title'] }}"
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowfullscreen
-                        loading="lazy"></iframe>
+                <button class="youtube-poster"
+                        type="button"
+                        data-youtube-id="{{ v['youtube_id'] }}"
+                        data-title="{{ v['title'] }}"
+                        aria-label="Play {{ v['title'] }}">
+                    <img class="youtube-thumbnail"
+                         src="https://i.ytimg.com/vi/{{ v['youtube_id'] }}/maxresdefault.jpg"
+                         data-fallback-src="https://i.ytimg.com/vi/{{ v['youtube_id'] }}/hqdefault.jpg"
+                         alt=""
+                         loading="lazy"
+                         decoding="async">
+                    <span class="youtube-play-button" aria-hidden="true"></span>
+                </button>
             </div>
             <div class="video-card-body">
                 <h3>{{ v['title'] }}</h3>
@@ -49,18 +77,164 @@
     </div>
     </section>
     {% endfor %}
+    </div>
 
 <script>
-document.querySelectorAll('.video-filters .filter-tag').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.video-filters .filter-tag').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const cat = btn.dataset.cat;
-        document.querySelectorAll('.video-category-section').forEach(sec => {
-            sec.style.display = (cat === 'all' || sec.dataset.cat === cat) ? '' : 'none';
+(function() {
+    const filterButtons = Array.from(document.querySelectorAll('.video-filters .filter-tag'));
+    const sectionsList = document.getElementById('video-playlist-list');
+    const sortSelect = document.getElementById('video-sort');
+    const editButton = document.getElementById('playlist-position-toggle');
+    const saveButton = document.getElementById('playlist-position-save');
+    const cancelButton = document.getElementById('playlist-position-cancel');
+    const status = document.getElementById('playlist-position-status');
+    let originalOrder = [];
+    let draggedSection = null;
+    let editing = false;
+
+    function sections() {
+        return sectionsList ? Array.from(sectionsList.querySelectorAll('.video-category-section')) : [];
+    }
+
+    function setFilter(category) {
+        filterButtons.forEach(button => button.classList.toggle('active', button.dataset.cat === category));
+        sections().forEach(section => {
+            section.style.display = (category === 'all' || section.dataset.cat === category) ? '' : 'none';
+        });
+    }
+
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => setFilter(button.dataset.cat));
+    });
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('sort', sortSelect.value);
+            window.location.href = url.toString();
+        });
+    }
+
+    function orderedCategories() {
+        return sections().map(section => section.dataset.cat);
+    }
+
+    function restoreOrder(order) {
+        const byCategory = new Map(sections().map(section => [section.dataset.cat, section]));
+        order.forEach(category => {
+            const section = byCategory.get(category);
+            if (section) {
+                sectionsList.appendChild(section);
+            }
+        });
+    }
+
+    function setEditing(active) {
+        if (!sectionsList) { return; }
+        editing = active;
+        sectionsList.classList.toggle('playlist-edit-mode', active);
+        sections().forEach(section => {
+            section.draggable = active;
+            section.classList.remove('is-dragging');
+        });
+        filterButtons.forEach(button => { button.disabled = active; });
+        if (sortSelect) { sortSelect.disabled = active; }
+        if (editButton) { editButton.hidden = active; }
+        if (saveButton) {
+            saveButton.hidden = !active;
+            saveButton.disabled = false;
+        }
+        if (cancelButton) { cancelButton.hidden = !active; }
+        if (active) {
+            originalOrder = orderedCategories();
+            setFilter('all');
+        }
+        draggedSection = null;
+    }
+
+    function dragTargetAfter(y) {
+        return sections()
+            .filter(section => section !== draggedSection)
+            .reduce((closest, section) => {
+                const box = section.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: section };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+    }
+
+    sections().forEach(section => {
+        section.addEventListener('dragstart', event => {
+            if (!editing) {
+                event.preventDefault();
+                return;
+            }
+            draggedSection = section;
+            section.classList.add('is-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', section.dataset.cat);
+        });
+
+        section.addEventListener('dragend', () => {
+            section.classList.remove('is-dragging');
+            draggedSection = null;
         });
     });
-});
+
+    if (sectionsList) {
+        sectionsList.addEventListener('dragover', event => {
+            if (!editing || !draggedSection) { return; }
+            event.preventDefault();
+            const after = dragTargetAfter(event.clientY);
+            if (after) {
+                sectionsList.insertBefore(draggedSection, after);
+            } else {
+                sectionsList.appendChild(draggedSection);
+            }
+        });
+    }
+
+    if (editButton) {
+        editButton.addEventListener('click', () => {
+            if (status) { status.textContent = ''; }
+            setEditing(true);
+        });
+    }
+
+    if (cancelButton) {
+        cancelButton.addEventListener('click', () => {
+            restoreOrder(originalOrder);
+            setEditing(false);
+            if (status) { status.textContent = ''; }
+        });
+    }
+
+    if (saveButton && sectionsList) {
+        saveButton.addEventListener('click', async () => {
+            saveButton.disabled = true;
+            if (status) { status.textContent = 'Saving...'; }
+            try {
+                const response = await fetch(sectionsList.dataset.reorderUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ categories: orderedCategories() }),
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.error || 'Could not save order.');
+                }
+                originalOrder = orderedCategories();
+                setEditing(false);
+                if (status) { status.textContent = 'Order saved.'; }
+            } catch (error) {
+                saveButton.disabled = false;
+                if (status) { status.textContent = error.message; }
+            }
+        });
+    }
+})();
 </script>
 {% else %}
 <p class="empty-state">No videos yet.</p>
