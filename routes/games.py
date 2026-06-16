@@ -32,6 +32,22 @@ GAMES = [
         "type": "flask",
         "platform": "Mobile",
     },
+    {
+        "id": "tic-tac-toe",
+        "title": "Tic Tac Toe",
+        "description": "Classic, Trio, and Tic-ception in one quick grid game.",
+        "thumbnail": "games/tic-tac-toe/Images/Tic Tac Toe Thumbnail.png",
+        "type": "flask",
+        "platform": "PC",
+    },
+    {
+        "id": "tic-tac-toe-mobile",
+        "title": "Tic Tac Toe",
+        "description": "Classic, Trio, and Tic-ception tuned for taps.",
+        "thumbnail": "games/tic-tac-toe/Images/Tic Tac Toe Thumbnail.png",
+        "type": "flask",
+        "platform": "Mobile",
+    },
 ]
 
 PARTY_GAMES = [
@@ -68,3 +84,13 @@ def werblers():
 @games_bp.route("/werblers-mobile")
 def werblers_mobile():
     return render_template("games/werblers_mobile.html")
+
+
+@games_bp.route("/tic-tac-toe")
+def tic_tac_toe():
+    return render_template("games/tic_tac_toe.html")
+
+
+@games_bp.route("/tic-tac-toe-mobile")
+def tic_tac_toe_mobile():
+    return render_template("games/tic_tac_toe.html")

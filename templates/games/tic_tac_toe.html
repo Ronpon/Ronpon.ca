@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Tic Tac Toe - Ronpon.ca{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='games/tic-tac-toe/css/game.css') }}?v=20260616b">
+{% endblock %}
+
+{% block content %}
+<section class="ttt-page" data-ttt-game>
+    <div class="ttt-topbar">
+        <a class="ttt-back" href="{{ url_for('games.index') }}">&larr; Games</a>
+        <div class="ttt-title-block">
+            <h1>Tic Tac Toe</h1>
+            <p>Classic, Trio, and Tic-ception.</p>
+        </div>
+        <button class="ttt-icon-button" type="button" data-reset title="New game" aria-label="New game">
+            &#8635;
+        </button>
+    </div>
+
+    <div class="ttt-layout">
+        <aside class="ttt-controls" aria-label="Game options">
+            <div class="ttt-control-group">
+                <span class="ttt-label">Mode</span>
+                <div class="ttt-segmented ttt-segmented-three" role="group" aria-label="Choose game mode">
+                    <button type="button" data-mode="classic" title="Classic Tic Tac Toe">Classic</button>
+                    <button type="button" data-mode="trio" title="Only the newest three marks stay on the board">Trio</button>
+                    <button type="button" data-mode="ticception" title="Nine mini boards, no board locking">Tic-ception</button>
+                </div>
+            </div>
+
+            <div class="ttt-control-group">
+                <span class="ttt-label">Opponent</span>
+                <div class="ttt-segmented" role="group" aria-label="Choose opponent">
+                    <button type="button" data-opponent="friend">Friend</button>
+                    <button type="button" data-opponent="computer">Computer</button>
+                </div>
+            </div>
+
+            <div class="ttt-scoreboard" aria-label="Score">
+                <div class="ttt-score ttt-score-x">
+                    <span>X</span>
+                    <strong data-score-x>0</strong>
+                </div>
+                <div class="ttt-score">
+                    <span>Ties</span>
+                    <strong data-score-ties>0</strong>
+                </div>
+                <div class="ttt-score ttt-score-o">
+                    <span>O</span>
+                    <strong data-score-o>0</strong>
+                </div>
+            </div>
+        </aside>
+
+        <section class="ttt-stage" aria-label="Tic Tac Toe board">
+            <div class="ttt-status-row">
+                <div class="ttt-turn-chip" data-turn-chip>X</div>
+                <p class="ttt-status" data-status>X turn</p>
+            </div>
+
+            <div class="ttt-board-shell">
+                <div class="ttt-board" data-board></div>
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='games/tic-tac-toe/js/game.js') }}?v=20260616b" defer></script>
+{% endblock %}
