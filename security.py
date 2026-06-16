@@ -1,14 +1,19 @@
 """Small security helpers shared by the Flask app."""
 from __future__ import annotations
 
+import time
+from functools import wraps
 import hmac
 import secrets
+from typing import Callable
 from urllib.parse import urlparse, urljoin
 
-from flask import abort, current_app, request, session
+from flask import abort, current_app, jsonify, request, session
 
 
 CSRF_SESSION_KEY = "_csrf_token"
+_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS = 60 * 60
+_last_rate_limit_cleanup = 0.0
 
 
 def csrf_token() -> str:
@@ -52,6 +57,112 @@ def json_body() -> dict:
     if not isinstance(data, dict):
         abort(400, description="Expected a valid JSON object.")
     return data
+
+
+def rate_limit(scope: str, limit: int, window_seconds: int, *, key_func: Callable[[], str] | None = None):
+    """Apply a database-backed fixed-window rate limit to a Flask route."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            check_rate_limit(scope, limit, window_seconds, key_func=key_func)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def check_rate_limit(
+    scope: str,
+    limit: int,
+    window_seconds: int,
+    *,
+    key_func: Callable[[], str] | None = None,
+) -> None:
+    if not current_app.config.get("RATE_LIMIT_ENABLED", True):
+        return
+    if limit <= 0 or window_seconds <= 0:
+        return
+
+    now = int(time.time())
+    window_start = now - (now % window_seconds)
+    identifier = key_func() if key_func else _client_ip()
+    rate_key = f"{scope}:{identifier}"
+    count = _increment_rate_limit(rate_key, window_start)
+    if count > limit:
+        retry_after = window_seconds - (now - window_start)
+        _abort_rate_limited(retry_after)
+
+
+def _client_ip() -> str:
+    return (request.remote_addr or "unknown").strip().lower()
+
+
+def _increment_rate_limit(rate_key: str, window_start: int) -> int:
+    from models.db import get_conn, is_postgres, ph
+
+    now = int(time.time())
+    with get_conn() as conn:
+        cur = conn.cursor()
+        if is_postgres():
+            cur.execute(
+                f"""
+                INSERT INTO rate_limits (rate_key, window_start, count, updated_at)
+                VALUES ({ph(3)}, now())
+                ON CONFLICT (rate_key) DO UPDATE
+                SET count = CASE
+                        WHEN rate_limits.window_start = EXCLUDED.window_start
+                        THEN rate_limits.count + 1
+                        ELSE 1
+                    END,
+                    window_start = EXCLUDED.window_start,
+                    updated_at = now()
+                RETURNING count
+                """,
+                (rate_key, window_start, 1),
+            )
+            count = int(cur.fetchone()[0])
+        else:
+            cur.execute(f"SELECT window_start, count FROM rate_limits WHERE rate_key = {ph()}", (rate_key,))
+            row = cur.fetchone()
+            if row and int(row["window_start"]) == window_start:
+                count = int(row["count"]) + 1
+                cur.execute(
+                    f"UPDATE rate_limits SET count = {ph()}, updated_at = {ph()} WHERE rate_key = {ph()}",
+                    (count, str(now), rate_key),
+                )
+            else:
+                count = 1
+                cur.execute(
+                    f"""
+                    INSERT OR REPLACE INTO rate_limits (rate_key, window_start, count, updated_at)
+                    VALUES ({ph(4)})
+                    """,
+                    (rate_key, window_start, count, str(now)),
+                )
+        _cleanup_rate_limits(cur, now)
+        return count
+
+
+def _cleanup_rate_limits(cur, now: int) -> None:
+    global _last_rate_limit_cleanup
+    if now - _last_rate_limit_cleanup < _RATE_LIMIT_CLEANUP_INTERVAL_SECONDS:
+        return
+    _last_rate_limit_cleanup = float(now)
+    cutoff = now - int(current_app.config.get("RATE_LIMIT_KEEP_SECONDS", 24 * 60 * 60))
+    from models.db import ph
+
+    cur.execute(f"DELETE FROM rate_limits WHERE window_start < {ph()}", (cutoff,))
+
+
+def _abort_rate_limited(retry_after: int) -> None:
+    message = "Too many requests. Please try again later."
+    wants_json = request.is_json or request.path.startswith(("/games/werblers/api/", "/games/party/api/"))
+    if wants_json:
+        response = jsonify({"error": message})
+        response.status_code = 429
+    else:
+        response = current_app.response_class(message, status=429, mimetype="text/plain")
+    response.headers["Retry-After"] = str(max(1, retry_after))
+    abort(response)
 
 
 def is_safe_redirect(target: str | None) -> bool:

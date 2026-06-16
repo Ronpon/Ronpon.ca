@@ -115,6 +115,24 @@ def init_db(app_config) -> None:
         _ensure_column(cur, "users", "oauth_sub", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(cur, "users", "display_name", "TEXT NOT NULL DEFAULT ''")
 
+        # Rate limit counters for public routes that create server work.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                rate_key     TEXT PRIMARY KEY,
+                window_start INTEGER NOT NULL,
+                count        INTEGER NOT NULL DEFAULT 0,
+                updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                rate_key     TEXT PRIMARY KEY,
+                window_start BIGINT NOT NULL,
+                count        INTEGER NOT NULL DEFAULT 0,
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_start)")
+
         # ── Videos ──────────────────────────────────────────────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS videos (

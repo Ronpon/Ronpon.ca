@@ -13,7 +13,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from models.db import get_conn, ph
 from models.user import User
-from security import is_safe_redirect
+from security import check_rate_limit, is_safe_redirect, rate_limit
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -125,7 +125,7 @@ def _fetch_discord_identity(access_token: str) -> dict:
     email = (info.get("email") or "").lower()
     if not info.get("id") or not email:
         raise ValueError("Discord identity response is missing required fields.")
-    if info.get("verified") is False:
+    if info.get("verified") is not True:
         raise ValueError("Discord email is not verified.")
     return info
 
@@ -149,6 +149,7 @@ def register():
         return redirect(url_for("main.home"))
 
     if request.method == "POST":
+        check_rate_limit("auth.register", 3, 60 * 60)
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -189,6 +190,7 @@ def login():
         return redirect(url_for("main.home"))
 
     if request.method == "POST":
+        check_rate_limit("auth.login", 20, 15 * 60)
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
@@ -221,6 +223,7 @@ def logout():
 
 
 @auth_bp.route("/social/<provider>")
+@rate_limit("auth.oauth_start", 30, 15 * 60)
 def social_login(provider):
     if provider == "google":
         if not _google_configured():
@@ -259,6 +262,7 @@ def social_login(provider):
 
 
 @auth_bp.route("/auth/google/callback")
+@rate_limit("auth.oauth_callback", 60, 15 * 60)
 def google_callback():
     if request.args.get("error"):
         flash("Google login was cancelled.", "error")
@@ -303,6 +307,7 @@ def google_callback():
 
 
 @auth_bp.route("/auth/discord/callback")
+@rate_limit("auth.oauth_callback", 60, 15 * 60)
 def discord_callback():
     if request.args.get("error"):
         flash("Discord login was cancelled.", "error")

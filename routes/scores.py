@@ -2,6 +2,7 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import current_user, login_required
 from models.db import get_conn, ph
+from security import rate_limit
 
 scores_bp = Blueprint("scores", __name__)
 
@@ -64,6 +65,7 @@ def index():
 
 @scores_bp.route("/api/submit", methods=["POST"])
 @login_required
+@rate_limit("scores.submit", 60, 10 * 60)
 def api_submit():
     data = request.get_json(silent=True) or {}
     game = (data.get("game") or "").strip()

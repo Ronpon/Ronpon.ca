@@ -1796,6 +1796,10 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     width: 100%;
 }
 
+.shop-action-form {
+    margin: 0;
+}
+
 .shop-card .shop-fine-print {
     font-size: 0.6rem !important;
 }

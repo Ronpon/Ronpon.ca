@@ -5,6 +5,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from flask_login import current_user
 
 from models import party_games, scenes_phone
+from security import rate_limit
 
 
 party_games_bp = Blueprint("party_games", __name__)
@@ -44,6 +45,7 @@ def index():
 
 
 @party_games_bp.post("/rooms")
+@rate_limit("party.create_room", 20, 60 * 60)
 def create_room():
     game_key = request.form.get("game_key", "lobby-test")
     host_name = party_games.clean_player_name(request.form.get("host_name", ""))
@@ -68,6 +70,7 @@ def create_room():
 
 
 @party_games_bp.post("/join")
+@rate_limit("party.join_room", 60, 10 * 60)
 def join_room():
     code = party_games.normalize_code(request.form.get("code", ""))
     name = party_games.clean_player_name(request.form.get("name", ""))
@@ -141,6 +144,7 @@ def room_state(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/start")
+@rate_limit("party.room_action", 120, 60)
 def start_room(code):
     normalized = party_games.normalize_code(code)
     host_token = _session_token(HOST_SESSION_KEY, normalized)
@@ -166,6 +170,7 @@ def start_room(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/reset")
+@rate_limit("party.room_action", 120, 60)
 def reset_room(code):
     normalized = party_games.normalize_code(code)
     host_token = _session_token(HOST_SESSION_KEY, normalized)
@@ -191,6 +196,7 @@ def reset_room(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/close")
+@rate_limit("party.room_action", 120, 60)
 def close_room(code):
     normalized = party_games.normalize_code(code)
     host_token = _session_token(HOST_SESSION_KEY, normalized)
@@ -202,6 +208,7 @@ def close_room(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/ready")
+@rate_limit("party.room_action", 120, 60)
 def set_ready(code):
     normalized = party_games.normalize_code(code)
     player_token = _session_token(PLAYER_SESSION_KEY, normalized)
@@ -213,6 +220,7 @@ def set_ready(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/leave")
+@rate_limit("party.room_action", 120, 60)
 def leave_room(code):
     normalized = party_games.normalize_code(code)
     player_token = _session_token(PLAYER_SESSION_KEY, normalized)
@@ -223,6 +231,7 @@ def leave_room(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/scenes/answer")
+@rate_limit("party.room_action", 120, 60)
 def scenes_answer(code):
     normalized = party_games.normalize_code(code)
     player_token = _session_token(PLAYER_SESSION_KEY, normalized)
@@ -238,6 +247,7 @@ def scenes_answer(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/scenes/vote")
+@rate_limit("party.room_action", 120, 60)
 def scenes_vote(code):
     normalized = party_games.normalize_code(code)
     player_token = _session_token(PLAYER_SESSION_KEY, normalized)
@@ -254,6 +264,7 @@ def scenes_vote(code):
 
 
 @party_games_bp.post("/api/rooms/<code>/scenes/next")
+@rate_limit("party.room_action", 120, 60)
 def scenes_next(code):
     normalized = party_games.normalize_code(code)
     host_token = _session_token(HOST_SESSION_KEY, normalized)

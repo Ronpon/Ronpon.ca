@@ -64,11 +64,20 @@
                         {% endif %}
 
                         <div class="shop-card-actions">
-                            <a href="{{ product.action_url }}"
-                               class="btn {% if not product.featured %}btn-secondary{% endif %}"
-                               {% if product.external %}target="_blank" rel="noopener noreferrer"{% endif %}>
-                                {{ product.action_label }}
-                            </a>
+                            {% if product.action_method == "post" %}
+                                <form method="post" action="{{ product.action_url }}" class="shop-action-form">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn {% if not product.featured %}btn-secondary{% endif %}">
+                                        {{ product.action_label }}
+                                    </button>
+                                </form>
+                            {% else %}
+                                <a href="{{ product.action_url }}"
+                                   class="btn {% if not product.featured %}btn-secondary{% endif %}"
+                                   {% if product.external %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                                    {{ product.action_label }}
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                 {% endif %}

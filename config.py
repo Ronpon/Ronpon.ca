@@ -84,6 +84,8 @@ class Config:
     PUBLIC_ORIGIN = os.environ.get("PUBLIC_ORIGIN", "").rstrip("/")
     TRUSTED_HOSTS = _csv_env("TRUSTED_HOSTS") or None
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(4 * 1024 * 1024)))
+    RATE_LIMIT_ENABLED = _bool_env("RATE_LIMIT_ENABLED", True)
+    RATE_LIMIT_KEEP_SECONDS = int(os.environ.get("RATE_LIMIT_KEEP_SECONDS", str(24 * 60 * 60)))
     ENABLE_SCORES = _bool_env("ENABLE_SCORES", False)
     ENABLE_ACHIEVEMENTS = _bool_env("ENABLE_ACHIEVEMENTS", False)
     PREFERRED_URL_SCHEME = "https" if APP_ENV == "production" else "http"

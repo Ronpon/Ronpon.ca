@@ -11,6 +11,7 @@ from flask_login import current_user
 
 from models.db import get_conn, is_postgres, ph
 from email_service import email_configured, send_email
+from security import rate_limit
 
 try:
     import stripe
@@ -114,6 +115,7 @@ def _support_product_cards():
                 "placeholder": "SUPPORT",
                 "action_label": product["action_label"],
                 "action_url": url_for("shop.support_checkout", support_slug=product["slug"]),
+                "action_method": "post",
                 "external": False,
                 "card_class": product["card_class"],
             }
@@ -524,12 +526,20 @@ def index():
     return render_template("shop/index.html", shop_categories=_shop_categories())
 
 
-@shop_bp.route("/shop/support")
+@shop_bp.route("/shop/support", methods=["GET"])
+@shop_bp.route("/shop/support/<support_slug>", methods=["GET"])
+def support_checkout_get(support_slug="one-time"):
+    return redirect(url_for("shop.index"))
+
+
+@shop_bp.route("/shop/support", methods=["POST"])
+@rate_limit("shop.support_checkout", 10, 60 * 60)
 def support():
     return _start_support_checkout("one-time")
 
 
-@shop_bp.route("/shop/support/<support_slug>")
+@shop_bp.route("/shop/support/<support_slug>", methods=["POST"])
+@rate_limit("shop.support_checkout", 10, 60 * 60)
 def support_checkout(support_slug):
     return _start_support_checkout(support_slug)
 
@@ -575,6 +585,7 @@ def pulse_question():
 
 
 @shop_bp.route("/shop/pulse-question/checkout", methods=["POST"])
+@rate_limit("shop.pulse_question_checkout", 5, 60 * 60)
 def pulse_question_checkout():
     payload, errors = _pulse_question_payload()
     if errors:
@@ -609,6 +620,7 @@ def pulse_question_checkout():
 
 
 @shop_bp.route("/shop/payment-success")
+@rate_limit("shop.payment_success", 60, 60 * 60)
 def payment_success():
     session_id = request.args.get("session_id", "").strip()
     if not session_id:

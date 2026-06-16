@@ -6,7 +6,7 @@ import re
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from security import json_body
+from security import json_body, rate_limit
 from werblers_engine import database as db
 from werblers_engine.save_load import serialize_game, deserialize_game
 from werblers_web.routes.helpers import _get_state, _build_state, _set_game_state
@@ -29,6 +29,7 @@ def _authorized_profile(profile_id: int, data: dict | None = None) -> bool:
 
 
 @save_bp.route("/api/profiles", methods=["GET"])
+@rate_limit("werblers.list_profiles", 120, 60)
 def api_list_profiles():
     device_id = request.args.get("device_id", "")
     if current_user.is_authenticated:
@@ -38,6 +39,7 @@ def api_list_profiles():
     return jsonify({"profiles": db.list_profiles(device_id)})
 
 @save_bp.route("/api/profiles", methods=["POST"])
+@rate_limit("werblers.create_profile", 10, 60 * 60)
 def api_create_profile():
     data = json_body()
     device_id = data.get("device_id", "")
@@ -65,6 +67,7 @@ def api_list_saves():
     return jsonify({"saves": db.list_saves(profile_id)})
 
 @save_bp.route("/api/save", methods=["POST"])
+@rate_limit("werblers.save_game", 60, 10 * 60)
 def api_save_game():
     _game = _get_state()["game"]
     if _game is None:
@@ -92,6 +95,7 @@ def api_save_game():
     return jsonify({"ok": True, "save": result})
 
 @save_bp.route("/api/load", methods=["POST"])
+@rate_limit("werblers.load_game", 60, 10 * 60)
 def api_load_game():
     data = json_body()
     profile_id = data.get("profile_id")
@@ -119,6 +123,7 @@ def api_list_achievements():
     return jsonify({"achievements": db.list_achievements(profile_id)})
 
 @save_bp.route("/api/achievements", methods=["POST"])
+@rate_limit("werblers.achievement", 60, 10 * 60)
 def api_grant_achievement():
     if not current_app.config.get("ENABLE_ACHIEVEMENTS", False):
         return jsonify({"ok": True, "newly_granted": False, "achievements": [], "enabled": False})
