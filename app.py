@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory
 from flask_login import LoginManager
 from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
@@ -74,11 +74,20 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(games_bp, url_prefix="/games")
 app.register_blueprint(party_games_bp, url_prefix="/games/party")
 app.register_blueprint(videos_bp, url_prefix="/videos")
-app.register_blueprint(pulse_bp, url_prefix="/the-pulse")
+app.register_blueprint(pulse_bp, url_prefix="/thepulse")
 app.register_blueprint(shop_bp)
 if app.config.get("ENABLE_SCORES", False):
     from routes.scores import scores_bp
     app.register_blueprint(scores_bp, url_prefix="/scores")
+
+
+@app.route("/the-pulse", defaults={"subpath": ""}, methods=["GET", "POST"])
+@app.route("/the-pulse/<path:subpath>", methods=["GET", "POST"])
+def legacy_pulse_redirect(subpath: str):
+    target = "/thepulse" + (f"/{subpath}" if subpath else "")
+    if request.query_string:
+        target = f"{target}?{request.query_string.decode('utf-8')}"
+    return redirect(target, code=308 if request.method == "POST" else 301)
 
 # ── Werblers game blueprints (API routes under /games/werblers) ──
 from werblers_engine import database as werblers_db

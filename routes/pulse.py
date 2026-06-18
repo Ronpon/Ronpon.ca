@@ -159,7 +159,7 @@ def _save_poll(cur, title: str, questions: list[dict], poll_id: int | None = Non
     return poll_id
 
 
-@pulse_bp.route("/")
+@pulse_bp.route("", strict_slashes=False)
 def index():
     with get_conn() as conn:
         cur = conn.cursor()
@@ -566,4 +566,3 @@ def delete_video(video_id):
         conn.cursor().execute(f"DELETE FROM pulse_videos WHERE id = {ph()}", (video_id,))
     flash("Video removed.", "success")
     return redirect(url_for("pulse.index"))
-
