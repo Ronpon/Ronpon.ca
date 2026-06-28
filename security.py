@@ -212,7 +212,7 @@ def set_security_headers(response):
         "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv; "
         "object-src 'none'; "
         "base-uri 'self'; "
-        "form-action 'self'; "
+        "form-action 'self' https://checkout.stripe.com https://billing.stripe.com; "
         "frame-ancestors 'self'",
     )
     if request.is_secure:
