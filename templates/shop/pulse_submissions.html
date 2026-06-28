@@ -17,6 +17,28 @@
         {% endfor %}
     </div>
 
+    <div class="shop-config-panel">
+        <h2>Email Service</h2>
+        <dl>
+            <div>
+                <dt>Resend Package</dt>
+                <dd>{{ "Ready" if email_status.resend_package else "Missing" }}</dd>
+            </div>
+            <div>
+                <dt>RESEND_API_KEY</dt>
+                <dd>{{ "Set" if email_status.resend_api_key else "Missing" }}</dd>
+            </div>
+            <div>
+                <dt>EMAIL_FROM</dt>
+                <dd>{{ email_status.email_from_value if email_status.email_from else "Missing" }}</dd>
+            </div>
+            <div>
+                <dt>ADMIN_EMAIL</dt>
+                <dd>{{ email_status.admin_email_value if email_status.admin_email else "Missing" }}</dd>
+            </div>
+        </dl>
+    </div>
+
     <form method="post" action="{{ url_for('shop.pulse_question_sync_session') }}" class="shop-sync-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="session_id">Sync Stripe Checkout Session</label>
@@ -80,6 +102,14 @@
                     <dd>
                         Customer: {% if order.customer_email_sent_at %}sent{% else %}not sent{% endif %}<br>
                         Admin: {% if order.admin_email_sent_at %}sent{% else %}not sent{% endif %}
+                        {% if order.status == "paid" and (not order.customer_email_sent_at or not order.admin_email_sent_at) %}
+                        <form method="post"
+                              action="{{ url_for('shop.pulse_question_send_emails', order_id=order.id) }}"
+                              class="shop-inline-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-small btn-secondary">Retry Emails</button>
+                        </form>
+                        {% endif %}
                     </dd>
                 </div>
                 {% if order.stripe_checkout_session_id %}

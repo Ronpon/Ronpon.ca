@@ -12,7 +12,7 @@ from werkzeug.exceptions import HTTPException
 
 from models.db import get_conn, is_postgres, ph
 from models.support import get_support_subscription_for_billing
-from email_service import email_configured, send_email
+from email_service import email_configured, email_configuration_status, send_email
 from security import rate_limit
 
 try:
@@ -452,6 +452,20 @@ def _send_paid_pulse_question_emails(order) -> None:
                 _set_order_email_sent_at(order_id, "admin_email_sent_at")
         except Exception:
             current_app.logger.exception("Pulse question admin email failed.")
+
+
+def _missing_pulse_email_config() -> list[str]:
+    status = email_configuration_status()
+    missing = []
+    if not status["resend_package"]:
+        missing.append("resend package")
+    if not status["resend_api_key"]:
+        missing.append("RESEND_API_KEY")
+    if not status["email_from"]:
+        missing.append("EMAIL_FROM")
+    if not status["admin_email"]:
+        missing.append("ADMIN_EMAIL")
+    return missing
 
 
 def _set_order_status_by_session(session_id: str, status: str) -> None:
@@ -1506,7 +1520,46 @@ def pulse_question_submissions():
         orders=orders,
         status=status,
         status_tabs=_pulse_submission_status_tabs(status),
+        email_status=email_configuration_status(),
     )
+
+
+@shop_bp.route("/shop/pulse-question/submissions/<int:order_id>/send-emails", methods=["POST"])
+def pulse_question_send_emails(order_id: int):
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("shop.index"))
+
+    order = _fetch_order_by_id(order_id)
+    if not order or order["product_key"] != _PULSE_QUESTION_PRODUCT_KEY:
+        flash("Pulse submission not found.", "error")
+        return redirect(url_for("shop.pulse_question_submissions", status="all"))
+    if order["status"] != "paid":
+        flash("Emails can only be sent after the submission is marked paid.", "error")
+        return redirect(url_for("shop.pulse_question_submissions", status="all"))
+
+    if not email_configured():
+        missing = ", ".join(_missing_pulse_email_config())
+        flash(f"Email is not configured yet. Missing: {missing}.", "error")
+        return redirect(url_for("shop.pulse_question_submissions", status="all"))
+
+    before = _row_to_dict(order)
+    _send_paid_pulse_question_emails(order)
+    after = _row_to_dict(_fetch_order_by_id(order_id))
+
+    sent_parts = []
+    if not before.get("customer_email_sent_at") and after.get("customer_email_sent_at"):
+        sent_parts.append("customer")
+    if not before.get("admin_email_sent_at") and after.get("admin_email_sent_at"):
+        sent_parts.append("admin")
+
+    if sent_parts:
+        flash(f"Sent {', '.join(sent_parts)} email.", "success")
+    elif not current_app.config.get("ADMIN_EMAIL", "") and not after.get("admin_email_sent_at"):
+        flash("Customer email was already sent or skipped; admin email needs ADMIN_EMAIL configured.", "info")
+    else:
+        flash("Email send was attempted. If the status is still not sent, check Resend and app logs.", "info")
+    return redirect(url_for("shop.pulse_question_submissions", status="all"))
 
 
 @shop_bp.route("/shop/pulse-question/sync-session", methods=["POST"])

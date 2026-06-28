@@ -20,6 +20,18 @@ def email_configured() -> bool:
     )
 
 
+def email_configuration_status() -> dict:
+    return {
+        "resend_package": resend is not None,
+        "resend_api_key": bool(current_app.config.get("RESEND_API_KEY")),
+        "email_from": bool(current_app.config.get("EMAIL_FROM")),
+        "email_from_value": current_app.config.get("EMAIL_FROM", ""),
+        "admin_email": bool(current_app.config.get("ADMIN_EMAIL")),
+        "admin_email_value": current_app.config.get("ADMIN_EMAIL", ""),
+        "configured": email_configured(),
+    }
+
+
 def _recipients(to: str | Iterable[str]) -> list[str]:
     if isinstance(to, str):
         return [to]

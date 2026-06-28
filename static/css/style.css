@@ -2057,6 +2057,43 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     flex: 1;
 }
 
+.shop-config-panel {
+    max-width: 860px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+}
+
+.shop-config-panel h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.05rem;
+}
+
+.shop-config-panel dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.shop-config-panel dt {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.shop-config-panel dd {
+    margin: 0.15rem 0 0;
+    overflow-wrap: anywhere;
+}
+
+.shop-inline-form {
+    margin-top: 0.7rem;
+}
+
 .shop-submission-card {
     padding: 1.25rem;
     background: var(--color-surface);
