@@ -17,6 +17,15 @@
         {% endfor %}
     </div>
 
+    <form method="post" action="{{ url_for('shop.pulse_question_sync_session') }}" class="shop-sync-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="session_id">Sync Stripe Checkout Session</label>
+        <div>
+            <input id="session_id" name="session_id" type="text" placeholder="cs_live_..." autocomplete="off">
+            <button type="submit" class="btn btn-small btn-secondary">Sync</button>
+        </div>
+    </form>
+
     {% if not orders %}
     <p class="empty-state">No submissions found.</p>
     {% endif %}

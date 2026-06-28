@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from werkzeug.exceptions import HTTPException
 
 from models.db import get_conn, is_postgres, ph
 from models.support import get_support_subscription_for_billing
@@ -488,6 +489,34 @@ def _safe_fetch_order_by_session(session_id: str):
         return None
 
 
+def _process_paid_pulse_checkout_session(checkout_session):
+    metadata = _stripe_value(checkout_session, "metadata", {}) or {}
+    if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
+        return None
+    if _stripe_value(checkout_session, "payment_status", "") not in {"paid", "no_payment_required"}:
+        return None
+
+    order = _mark_order_paid(checkout_session)
+    _send_paid_pulse_question_emails(order)
+    return order
+
+
+def _sync_pulse_question_session_id(session_id: str):
+    if not session_id or not _stripe_configured():
+        return None
+    _set_stripe_key()
+    checkout_session = stripe.checkout.Session.retrieve(session_id)
+    metadata = _stripe_value(checkout_session, "metadata", {}) or {}
+    if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
+        return None
+
+    if _stripe_value(checkout_session, "payment_status", "") in {"paid", "no_payment_required"}:
+        return _process_paid_pulse_checkout_session(checkout_session)
+    if _stripe_value(checkout_session, "status", "") == "expired":
+        _set_order_status_by_session(session_id, "expired")
+    return _safe_fetch_order_by_session(session_id)
+
+
 def _sync_pending_pulse_question_orders(limit: int = 25) -> int:
     try:
         if not _stripe_configured():
@@ -514,19 +543,9 @@ def _sync_pending_pulse_question_orders(limit: int = 25) -> int:
         for order in pending_orders:
             session_id = order["stripe_checkout_session_id"]
             try:
-                checkout_session = stripe.checkout.Session.retrieve(session_id)
-                metadata = _stripe_value(checkout_session, "metadata", {}) or {}
-                if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
-                    continue
-
-                payment_status = _stripe_value(checkout_session, "payment_status", "")
-                session_status = _stripe_value(checkout_session, "status", "")
-                if payment_status in {"paid", "no_payment_required"}:
-                    paid_order = _mark_order_paid(checkout_session)
-                    _send_paid_pulse_question_emails(paid_order)
+                synced_order = _sync_pulse_question_session_id(session_id)
+                if synced_order and synced_order["status"] == "paid":
                     synced += 1
-                elif session_status == "expired":
-                    _set_order_status_by_session(session_id, "expired")
             except Exception:
                 current_app.logger.exception(
                     "Pending Pulse question Stripe sync failed for session %s",
@@ -1301,6 +1320,27 @@ def pulse_question_checkout():
 @shop_bp.route("/shop/payment-success")
 @rate_limit("shop.payment_success", 60, 60 * 60)
 def payment_success():
+    try:
+        return _payment_success_response()
+    except Exception:
+        current_app.logger.exception("Payment success page failed unexpectedly.")
+        session_id = request.args.get("session_id", "").strip()
+        expected_product_key = request.args.get("product", "").strip()
+        expected_support_product = _SUPPORT_PRODUCTS_BY_KEY.get(expected_product_key)
+        return render_template(
+            "shop/payment_success.html",
+            order=None,
+            checkout_session=None,
+            is_support_payment=expected_support_product is not None,
+            support_product=expected_support_product,
+            expected_product_key=expected_product_key,
+            expected_support_product=expected_support_product,
+            status_check_failed=True,
+            support_payment=None,
+        )
+
+
+def _payment_success_response():
     session_id = request.args.get("session_id", "").strip()
     expected_product_key = request.args.get("product", "").strip()
     expected_support_product = _SUPPORT_PRODUCTS_BY_KEY.get(expected_product_key)
@@ -1325,8 +1365,7 @@ def payment_success():
             metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY
             and _stripe_value(checkout_session, "payment_status", "") == "paid"
         ):
-            order = _mark_order_paid(checkout_session)
-            _send_paid_pulse_question_emails(order)
+            _process_paid_pulse_checkout_session(checkout_session)
         elif (
             is_support_payment
             and support_product
@@ -1470,8 +1509,41 @@ def pulse_question_submissions():
     )
 
 
+@shop_bp.route("/shop/pulse-question/sync-session", methods=["POST"])
+def pulse_question_sync_session():
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("shop.index"))
+
+    session_id = request.form.get("session_id", "").strip()
+    if not session_id.startswith("cs_"):
+        flash("Enter a Stripe Checkout Session ID that starts with cs_.", "error")
+        return redirect(url_for("shop.pulse_question_submissions", status="all"))
+
+    try:
+        order = _sync_pulse_question_session_id(session_id)
+        if order:
+            flash("Stripe session synced. Check the submission list below.", "success")
+        else:
+            flash("Stripe session was found, but it is not a paid Pulse question yet.", "info")
+    except Exception:
+        current_app.logger.exception("Manual Pulse question session sync failed.")
+        flash("That Stripe session could not be synced yet. Check the app logs for the exact Stripe error.", "error")
+    return redirect(url_for("shop.pulse_question_submissions", status="all"))
+
+
 @shop_bp.route("/stripe/webhook", methods=["POST"])
 def stripe_webhook():
+    try:
+        return _stripe_webhook_response()
+    except HTTPException:
+        raise
+    except Exception:
+        current_app.logger.exception("Stripe webhook failed unexpectedly.")
+        return jsonify({"received": True, "processed": False}), 200
+
+
+def _stripe_webhook_response():
     if not stripe:
         abort(400)
     endpoint_secret = current_app.config.get("STRIPE_WEBHOOK_SECRET", "")
@@ -1491,9 +1563,7 @@ def stripe_webhook():
     if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
         if data_object.get("metadata", {}).get("product_key") == _PULSE_QUESTION_PRODUCT_KEY:
             try:
-                if data_object.get("payment_status") in {"paid", "no_payment_required"}:
-                    order = _mark_order_paid(data_object)
-                    _send_paid_pulse_question_emails(order)
+                _process_paid_pulse_checkout_session(data_object)
             except Exception:
                 current_app.logger.exception("Pulse question checkout webhook processing failed.")
         elif data_object.get("metadata", {}).get("product_key") in _SUPPORT_PRODUCT_KEYS:
