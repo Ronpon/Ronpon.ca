@@ -24,6 +24,7 @@
 
         <div class="nav-menu" id="nav-menu">
             <div class="nav-tabs">
+                {% set is_supporters_path = request.path.startswith('/shop/supporters') %}
                 <a href="{{ url_for('games.index') }}"
                    class="nav-tab {% if request.path.startswith('/games') %}active{% endif %}">
                     <span class="nav-icon">🎮</span> Games</a>
@@ -34,8 +35,13 @@
                    class="nav-tab {% if request.path.startswith('/thepulse') %}active{% endif %}">
                     <span class="nav-icon">📊</span> The Pulse</a>
                 <a href="{{ url_for('shop.index') }}"
-                   class="nav-tab {% if request.path.startswith('/shop') %}active{% endif %}">
+                   class="nav-tab {% if request.path.startswith('/shop') and not is_supporters_path %}active{% endif %}">
                     <span class="nav-icon">&#128717;</span> Shop</a>
+                {% if current_user is defined and current_user.is_authenticated and current_user.is_admin %}
+                <a href="{{ url_for('shop.supporters') }}"
+                   class="nav-tab {% if is_supporters_path %}active{% endif %}">
+                    <span class="nav-icon">&#9733;</span> Supporters</a>
+                {% endif %}
                 <a href="{{ url_for('main.contact') }}"
                    class="nav-tab {% if request.path.startswith('/contact') %}active{% endif %}">
                     <span class="nav-icon">&#9993;</span> Contact</a>

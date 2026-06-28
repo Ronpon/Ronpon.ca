@@ -522,4 +522,53 @@ def init_db(app_config) -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_status ON shop_orders(status)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_checkout_session ON shop_orders(stripe_checkout_session_id)")
 
+        # Stripe-backed monthly support subscriptions.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_subscriptions (
+                id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id                    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                tier                       TEXT    NOT NULL DEFAULT '',
+                status                     TEXT    NOT NULL DEFAULT '',
+                customer_email             TEXT    NOT NULL DEFAULT '',
+                customer_name              TEXT    NOT NULL DEFAULT '',
+                stripe_customer_id         TEXT    NOT NULL DEFAULT '',
+                stripe_subscription_id     TEXT    NOT NULL UNIQUE,
+                stripe_checkout_session_id TEXT    NOT NULL DEFAULT '',
+                stripe_price_id            TEXT    NOT NULL DEFAULT '',
+                amount_cents               INTEGER NOT NULL DEFAULT 0,
+                currency                   TEXT    NOT NULL DEFAULT 'cad',
+                current_period_start       TEXT,
+                current_period_end         TEXT,
+                cancel_at_period_end       INTEGER NOT NULL DEFAULT 0,
+                canceled_at                TEXT,
+                created_at                 TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at                 TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_subscriptions (
+                id                         SERIAL PRIMARY KEY,
+                user_id                    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                tier                       TEXT    NOT NULL DEFAULT '',
+                status                     TEXT    NOT NULL DEFAULT '',
+                customer_email             TEXT    NOT NULL DEFAULT '',
+                customer_name              TEXT    NOT NULL DEFAULT '',
+                stripe_customer_id         TEXT    NOT NULL DEFAULT '',
+                stripe_subscription_id     TEXT    NOT NULL UNIQUE,
+                stripe_checkout_session_id TEXT    NOT NULL DEFAULT '',
+                stripe_price_id            TEXT    NOT NULL DEFAULT '',
+                amount_cents               INTEGER NOT NULL DEFAULT 0,
+                currency                   TEXT    NOT NULL DEFAULT 'cad',
+                current_period_start       TIMESTAMPTZ,
+                current_period_end         TIMESTAMPTZ,
+                cancel_at_period_end       BOOLEAN NOT NULL DEFAULT FALSE,
+                canceled_at                TIMESTAMPTZ,
+                created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_status ON support_subscriptions(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_tier ON support_subscriptions(tier)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_user ON support_subscriptions(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_customer ON support_subscriptions(stripe_customer_id)")
+
         conn.commit()

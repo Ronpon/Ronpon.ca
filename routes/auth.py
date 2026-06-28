@@ -12,6 +12,7 @@ from flask_bcrypt import generate_password_hash
 from flask_login import current_user, login_required, login_user, logout_user
 
 from models.db import get_conn, ph
+from models.support import get_active_support_subscription, get_support_subscription_for_billing
 from models.user import User
 from security import check_rate_limit, is_safe_redirect, rate_limit
 
@@ -350,7 +351,11 @@ def discord_callback():
 @auth_bp.route("/profile")
 @login_required
 def profile():
-    return render_template("auth/profile.html")
+    support_subscription = (
+        get_active_support_subscription(current_user.id, current_user.email)
+        or get_support_subscription_for_billing(current_user.id, current_user.email)
+    )
+    return render_template("auth/profile.html", support_subscription=support_subscription)
 
 
 @auth_bp.route("/change-password", methods=["POST"])

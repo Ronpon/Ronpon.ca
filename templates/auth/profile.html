@@ -19,6 +19,27 @@
             <span class="badge-admin">Admin</span>
         </div>
         {% endif %}
+        {% if support_subscription %}
+        <div class="profile-field">
+            <span class="label">Support</span>
+            <span class="badge-support badge-support-{{ support_subscription.tier }}">
+                {{ support_subscription.tier|title }} {% if support_subscription.status in ['active', 'trialing'] %}Supporter{% else %}Support{% endif %}
+            </span>
+        </div>
+        <div class="profile-field">
+            <span class="label">Status</span>
+            <span>{{ support_subscription.status|replace('_', ' ')|title }}</span>
+        </div>
+        {% if support_subscription.current_period_end %}
+        <div class="profile-field">
+            <span class="label">Paid through</span>
+            <span>{{ (support_subscription.current_period_end|string|replace('T', ' '))[:16] }}</span>
+        </div>
+        {% endif %}
+        <form method="POST" action="{{ url_for('shop.billing_portal') }}" class="profile-support-form">
+            <button type="submit" class="btn btn-secondary">Manage Billing</button>
+        </form>
+        {% endif %}
     </div>
 
     {# ── Change Password ── #}

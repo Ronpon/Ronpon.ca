@@ -7,9 +7,10 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user
+from flask_login import current_user, login_required
 
 from models.db import get_conn, is_postgres, ph
+from models.support import get_support_subscription_for_billing
 from email_service import email_configured, send_email
 from security import rate_limit
 
@@ -46,6 +47,7 @@ _SUPPORT_PRODUCTS = (
         "mode": "payment",
         "price_config": "STRIPE_SUPPORT_RONPON_PRICE_ID",
         "submit_type": "donate",
+        "tier": "",
         "card_class": "shop-card-support shop-card-pay-what-you-want",
     },
     {
@@ -61,6 +63,7 @@ _SUPPORT_PRODUCTS = (
         "action_label": "Join Bronze",
         "mode": "subscription",
         "price_config": "STRIPE_SUPPORT_RONPON_BRONZE_PRICE_ID",
+        "tier": "bronze",
         "card_class": "shop-card-support shop-card-recurring shop-card-bronze",
     },
     {
@@ -76,6 +79,7 @@ _SUPPORT_PRODUCTS = (
         "action_label": "Join Silver",
         "mode": "subscription",
         "price_config": "STRIPE_SUPPORT_RONPON_SILVER_PRICE_ID",
+        "tier": "silver",
         "card_class": "shop-card-support shop-card-recurring shop-card-silver",
     },
     {
@@ -91,12 +95,22 @@ _SUPPORT_PRODUCTS = (
         "action_label": "Join Gold",
         "mode": "subscription",
         "price_config": "STRIPE_SUPPORT_RONPON_GOLD_PRICE_ID",
+        "tier": "gold",
         "card_class": "shop-card-support shop-card-recurring shop-card-gold",
     },
 )
 _SUPPORT_PRODUCTS_BY_SLUG = {product["slug"]: product for product in _SUPPORT_PRODUCTS}
 _SUPPORT_PRODUCTS_BY_KEY = {product["product_key"]: product for product in _SUPPORT_PRODUCTS}
 _SUPPORT_PRODUCT_KEYS = set(_SUPPORT_PRODUCTS_BY_KEY)
+_SUPPORT_CURRENT_STATUSES = ("active", "trialing")
+_SUPPORT_ATTENTION_STATUSES = ("past_due", "unpaid", "incomplete", "paused")
+_SUPPORT_CANCELED_STATUSES = ("canceled", "incomplete_expired")
+_SUPPORT_STATUS_FILTERS = {
+    "current": {"label": "Current", "statuses": _SUPPORT_CURRENT_STATUSES},
+    "attention": {"label": "Needs Attention", "statuses": _SUPPORT_ATTENTION_STATUSES},
+    "canceled": {"label": "Canceled", "statuses": _SUPPORT_CANCELED_STATUSES},
+    "all": {"label": "All", "statuses": None},
+}
 
 
 def _support_product_cards():
@@ -475,6 +489,255 @@ def _support_price_id(product: dict) -> str:
     return current_app.config.get(product["price_config"], "").strip()
 
 
+def _support_product_by_price_id(price_id: str):
+    if not price_id:
+        return None
+    for product in _SUPPORT_PRODUCTS:
+        if product["mode"] == "subscription" and _support_price_id(product) == price_id:
+            return product
+    return None
+
+
+def _stripe_value(obj, key: str, default=None):
+    if not obj:
+        return default
+    if hasattr(obj, "get"):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _stripe_id(value) -> str:
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(_stripe_value(value, "id", "") or "")
+
+
+def _stripe_timestamp(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromtimestamp(int(value), timezone.utc).isoformat(timespec="seconds")
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _support_subscription_price(subscription):
+    items = _stripe_value(_stripe_value(subscription, "items", {}), "data", []) or []
+    if not items:
+        return {}
+    return _stripe_value(items[0], "price", {}) or {}
+
+
+def _retrieve_stripe_subscription(subscription_id: str):
+    if not subscription_id or not stripe:
+        return None
+    _set_stripe_key()
+    return stripe.Subscription.retrieve(subscription_id)
+
+
+def _retrieve_stripe_customer(customer_id: str):
+    if not customer_id or not stripe:
+        return None
+    _set_stripe_key()
+    return stripe.Customer.retrieve(customer_id)
+
+
+def _resolve_support_user_id(user_id_value, email: str):
+    try:
+        user_id = int(user_id_value) if user_id_value else None
+    except (TypeError, ValueError):
+        user_id = None
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        if user_id:
+            cur.execute(f"SELECT id FROM users WHERE id = {ph()}", (user_id,))
+            row = cur.fetchone()
+            if row:
+                return int(row["id"] if hasattr(row, "keys") else row[0])
+
+        email = (email or "").strip().lower()
+        if email:
+            cur.execute(f"SELECT id FROM users WHERE lower(email) = lower({ph()})", (email,))
+            row = cur.fetchone()
+            if row:
+                return int(row["id"] if hasattr(row, "keys") else row[0])
+    return None
+
+
+def _build_support_subscription_record(session=None, subscription=None):
+    session_metadata = _stripe_value(session, "metadata", {}) or {}
+    subscription_metadata = _stripe_value(subscription, "metadata", {}) or {}
+    metadata = {**session_metadata, **subscription_metadata}
+
+    price = _support_subscription_price(subscription) if subscription else {}
+    price_id = _stripe_id(price)
+    product = _support_product_by_price_id(price_id)
+    if not product:
+        product = _SUPPORT_PRODUCTS_BY_KEY.get(metadata.get("product_key", ""))
+    if not product or product["mode"] != "subscription":
+        return None
+
+    subscription_id = _stripe_id(subscription) or _stripe_id(_stripe_value(session, "subscription", ""))
+    if not subscription_id:
+        return None
+
+    customer_id = _stripe_id(_stripe_value(subscription, "customer", "")) or _stripe_id(_stripe_value(session, "customer", ""))
+    customer_details = _stripe_value(session, "customer_details", {}) or {}
+    customer = None
+    email = (
+        _stripe_value(customer_details, "email", "")
+        or _stripe_value(session, "customer_email", "")
+        or metadata.get("customer_email", "")
+    )
+    name = _stripe_value(customer_details, "name", "") or metadata.get("customer_name", "")
+    if customer_id and (not email or not name):
+        try:
+            customer = _retrieve_stripe_customer(customer_id)
+        except Exception:
+            current_app.logger.exception("Stripe Customer lookup failed for support subscription.")
+        if customer:
+            email = email or _stripe_value(customer, "email", "")
+            name = name or _stripe_value(customer, "name", "")
+
+    user_id = _resolve_support_user_id(
+        _stripe_value(session, "client_reference_id", "") or metadata.get("user_id", ""),
+        email,
+    )
+
+    amount_cents = _stripe_value(price, "unit_amount", 0) or 0
+    try:
+        amount_cents = int(amount_cents)
+    except (TypeError, ValueError):
+        amount_cents = 0
+
+    return {
+        "user_id": user_id,
+        "tier": product.get("tier", ""),
+        "status": _stripe_value(subscription, "status", "") if subscription else "active",
+        "customer_email": (email or "").strip().lower(),
+        "customer_name": name or "",
+        "stripe_customer_id": customer_id,
+        "stripe_subscription_id": subscription_id,
+        "stripe_checkout_session_id": _stripe_id(session),
+        "stripe_price_id": price_id or _support_price_id(product),
+        "amount_cents": amount_cents,
+        "currency": (_stripe_value(price, "currency", "") or "cad").lower(),
+        "current_period_start": _stripe_timestamp(_stripe_value(subscription, "current_period_start", "")),
+        "current_period_end": _stripe_timestamp(_stripe_value(subscription, "current_period_end", "")),
+        "cancel_at_period_end": bool(_stripe_value(subscription, "cancel_at_period_end", False)),
+        "canceled_at": _stripe_timestamp(_stripe_value(subscription, "canceled_at", "")),
+        "updated_at": _utc_now_iso(),
+    }
+
+
+def _upsert_support_subscription(record: dict) -> None:
+    if not record or not record.get("stripe_subscription_id"):
+        return
+
+    columns = (
+        "user_id",
+        "tier",
+        "status",
+        "customer_email",
+        "customer_name",
+        "stripe_customer_id",
+        "stripe_subscription_id",
+        "stripe_checkout_session_id",
+        "stripe_price_id",
+        "amount_cents",
+        "currency",
+        "current_period_start",
+        "current_period_end",
+        "cancel_at_period_end",
+        "canceled_at",
+        "updated_at",
+    )
+    values = tuple(record.get(column) for column in columns)
+    with get_conn() as conn:
+        conn.cursor().execute(
+            f"""
+            INSERT INTO support_subscriptions ({", ".join(columns)})
+            VALUES ({ph(len(columns))})
+            ON CONFLICT (stripe_subscription_id) DO UPDATE SET
+                user_id = COALESCE(excluded.user_id, support_subscriptions.user_id),
+                tier = COALESCE(NULLIF(excluded.tier, ''), support_subscriptions.tier),
+                status = COALESCE(NULLIF(excluded.status, ''), support_subscriptions.status),
+                customer_email = COALESCE(NULLIF(excluded.customer_email, ''), support_subscriptions.customer_email),
+                customer_name = COALESCE(NULLIF(excluded.customer_name, ''), support_subscriptions.customer_name),
+                stripe_customer_id = COALESCE(NULLIF(excluded.stripe_customer_id, ''), support_subscriptions.stripe_customer_id),
+                stripe_checkout_session_id = COALESCE(NULLIF(excluded.stripe_checkout_session_id, ''), support_subscriptions.stripe_checkout_session_id),
+                stripe_price_id = COALESCE(NULLIF(excluded.stripe_price_id, ''), support_subscriptions.stripe_price_id),
+                amount_cents = CASE
+                    WHEN excluded.amount_cents > 0 THEN excluded.amount_cents
+                    ELSE support_subscriptions.amount_cents
+                END,
+                currency = COALESCE(NULLIF(excluded.currency, ''), support_subscriptions.currency),
+                current_period_start = COALESCE(excluded.current_period_start, support_subscriptions.current_period_start),
+                current_period_end = COALESCE(excluded.current_period_end, support_subscriptions.current_period_end),
+                cancel_at_period_end = excluded.cancel_at_period_end,
+                canceled_at = excluded.canceled_at,
+                updated_at = excluded.updated_at
+            """,
+            values,
+        )
+
+
+def _record_support_checkout(session):
+    subscription_id = _stripe_id(_stripe_value(session, "subscription", ""))
+    subscription = None
+    if subscription_id:
+        try:
+            subscription = _retrieve_stripe_subscription(subscription_id)
+        except Exception:
+            current_app.logger.exception("Stripe Subscription lookup failed after support checkout.")
+    record = _build_support_subscription_record(session=session, subscription=subscription)
+    _upsert_support_subscription(record)
+    return record
+
+
+def _record_support_subscription(subscription):
+    record = _build_support_subscription_record(subscription=subscription)
+    _upsert_support_subscription(record)
+    return record
+
+
+def _record_support_invoice_subscription(invoice):
+    subscription_id = _stripe_id(_stripe_value(invoice, "subscription", ""))
+    if not subscription_id:
+        return None
+    subscription = _retrieve_stripe_subscription(subscription_id)
+    return _record_support_subscription(subscription)
+
+
+def _support_status_filter_counts(status_counts: dict[str, int]) -> dict[str, int]:
+    return {
+        "current": sum(status_counts.get(status, 0) for status in _SUPPORT_CURRENT_STATUSES),
+        "attention": sum(status_counts.get(status, 0) for status in _SUPPORT_ATTENTION_STATUSES),
+        "canceled": sum(status_counts.get(status, 0) for status in _SUPPORT_CANCELED_STATUSES),
+        "all": sum(status_counts.values()),
+    }
+
+
+def _support_status_filter_tabs(active_filter: str):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT status, COUNT(*) FROM support_subscriptions GROUP BY status")
+        status_counts = {row["status"] if hasattr(row, "keys") else row[0]: row[1] for row in cur.fetchall()}
+    filter_counts = _support_status_filter_counts(status_counts)
+    return [
+        {
+            "key": key,
+            "label": config["label"],
+            "count": filter_counts.get(key, 0),
+            "active": key == active_filter,
+        }
+        for key, config in _SUPPORT_STATUS_FILTERS.items()
+    ]
+
+
 def _create_checkout_session(order_id: int, customer_email: str):
     _set_stripe_key()
     metadata = {
@@ -504,6 +767,11 @@ def _create_support_checkout_session(product: dict):
         "support_slug": product["slug"],
         "support_name": product["title"],
     }
+    if current_user.is_authenticated:
+        metadata["user_id"] = str(current_user.id)
+        metadata["customer_email"] = current_user.email
+        metadata["customer_name"] = current_user.display_name or current_user.username
+
     checkout_params = dict(
         mode=product["mode"],
         line_items=[{"price": price_id, "quantity": 1}],
@@ -511,6 +779,9 @@ def _create_support_checkout_session(product: dict):
         cancel_url=_external_url("shop.index"),
         metadata=metadata,
     )
+    if current_user.is_authenticated:
+        checkout_params["client_reference_id"] = str(current_user.id)
+        checkout_params["customer_email"] = current_user.email
     if product["mode"] == "subscription":
         checkout_params["subscription_data"] = {"metadata": metadata}
     else:
@@ -570,6 +841,33 @@ def _start_support_checkout(support_slug: str):
         flash("Support checkout could not be started. Please try again in a moment.", "error")
         return redirect(url_for("shop.index"))
     return redirect(checkout_session.url, code=303)
+
+
+@shop_bp.route("/shop/billing-portal", methods=["POST"])
+@login_required
+@rate_limit("shop.billing_portal", 10, 60 * 60)
+def billing_portal():
+    subscription = get_support_subscription_for_billing(current_user.id, current_user.email)
+    if not subscription:
+        flash("No Stripe support subscription was found for your account.", "error")
+        return redirect(url_for("auth.profile"))
+    if not _stripe_configured():
+        flash("Stripe billing management is not configured yet.", "error")
+        return redirect(url_for("auth.profile"))
+
+    customer_id = subscription["stripe_customer_id"]
+    try:
+        _set_stripe_key()
+        portal_session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=_external_url("auth.profile"),
+        )
+    except Exception:
+        current_app.logger.exception("Stripe billing portal session creation failed.")
+        flash("Billing management could not be opened. Please try again in a moment.", "error")
+        return redirect(url_for("auth.profile"))
+
+    return redirect(portal_session.url, code=303)
 
 
 @shop_bp.route("/shop/pulse-question")
@@ -645,6 +943,8 @@ def payment_success():
         ):
             order = _mark_order_paid(checkout_session)
             _send_paid_pulse_question_emails(order)
+        elif is_support_payment and support_product and support_product["mode"] == "subscription":
+            _record_support_checkout(checkout_session)
     except Exception:
         current_app.logger.exception("Stripe Checkout Session lookup failed")
         flash("Payment status could not be checked. We will confirm it by webhook.", "info")
@@ -656,6 +956,70 @@ def payment_success():
         checkout_session=checkout_session,
         is_support_payment=is_support_payment,
         support_product=support_product,
+    )
+
+
+@shop_bp.route("/shop/supporters")
+def supporters():
+    if not _is_admin():
+        abort(404)
+
+    status_filter = request.args.get("status", "current")
+    if status_filter not in _SUPPORT_STATUS_FILTERS:
+        status_filter = "current"
+    statuses = _SUPPORT_STATUS_FILTERS[status_filter]["statuses"]
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        if statuses:
+            cur.execute(
+                f"""
+                SELECT
+                    s.*,
+                    u.username AS account_username,
+                    u.email AS account_email,
+                    u.display_name AS account_display_name
+                FROM support_subscriptions s
+                LEFT JOIN users u ON u.id = s.user_id
+                WHERE s.status IN ({ph(len(statuses))})
+                ORDER BY
+                    CASE lower(s.tier)
+                        WHEN 'gold' THEN 1
+                        WHEN 'silver' THEN 2
+                        WHEN 'bronze' THEN 3
+                        ELSE 4
+                    END,
+                    s.updated_at DESC
+                """,
+                statuses,
+            )
+        else:
+            cur.execute(
+                """
+                SELECT
+                    s.*,
+                    u.username AS account_username,
+                    u.email AS account_email,
+                    u.display_name AS account_display_name
+                FROM support_subscriptions s
+                LEFT JOIN users u ON u.id = s.user_id
+                ORDER BY
+                    CASE lower(s.tier)
+                        WHEN 'gold' THEN 1
+                        WHEN 'silver' THEN 2
+                        WHEN 'bronze' THEN 3
+                        ELSE 4
+                    END,
+                    s.updated_at DESC
+                """
+            )
+        subscriptions = cur.fetchall()
+
+    return render_template(
+        "shop/supporters.html",
+        subscriptions=subscriptions,
+        status_filter=status_filter,
+        status_tabs=_support_status_filter_tabs(status_filter),
     )
 
 
@@ -715,10 +1079,26 @@ def stripe_webhook():
                 order = _mark_order_paid(data_object)
                 _send_paid_pulse_question_emails(order)
         elif data_object.get("metadata", {}).get("product_key") in _SUPPORT_PRODUCT_KEYS:
-            current_app.logger.info(
-                "Support checkout completed: %s",
-                data_object.get("metadata", {}).get("product_key"),
-            )
+            try:
+                _record_support_checkout(data_object)
+            except Exception:
+                current_app.logger.exception("Support checkout webhook processing failed.")
+    elif event_type in {
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+        "customer.subscription.paused",
+        "customer.subscription.resumed",
+    }:
+        try:
+            _record_support_subscription(data_object)
+        except Exception:
+            current_app.logger.exception("Support subscription webhook processing failed.")
+    elif event_type in {"invoice.paid", "invoice.payment_failed"}:
+        try:
+            _record_support_invoice_subscription(data_object)
+        except Exception:
+            current_app.logger.exception("Support invoice webhook processing failed.")
     elif event_type == "checkout.session.expired":
         _set_order_status_by_session(data_object.get("id", ""), "expired")
     elif event_type == "checkout.session.async_payment_failed":
