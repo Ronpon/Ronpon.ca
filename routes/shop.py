@@ -106,7 +106,8 @@ _SUPPORT_PRODUCT_KEYS = set(_SUPPORT_PRODUCTS_BY_KEY)
 _SUPPORT_CURRENT_STATUSES = ("active", "trialing")
 _SUPPORT_ATTENTION_STATUSES = ("past_due", "unpaid", "incomplete", "paused")
 _SUPPORT_CANCELED_STATUSES = ("canceled", "incomplete_expired")
-_PULSE_SUBMISSION_STATUSES = ("paid", "pending", "expired", "failed", "all")
+_PULSE_SUBMISSION_VIEWS = ("open", "completed", "all", "paid", "pending", "expired", "failed")
+_PULSE_PAYMENT_STATUSES = ("paid", "pending", "expired", "failed")
 _SUPPORT_STATUS_FILTERS = {
     "current": {"label": "Current", "statuses": _SUPPORT_CURRENT_STATUSES},
     "attention": {"label": "Needs Attention", "statuses": _SUPPORT_ATTENTION_STATUSES},
@@ -669,25 +670,101 @@ def _pulse_submission_status_tabs(active_status: str):
         cur = conn.cursor()
         cur.execute(
             f"""
+            SELECT
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN completed_at IS NULL THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) AS completed_count
+            FROM shop_orders
+            WHERE product_key = {ph()}
+            """,
+            (_PULSE_QUESTION_PRODUCT_KEY,),
+        )
+        totals = cur.fetchone()
+        cur.execute(
+            f"""
             SELECT status, COUNT(*)
             FROM shop_orders
             WHERE product_key = {ph()}
+              AND completed_at IS NULL
             GROUP BY status
             """,
             (_PULSE_QUESTION_PRODUCT_KEY,),
         )
         status_counts = {row[0]: row[1] for row in cur.fetchall()}
 
-    total = sum(status_counts.values())
+    total = int(totals["total_count"] or 0) if totals else 0
+    open_count = int(totals["open_count"] or 0) if totals else 0
+    completed_count = int(totals["completed_count"] or 0) if totals else 0
+    labels = {
+        "open": "Open",
+        "completed": "Completed",
+        "all": "All",
+        "paid": "Paid",
+        "pending": "Pending",
+        "expired": "Expired",
+        "failed": "Failed",
+    }
+    counts = {
+        "open": open_count,
+        "completed": completed_count,
+        "all": total,
+        **status_counts,
+    }
     return [
         {
-            "key": status,
-            "label": status.title(),
-            "count": total if status == "all" else status_counts.get(status, 0),
-            "active": status == active_status,
+            "key": view,
+            "label": labels[view],
+            "count": counts.get(view, 0),
+            "active": view == active_status,
         }
-        for status in _PULSE_SUBMISSION_STATUSES
+        for view in _PULSE_SUBMISSION_VIEWS
     ]
+
+
+def _pulse_submission_where(view: str) -> tuple[str, tuple]:
+    params = [_PULSE_QUESTION_PRODUCT_KEY]
+    clauses = [f"product_key = {ph()}"]
+    if view == "open":
+        clauses.append("completed_at IS NULL")
+    elif view == "completed":
+        clauses.append("completed_at IS NOT NULL")
+    elif view in _PULSE_PAYMENT_STATUSES:
+        clauses.append(f"status = {ph()}")
+        clauses.append("completed_at IS NULL")
+        params.append(view)
+    return " AND ".join(clauses), tuple(params)
+
+
+def _fetch_pulse_submissions(view: str):
+    where_sql, params = _pulse_submission_where(view)
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT *
+            FROM shop_orders
+            WHERE {where_sql}
+            ORDER BY
+                CASE WHEN completed_at IS NULL THEN 0 ELSE 1 END,
+                COALESCE(paid_at, created_at) DESC,
+                created_at DESC
+            """,
+            params,
+        )
+        return cur.fetchall()
+
+
+def _set_pulse_submission_completed(order_id: int, completed: bool):
+    order = _fetch_order_by_id(order_id)
+    if not order or order["product_key"] != _PULSE_QUESTION_PRODUCT_KEY:
+        return None
+    completed_at = _utc_now_iso() if completed else None
+    with get_conn() as conn:
+        conn.cursor().execute(
+            f"UPDATE shop_orders SET completed_at = {ph()} WHERE id = {ph()}",
+            (completed_at, order_id),
+        )
+    return _fetch_order_by_id(order_id)
 
 
 def _line_item() -> dict:
@@ -1620,30 +1697,12 @@ def pulse_question_submissions():
         flash("Admin access required.", "error")
         return redirect(url_for("shop.index"))
 
-    status = request.args.get("status", "all")
-    allowed_statuses = set(_PULSE_SUBMISSION_STATUSES)
-    if status not in allowed_statuses:
-        status = "all"
+    status = request.args.get("status", "open")
+    if status not in _PULSE_SUBMISSION_VIEWS:
+        status = "open"
 
     _sync_pending_pulse_question_orders()
-
-    with get_conn() as conn:
-        cur = conn.cursor()
-        if status == "all":
-            cur.execute(
-                f"SELECT * FROM shop_orders WHERE product_key = {ph()} ORDER BY created_at DESC",
-                (_PULSE_QUESTION_PRODUCT_KEY,),
-            )
-        else:
-            cur.execute(
-                f"""
-                SELECT * FROM shop_orders
-                WHERE product_key = {ph()} AND status = {ph()}
-                ORDER BY created_at DESC
-                """,
-                (_PULSE_QUESTION_PRODUCT_KEY, status),
-            )
-        orders = cur.fetchall()
+    orders = _fetch_pulse_submissions(status)
 
     return render_template(
         "shop/pulse_submissions.html",
@@ -1653,6 +1712,25 @@ def pulse_question_submissions():
         email_status=email_configuration_status(),
         stripe_status=_stripe_status_summary(),
     )
+
+
+@shop_bp.route("/shop/pulse-question/submissions/<int:order_id>/completion", methods=["POST"])
+def pulse_question_completion(order_id: int):
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("shop.index"))
+
+    completed = request.form.get("completed") == "1"
+    return_status = request.form.get("return_status", "open")
+    if return_status not in _PULSE_SUBMISSION_VIEWS:
+        return_status = "open"
+    order = _set_pulse_submission_completed(order_id, completed)
+    if not order:
+        flash("Pulse submission not found.", "error")
+        return redirect(url_for("shop.pulse_question_submissions", status=return_status))
+
+    flash("Submission marked completed." if completed else "Submission reopened.", "success")
+    return redirect(url_for("shop.pulse_question_submissions", status=return_status))
 
 
 @shop_bp.route("/shop/pulse-question/submissions/<int:order_id>/send-emails", methods=["POST"])

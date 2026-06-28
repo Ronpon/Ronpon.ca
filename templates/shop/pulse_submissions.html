@@ -82,75 +82,102 @@
 
     <div class="shop-submission-list">
         {% for order in orders %}
-        <article class="shop-submission-card">
-            <div class="shop-submission-header">
-                <div>
-                    <span class="shop-product-kind">{{ order["status"] }}</span>
-                    <h2>{{ order["question"] }}</h2>
-                </div>
-                <span class="shop-price">$10.00 CAD</span>
-            </div>
+        <details class="shop-submission-card {% if order['completed_at'] %}shop-submission-completed{% endif %}">
+            <summary class="shop-submission-summary">
+                <span class="shop-submission-toggle" aria-hidden="true"></span>
+                <span class="shop-submission-question">{{ order["question"] }}</span>
+                <span class="shop-submission-customer">
+                    {% if order["display_name"] %}
+                        {{ order["display_name"] }}
+                    {% else %}
+                        {{ order["customer_email"] or "No customer email" }}
+                    {% endif %}
+                </span>
+                <span class="shop-submission-date">{{ (order["created_at"]|string|replace("T", " "))[:16] }}</span>
+            </summary>
 
-            <dl class="shop-order-summary">
-                <div>
-                    <dt>Options</dt>
-                    <dd>
-                        A. {{ order["option_a"] }}<br>
-                        B. {{ order["option_b"] }}
-                        {% if order["option_c"] %}<br>C. {{ order["option_c"] }}{% endif %}
-                        {% if order["option_d"] %}<br>D. {{ order["option_d"] }}{% endif %}
-                    </dd>
-                </div>
-                <div>
-                    <dt>Credit</dt>
-                    <dd>{% if order["anonymous"] %}Anonymous{% else %}{{ order["display_name"] or "No display name" }}{% endif %}</dd>
-                </div>
-                <div>
-                    <dt>Email</dt>
-                    <dd>{{ order["customer_email"] }}</dd>
-                </div>
-                {% if order["notes"] %}
-                <div>
-                    <dt>Notes</dt>
-                    <dd>{{ order["notes"] }}</dd>
-                </div>
-                {% endif %}
-                <div>
-                    <dt>Created</dt>
-                    <dd>{{ order["created_at"] }}</dd>
-                </div>
-                {% if order["paid_at"] %}
-                <div>
-                    <dt>Paid</dt>
-                    <dd>{{ order["paid_at"] }}</dd>
-                </div>
-                {% endif %}
-                <div>
-                    <dt>Email Status</dt>
-                    <dd>
-                        Customer: {% if order["customer_email_sent_at"] %}sent{% else %}not sent{% endif %}<br>
-                        Admin: {% if order["admin_email_sent_at"] %}sent{% else %}not sent{% endif %}
-                    </dd>
-                </div>
-                {% if order["stripe_checkout_session_id"] %}
-                <div>
-                    <dt>Stripe Session</dt>
-                    <dd><code>{{ order["stripe_checkout_session_id"] }}</code></dd>
-                </div>
-                {% endif %}
-            </dl>
+            <div class="shop-submission-expanded">
+                <dl class="shop-order-summary">
+                    <div>
+                        <dt>Payment Status</dt>
+                        <dd>{{ order["status"] }}</dd>
+                    </div>
+                    <div>
+                        <dt>Options</dt>
+                        <dd>
+                            A. {{ order["option_a"] }}<br>
+                            B. {{ order["option_b"] }}
+                            {% if order["option_c"] %}<br>C. {{ order["option_c"] }}{% endif %}
+                            {% if order["option_d"] %}<br>D. {{ order["option_d"] }}{% endif %}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Credit</dt>
+                        <dd>{% if order["anonymous"] %}Anonymous{% else %}{{ order["display_name"] or "No display name" }}{% endif %}</dd>
+                    </div>
+                    <div>
+                        <dt>Email</dt>
+                        <dd>{{ order["customer_email"] }}</dd>
+                    </div>
+                    {% if order["notes"] %}
+                    <div>
+                        <dt>Notes</dt>
+                        <dd>{{ order["notes"] }}</dd>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <dt>Created</dt>
+                        <dd>{{ order["created_at"] }}</dd>
+                    </div>
+                    {% if order["paid_at"] %}
+                    <div>
+                        <dt>Paid</dt>
+                        <dd>{{ order["paid_at"] }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if order["completed_at"] %}
+                    <div>
+                        <dt>Completed</dt>
+                        <dd>{{ order["completed_at"] }}</dd>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <dt>Email Status</dt>
+                        <dd>
+                            Customer: {% if order["customer_email_sent_at"] %}sent{% else %}not sent{% endif %}<br>
+                            Admin: {% if order["admin_email_sent_at"] %}sent{% else %}not sent{% endif %}
+                        </dd>
+                    </div>
+                    {% if order["stripe_checkout_session_id"] %}
+                    <div>
+                        <dt>Stripe Session</dt>
+                        <dd><code>{{ order["stripe_checkout_session_id"] }}</code></dd>
+                    </div>
+                    {% endif %}
+                </dl>
 
-            {% if not order["customer_email_sent_at"] or not order["admin_email_sent_at"] %}
-            <div class="shop-submission-actions">
-                <form method="post"
-                      action="{{ url_for('shop.pulse_question_send_emails', order_id=order['id']) }}"
-                      class="shop-inline-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-small btn-secondary">Retry Emails</button>
-                </form>
+                <div class="shop-submission-actions">
+                    {% if not order["customer_email_sent_at"] or not order["admin_email_sent_at"] %}
+                    <form method="post"
+                          action="{{ url_for('shop.pulse_question_send_emails', order_id=order['id']) }}"
+                          class="shop-inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-small btn-secondary">Retry Emails</button>
+                    </form>
+                    {% endif %}
+                    <form method="post"
+                          action="{{ url_for('shop.pulse_question_completion', order_id=order['id']) }}"
+                          class="shop-inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="completed" value="{% if order['completed_at'] %}0{% else %}1{% endif %}">
+                        <input type="hidden" name="return_status" value="{{ status }}">
+                        <button type="submit" class="btn btn-small {% if order['completed_at'] %}btn-secondary{% endif %}">
+                            {% if order["completed_at"] %}Reopen{% else %}Mark Completed{% endif %}
+                        </button>
+                    </form>
+                </div>
             </div>
-            {% endif %}
-        </article>
+        </details>
         {% endfor %}
     </div>
 </div>

@@ -1967,8 +1967,7 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     border-color: rgba(46, 204, 113, 0.45);
 }
 
-.shop-status-panel h2,
-.shop-submission-card h2 {
+.shop-status-panel h2 {
     margin: 0 0 0.5rem;
     font-size: 1.3rem;
 }
@@ -2101,11 +2100,63 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     border-radius: var(--radius);
 }
 
-.shop-submission-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
+.shop-submission-card[open] {
+    border-color: var(--color-border-hover);
+}
+
+.shop-submission-completed {
+    opacity: 0.62;
+    background: var(--color-bg-alt);
+}
+
+.shop-submission-summary {
+    display: grid;
+    grid-template-columns: auto minmax(240px, 1fr) minmax(150px, 0.35fr) minmax(120px, max-content);
+    align-items: center;
+    gap: 0.8rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.shop-submission-summary::-webkit-details-marker {
+    display: none;
+}
+
+.shop-submission-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    font-weight: 800;
+}
+
+.shop-submission-toggle::before {
+    content: '+';
+}
+
+.shop-submission-card[open] .shop-submission-toggle::before {
+    content: '-';
+}
+
+.shop-submission-question {
+    min-width: 0;
+    color: var(--color-text);
+    font-weight: 800;
+}
+
+.shop-submission-customer,
+.shop-submission-date {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.shop-submission-expanded {
+    padding-top: 0.9rem;
 }
 
 .shop-submission-card code {
@@ -2114,7 +2165,13 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
 
 .shop-submission-actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
     justify-content: flex-start;
+}
+
+.shop-submission-actions .shop-inline-form {
+    margin-top: 0;
 }
 
 .supporter-tab-count {
@@ -2264,8 +2321,14 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
         padding: 1rem;
     }
 
-    .shop-submission-header {
-        flex-direction: column;
+    .shop-submission-summary {
+        grid-template-columns: auto 1fr;
+        align-items: flex-start;
+    }
+
+    .shop-submission-customer,
+    .shop-submission-date {
+        grid-column: 2;
     }
 }
 

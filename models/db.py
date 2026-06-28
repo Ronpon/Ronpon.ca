@@ -489,7 +489,8 @@ def init_db(app_config) -> None:
                 created_at                 TEXT    NOT NULL DEFAULT (datetime('now')),
                 paid_at                    TEXT,
                 customer_email_sent_at     TEXT,
-                admin_email_sent_at        TEXT
+                admin_email_sent_at        TEXT,
+                completed_at               TEXT
             )
         """) if not (_pg and DATABASE_URL) else cur.execute("""
             CREATE TABLE IF NOT EXISTS shop_orders (
@@ -513,14 +514,17 @@ def init_db(app_config) -> None:
                 created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
                 paid_at                    TIMESTAMPTZ,
                 customer_email_sent_at     TIMESTAMPTZ,
-                admin_email_sent_at        TIMESTAMPTZ
+                admin_email_sent_at        TIMESTAMPTZ,
+                completed_at               TIMESTAMPTZ
             )
         """)
         sent_at_definition = "TIMESTAMPTZ" if (_pg and DATABASE_URL) else "TEXT"
         _ensure_column(cur, "shop_orders", "customer_email_sent_at", sent_at_definition)
         _ensure_column(cur, "shop_orders", "admin_email_sent_at", sent_at_definition)
+        _ensure_column(cur, "shop_orders", "completed_at", sent_at_definition)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_status ON shop_orders(status)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_checkout_session ON shop_orders(stripe_checkout_session_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_shop_orders_completed ON shop_orders(completed_at)")
 
         # Stripe-backed monthly support subscriptions.
         cur.execute("""
