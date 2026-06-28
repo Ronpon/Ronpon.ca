@@ -10,6 +10,13 @@
         Buy books, submit a question for The Pulse, or support Ronpon Productions.
     </p>
 
+    {% if is_admin %}
+    <div class="shop-admin-panel">
+        <a href="{{ url_for('shop.pulse_question_submissions') }}" class="btn btn-small">Pulse Submissions</a>
+        <a href="{{ url_for('shop.supporters') }}" class="btn btn-small btn-secondary">Supporters</a>
+    </div>
+    {% endif %}
+
     {% for category in shop_categories %}
     <section class="shop-category" aria-labelledby="shop-category-{{ loop.index }}">
         <div class="shop-category-header">

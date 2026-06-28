@@ -105,6 +105,7 @@ _SUPPORT_PRODUCT_KEYS = set(_SUPPORT_PRODUCTS_BY_KEY)
 _SUPPORT_CURRENT_STATUSES = ("active", "trialing")
 _SUPPORT_ATTENTION_STATUSES = ("past_due", "unpaid", "incomplete", "paused")
 _SUPPORT_CANCELED_STATUSES = ("canceled", "incomplete_expired")
+_PULSE_SUBMISSION_STATUSES = ("paid", "pending", "expired", "failed", "all")
 _SUPPORT_STATUS_FILTERS = {
     "current": {"label": "Current", "statuses": _SUPPORT_CURRENT_STATUSES},
     "attention": {"label": "Needs Attention", "statuses": _SUPPORT_ATTENTION_STATUSES},
@@ -466,6 +467,78 @@ def _fetch_order_by_session(session_id: str):
             (session_id,),
         )
         return cur.fetchone()
+
+
+def _sync_pending_pulse_question_orders(limit: int = 25) -> int:
+    if not _stripe_configured():
+        return 0
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT id, stripe_checkout_session_id
+            FROM shop_orders
+            WHERE product_key = {ph()}
+              AND status = {ph()}
+              AND stripe_checkout_session_id != ''
+            ORDER BY created_at DESC
+            LIMIT {ph()}
+            """,
+            (_PULSE_QUESTION_PRODUCT_KEY, "pending", limit),
+        )
+        pending_orders = cur.fetchall()
+
+    synced = 0
+    _set_stripe_key()
+    for order in pending_orders:
+        session_id = order["stripe_checkout_session_id"]
+        try:
+            checkout_session = stripe.checkout.Session.retrieve(session_id)
+            metadata = _stripe_value(checkout_session, "metadata", {}) or {}
+            if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
+                continue
+
+            payment_status = _stripe_value(checkout_session, "payment_status", "")
+            session_status = _stripe_value(checkout_session, "status", "")
+            if payment_status in {"paid", "no_payment_required"}:
+                paid_order = _mark_order_paid(checkout_session)
+                _send_paid_pulse_question_emails(paid_order)
+                synced += 1
+            elif session_status == "expired":
+                _set_order_status_by_session(session_id, "expired")
+        except Exception:
+            current_app.logger.exception(
+                "Pending Pulse question Stripe sync failed for session %s",
+                session_id,
+            )
+    return synced
+
+
+def _pulse_submission_status_tabs(active_status: str):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT status, COUNT(*)
+            FROM shop_orders
+            WHERE product_key = {ph()}
+            GROUP BY status
+            """,
+            (_PULSE_QUESTION_PRODUCT_KEY,),
+        )
+        status_counts = {row[0]: row[1] for row in cur.fetchall()}
+
+    total = sum(status_counts.values())
+    return [
+        {
+            "key": status,
+            "label": status.title(),
+            "count": total if status == "all" else status_counts.get(status, 0),
+            "active": status == active_status,
+        }
+        for status in _PULSE_SUBMISSION_STATUSES
+    ]
 
 
 def _line_item() -> dict:
@@ -1064,7 +1137,11 @@ def _create_support_checkout_session(product: dict):
 @shop_bp.route("/shop")
 @shop_bp.route("/shop/")
 def index():
-    return render_template("shop/index.html", shop_categories=_shop_categories())
+    return render_template(
+        "shop/index.html",
+        shop_categories=_shop_categories(),
+        is_admin=_is_admin(),
+    )
 
 
 @shop_bp.route("/shop/support", methods=["GET"])
@@ -1326,10 +1403,12 @@ def pulse_question_submissions():
         flash("Admin access required.", "error")
         return redirect(url_for("shop.index"))
 
-    status = request.args.get("status", "paid")
-    allowed_statuses = {"paid", "pending", "expired", "failed", "all"}
+    status = request.args.get("status", "all")
+    allowed_statuses = set(_PULSE_SUBMISSION_STATUSES)
     if status not in allowed_statuses:
-        status = "paid"
+        status = "all"
+
+    _sync_pending_pulse_question_orders()
 
     with get_conn() as conn:
         cur = conn.cursor()
@@ -1349,7 +1428,12 @@ def pulse_question_submissions():
             )
         orders = cur.fetchall()
 
-    return render_template("shop/pulse_submissions.html", orders=orders, status=status)
+    return render_template(
+        "shop/pulse_submissions.html",
+        orders=orders,
+        status=status,
+        status_tabs=_pulse_submission_status_tabs(status),
+    )
 
 
 @shop_bp.route("/stripe/webhook", methods=["POST"])
