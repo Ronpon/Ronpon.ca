@@ -385,9 +385,34 @@ def _paragraph_html(*paragraphs: str) -> str:
     )
 
 
-def _send_paid_pulse_question_emails(order) -> None:
-    if not order or not email_configured():
-        return
+def _new_email_result() -> dict:
+    return {
+        "customer_sent": False,
+        "admin_sent": False,
+        "errors": [],
+        "skipped": [],
+    }
+
+
+def _send_email_result(to: str, subject: str, text: str, html_body: str, label: str) -> tuple[bool, str]:
+    try:
+        if send_email(to, subject, text, html_body):
+            return True, ""
+        return False, f"{label} email was not sent. Email service is not configured or recipient is missing."
+    except Exception as exc:
+        current_app.logger.exception("%s email failed.", label.title())
+        return False, f"{label} email failed: {exc}"
+
+
+def _send_paid_pulse_question_emails(order) -> dict:
+    result = _new_email_result()
+    if not order:
+        result["skipped"].append("No order was available.")
+        return result
+    if not email_configured():
+        missing = ", ".join(_missing_pulse_email_config())
+        result["skipped"].append(f"Email is not configured. Missing: {missing}.")
+        return result
 
     order_data = _row_to_dict(order)
     order_id = int(order_data["id"])
@@ -409,16 +434,22 @@ def _send_paid_pulse_question_emails(order) -> None:
             f"Options:\n{option_text}",
             "Submissions may be edited for clarity or conciseness before use.",
         )
-        try:
-            if send_email(
-                order_data["customer_email"],
-                "Your Pulse question is queued for review",
-                text,
-                html_body,
-            ):
-                _set_order_email_sent_at(order_id, "customer_email_sent_at")
-        except Exception:
-            current_app.logger.exception("Pulse question customer email failed.")
+        sent, error = _send_email_result(
+            order_data["customer_email"],
+            "Your Pulse question is queued for review",
+            text,
+            html_body,
+            "customer",
+        )
+        if sent:
+            _set_order_email_sent_at(order_id, "customer_email_sent_at")
+            result["customer_sent"] = True
+        elif error:
+            result["errors"].append(error)
+    elif order_data.get("customer_email_sent_at"):
+        result["skipped"].append("Customer email was already sent.")
+    else:
+        result["skipped"].append("Customer email address is missing.")
 
     admin_email = current_app.config.get("ADMIN_EMAIL", "")
     if admin_email and not order_data.get("admin_email_sent_at"):
@@ -447,11 +478,24 @@ def _send_paid_pulse_question_emails(order) -> None:
             f"Notes:\n{notes}",
             f"Review submissions:\n{submissions_url}",
         )
-        try:
-            if send_email(admin_email, "New paid Pulse question submission", text, html_body):
-                _set_order_email_sent_at(order_id, "admin_email_sent_at")
-        except Exception:
-            current_app.logger.exception("Pulse question admin email failed.")
+        sent, error = _send_email_result(
+            admin_email,
+            "New paid Pulse question submission",
+            text,
+            html_body,
+            "admin",
+        )
+        if sent:
+            _set_order_email_sent_at(order_id, "admin_email_sent_at")
+            result["admin_sent"] = True
+        elif error:
+            result["errors"].append(error)
+    elif order_data.get("admin_email_sent_at"):
+        result["skipped"].append("Admin email was already sent.")
+    else:
+        result["skipped"].append("ADMIN_EMAIL is missing.")
+
+    return result
 
 
 def _missing_pulse_email_config() -> list[str]:
@@ -1544,7 +1588,7 @@ def pulse_question_send_emails(order_id: int):
         return redirect(url_for("shop.pulse_question_submissions", status="all"))
 
     before = _row_to_dict(order)
-    _send_paid_pulse_question_emails(order)
+    result = _send_paid_pulse_question_emails(order)
     after = _row_to_dict(_fetch_order_by_id(order_id))
 
     sent_parts = []
@@ -1555,10 +1599,38 @@ def pulse_question_send_emails(order_id: int):
 
     if sent_parts:
         flash(f"Sent {', '.join(sent_parts)} email.", "success")
-    elif not current_app.config.get("ADMIN_EMAIL", "") and not after.get("admin_email_sent_at"):
-        flash("Customer email was already sent or skipped; admin email needs ADMIN_EMAIL configured.", "info")
+    elif result["errors"]:
+        flash(" ".join(result["errors"][:2]), "error")
+    elif result["skipped"]:
+        flash(" ".join(result["skipped"][:2]), "info")
     else:
         flash("Email send was attempted. If the status is still not sent, check Resend and app logs.", "info")
+    return redirect(url_for("shop.pulse_question_submissions", status="all"))
+
+
+@shop_bp.route("/shop/pulse-question/test-email", methods=["POST"])
+def pulse_question_test_email():
+    if not _is_admin():
+        flash("Admin access required.", "error")
+        return redirect(url_for("shop.index"))
+
+    if not email_configured() or not current_app.config.get("ADMIN_EMAIL", ""):
+        missing = ", ".join(_missing_pulse_email_config())
+        flash(f"Email test cannot run yet. Missing: {missing}.", "error")
+        return redirect(url_for("shop.pulse_question_submissions", status="all"))
+
+    admin_email = current_app.config["ADMIN_EMAIL"]
+    sent, error = _send_email_result(
+        admin_email,
+        "Ronpon.ca email test",
+        "This is a test email from Ronpon.ca. If you received this, Resend is working.",
+        _paragraph_html("This is a test email from Ronpon.ca.", "If you received this, Resend is working."),
+        "test",
+    )
+    if sent:
+        flash(f"Test email sent to {admin_email}.", "success")
+    else:
+        flash(error or "Test email could not be sent.", "error")
     return redirect(url_for("shop.pulse_question_submissions", status="all"))
 
 

@@ -37,6 +37,10 @@
                 <dd>{{ email_status.admin_email_value if email_status.admin_email else "Missing" }}</dd>
             </div>
         </dl>
+        <form method="post" action="{{ url_for('shop.pulse_question_test_email') }}" class="shop-inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-small btn-secondary">Send Test Email</button>
+        </form>
     </div>
 
     <form method="post" action="{{ url_for('shop.pulse_question_sync_session') }}" class="shop-sync-form">
