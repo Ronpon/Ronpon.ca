@@ -2112,6 +2112,11 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     white-space: normal;
 }
 
+.shop-submission-actions {
+    display: flex;
+    justify-content: flex-start;
+}
+
 .supporter-tab-count {
     display: inline-flex;
     align-items: center;
