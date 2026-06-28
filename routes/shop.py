@@ -231,6 +231,14 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _row_to_dict(row) -> dict:
+    if not row:
+        return {}
+    if hasattr(row, "keys"):
+        return {key: row[key] for key in row.keys()}
+    return dict(row)
+
+
 def _field(name: str, max_length: int) -> str:
     return request.form.get(name, "").strip()[:max_length]
 
@@ -380,7 +388,7 @@ def _send_paid_pulse_question_emails(order) -> None:
     if not order or not email_configured():
         return
 
-    order_data = dict(order)
+    order_data = _row_to_dict(order)
     order_id = int(order_data["id"])
     question = order_data.get("question", "")
     option_text = "\n".join(_order_option_lines(order_data))
@@ -467,6 +475,17 @@ def _fetch_order_by_session(session_id: str):
             (session_id,),
         )
         return cur.fetchone()
+
+
+def _safe_fetch_order_by_session(session_id: str):
+    try:
+        return _fetch_order_by_session(session_id)
+    except Exception:
+        current_app.logger.exception(
+            "Pulse question order lookup failed for session %s",
+            session_id,
+        )
+        return None
 
 
 def _sync_pending_pulse_question_orders(limit: int = 25) -> int:
@@ -858,6 +877,17 @@ def _fetch_support_payment_by_session(session_id: str):
         return cur.fetchone()
 
 
+def _safe_fetch_support_payment_by_session(session_id: str):
+    try:
+        return _fetch_support_payment_by_session(session_id)
+    except Exception:
+        current_app.logger.exception(
+            "Support payment lookup failed for session %s",
+            session_id,
+        )
+        return None
+
+
 def _set_support_payment_admin_email_sent_at(session_id: str) -> None:
     if not session_id:
         return
@@ -929,7 +959,7 @@ def _send_support_payment_admin_email(payment, product: dict) -> None:
     if not payment or not product or not email_configured():
         return
 
-    payment_data = dict(payment)
+    payment_data = _row_to_dict(payment)
     admin_email = current_app.config.get("ADMIN_EMAIL", "")
     if not admin_email or payment_data.get("admin_email_sent_at"):
         return
@@ -971,7 +1001,7 @@ def _send_support_subscription_admin_email(subscription, product: dict) -> None:
     if not subscription or not product or not email_configured():
         return
 
-    subscription_data = dict(subscription)
+    subscription_data = _row_to_dict(subscription)
     admin_email = current_app.config.get("ADMIN_EMAIL", "")
     if not admin_email or subscription_data.get("admin_email_sent_at"):
         return
@@ -1308,8 +1338,8 @@ def payment_success():
         support_product = support_product or expected_support_product
         is_support_payment = support_product is not None
 
-    order = _fetch_order_by_session(session_id)
-    support_payment = _fetch_support_payment_by_session(session_id)
+    order = _safe_fetch_order_by_session(session_id)
+    support_payment = _safe_fetch_support_payment_by_session(session_id) if is_support_payment else None
     return render_template(
         "shop/payment_success.html",
         order=order,
