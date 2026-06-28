@@ -54,6 +54,7 @@ PARTY_GAMES = [
     {
         "title": "Party Games",
         "description": "Room-code games for a shared host screen and phone controllers.",
+        "thumbnail": "games/thumbnails/Party Games Thumb.png",
         "platform": "Group",
     }
 ]
