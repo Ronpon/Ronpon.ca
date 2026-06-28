@@ -489,49 +489,53 @@ def _safe_fetch_order_by_session(session_id: str):
 
 
 def _sync_pending_pulse_question_orders(limit: int = 25) -> int:
-    if not _stripe_configured():
-        return 0
+    try:
+        if not _stripe_configured():
+            return 0
 
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            f"""
-            SELECT id, stripe_checkout_session_id
-            FROM shop_orders
-            WHERE product_key = {ph()}
-              AND status = {ph()}
-              AND stripe_checkout_session_id != ''
-            ORDER BY created_at DESC
-            LIMIT {ph()}
-            """,
-            (_PULSE_QUESTION_PRODUCT_KEY, "pending", limit),
-        )
-        pending_orders = cur.fetchall()
-
-    synced = 0
-    _set_stripe_key()
-    for order in pending_orders:
-        session_id = order["stripe_checkout_session_id"]
-        try:
-            checkout_session = stripe.checkout.Session.retrieve(session_id)
-            metadata = _stripe_value(checkout_session, "metadata", {}) or {}
-            if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
-                continue
-
-            payment_status = _stripe_value(checkout_session, "payment_status", "")
-            session_status = _stripe_value(checkout_session, "status", "")
-            if payment_status in {"paid", "no_payment_required"}:
-                paid_order = _mark_order_paid(checkout_session)
-                _send_paid_pulse_question_emails(paid_order)
-                synced += 1
-            elif session_status == "expired":
-                _set_order_status_by_session(session_id, "expired")
-        except Exception:
-            current_app.logger.exception(
-                "Pending Pulse question Stripe sync failed for session %s",
-                session_id,
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"""
+                SELECT id, stripe_checkout_session_id
+                FROM shop_orders
+                WHERE product_key = {ph()}
+                  AND status = {ph()}
+                  AND stripe_checkout_session_id != ''
+                ORDER BY created_at DESC
+                LIMIT {ph()}
+                """,
+                (_PULSE_QUESTION_PRODUCT_KEY, "pending", limit),
             )
-    return synced
+            pending_orders = cur.fetchall()
+
+        synced = 0
+        _set_stripe_key()
+        for order in pending_orders:
+            session_id = order["stripe_checkout_session_id"]
+            try:
+                checkout_session = stripe.checkout.Session.retrieve(session_id)
+                metadata = _stripe_value(checkout_session, "metadata", {}) or {}
+                if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
+                    continue
+
+                payment_status = _stripe_value(checkout_session, "payment_status", "")
+                session_status = _stripe_value(checkout_session, "status", "")
+                if payment_status in {"paid", "no_payment_required"}:
+                    paid_order = _mark_order_paid(checkout_session)
+                    _send_paid_pulse_question_emails(paid_order)
+                    synced += 1
+                elif session_status == "expired":
+                    _set_order_status_by_session(session_id, "expired")
+            except Exception:
+                current_app.logger.exception(
+                    "Pending Pulse question Stripe sync failed for session %s",
+                    session_id,
+                )
+        return synced
+    except Exception:
+        current_app.logger.exception("Pending Pulse question sync could not run.")
+        return 0
 
 
 def _pulse_submission_status_tabs(active_status: str):
@@ -1486,9 +1490,12 @@ def stripe_webhook():
     data_object = event.get("data", {}).get("object", {})
     if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
         if data_object.get("metadata", {}).get("product_key") == _PULSE_QUESTION_PRODUCT_KEY:
-            if data_object.get("payment_status") in {"paid", "no_payment_required"}:
-                order = _mark_order_paid(data_object)
-                _send_paid_pulse_question_emails(order)
+            try:
+                if data_object.get("payment_status") in {"paid", "no_payment_required"}:
+                    order = _mark_order_paid(data_object)
+                    _send_paid_pulse_question_emails(order)
+            except Exception:
+                current_app.logger.exception("Pulse question checkout webhook processing failed.")
         elif data_object.get("metadata", {}).get("product_key") in _SUPPORT_PRODUCT_KEYS:
             try:
                 _record_support_checkout(data_object)
@@ -1511,8 +1518,14 @@ def stripe_webhook():
         except Exception:
             current_app.logger.exception("Support invoice webhook processing failed.")
     elif event_type == "checkout.session.expired":
-        _set_order_status_by_session(data_object.get("id", ""), "expired")
+        try:
+            _set_order_status_by_session(data_object.get("id", ""), "expired")
+        except Exception:
+            current_app.logger.exception("Checkout expiration webhook processing failed.")
     elif event_type == "checkout.session.async_payment_failed":
-        _set_order_status_by_session(data_object.get("id", ""), "failed")
+        try:
+            _set_order_status_by_session(data_object.get("id", ""), "failed")
+        except Exception:
+            current_app.logger.exception("Checkout failure webhook processing failed.")
 
     return jsonify({"received": True})
