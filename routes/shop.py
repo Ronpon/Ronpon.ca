@@ -366,7 +366,7 @@ def _fetch_order_by_id(order_id: int):
 
 def _mark_order_paid(session, fallback_order_id: int | None = None):
     metadata = _stripe_value(session, "metadata", {}) or {}
-    order_id = _stripe_value(session, "client_reference_id", "") or metadata.get("order_id") or fallback_order_id
+    order_id = _stripe_value(session, "client_reference_id", "") or _stripe_value(metadata, "order_id", "") or fallback_order_id
     if not order_id:
         return None
     try:
@@ -595,7 +595,7 @@ def _safe_fetch_order_by_session(session_id: str):
 
 def _process_paid_pulse_checkout_session(checkout_session):
     metadata = _stripe_value(checkout_session, "metadata", {}) or {}
-    if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
+    if _stripe_value(metadata, "product_key", "") != _PULSE_QUESTION_PRODUCT_KEY:
         return None
     if _stripe_value(checkout_session, "payment_status", "") not in {"paid", "no_payment_required"}:
         return None
@@ -611,11 +611,12 @@ def _sync_pulse_question_session_id(session_id: str, fallback_order_id: int | No
     _set_stripe_key()
     checkout_session = stripe.checkout.Session.retrieve(session_id)
     metadata = _stripe_value(checkout_session, "metadata", {}) or {}
-    if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY and fallback_order_id is None:
+    product_key = _stripe_value(metadata, "product_key", "")
+    if product_key != _PULSE_QUESTION_PRODUCT_KEY and fallback_order_id is None:
         return None
 
     if _stripe_value(checkout_session, "payment_status", "") in {"paid", "no_payment_required"}:
-        if metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY:
+        if product_key == _PULSE_QUESTION_PRODUCT_KEY:
             return _process_paid_pulse_checkout_session(checkout_session)
         return _mark_order_paid(checkout_session, fallback_order_id=fallback_order_id)
     if _stripe_value(checkout_session, "status", "") == "expired":
@@ -722,9 +723,46 @@ def _support_product_by_price_id(price_id: str):
 def _stripe_value(obj, key: str, default=None):
     if not obj:
         return default
-    if hasattr(obj, "get"):
+    if isinstance(obj, dict):
         return obj.get(key, default)
-    return getattr(obj, key, default)
+    try:
+        getter = getattr(obj, "get")
+    except Exception:
+        getter = None
+    if callable(getter):
+        try:
+            return getter(key, default)
+        except Exception:
+            pass
+    try:
+        return obj[key]
+    except Exception:
+        pass
+    try:
+        return getattr(obj, key)
+    except Exception:
+        return default
+
+
+def _stripe_to_dict(obj) -> dict:
+    if not obj:
+        return {}
+    if isinstance(obj, dict):
+        return obj
+    for method_name in ("to_dict_recursive", "to_dict"):
+        try:
+            converter = getattr(obj, method_name)
+        except Exception:
+            converter = None
+        if callable(converter):
+            try:
+                return dict(converter())
+            except Exception:
+                pass
+    try:
+        return dict(obj)
+    except Exception:
+        return {}
 
 
 def _stripe_id(value) -> str:
@@ -753,7 +791,7 @@ def _format_money(amount_cents: int | str | None, currency: str = "cad") -> str:
 
 
 def _support_product_from_metadata(metadata: dict):
-    return _SUPPORT_PRODUCTS_BY_KEY.get((metadata or {}).get("product_key", ""))
+    return _SUPPORT_PRODUCTS_BY_KEY.get(_stripe_value(metadata, "product_key", ""))
 
 
 def _support_product_from_session(session):
@@ -806,15 +844,15 @@ def _resolve_support_user_id(user_id_value, email: str):
 
 
 def _build_support_subscription_record(session=None, subscription=None):
-    session_metadata = _stripe_value(session, "metadata", {}) or {}
-    subscription_metadata = _stripe_value(subscription, "metadata", {}) or {}
+    session_metadata = _stripe_to_dict(_stripe_value(session, "metadata", {}) or {})
+    subscription_metadata = _stripe_to_dict(_stripe_value(subscription, "metadata", {}) or {})
     metadata = {**session_metadata, **subscription_metadata}
 
     price = _support_subscription_price(subscription) if subscription else {}
     price_id = _stripe_id(price)
     product = _support_product_by_price_id(price_id)
     if not product:
-        product = _SUPPORT_PRODUCTS_BY_KEY.get(metadata.get("product_key", ""))
+        product = _SUPPORT_PRODUCTS_BY_KEY.get(_stripe_value(metadata, "product_key", ""))
     if not product or product["mode"] != "subscription":
         return None
 
@@ -828,9 +866,9 @@ def _build_support_subscription_record(session=None, subscription=None):
     email = (
         _stripe_value(customer_details, "email", "")
         or _stripe_value(session, "customer_email", "")
-        or metadata.get("customer_email", "")
+        or _stripe_value(metadata, "customer_email", "")
     )
-    name = _stripe_value(customer_details, "name", "") or metadata.get("customer_name", "")
+    name = _stripe_value(customer_details, "name", "") or _stripe_value(metadata, "customer_name", "")
     if customer_id and (not email or not name):
         try:
             customer = _retrieve_stripe_customer(customer_id)
@@ -841,7 +879,7 @@ def _build_support_subscription_record(session=None, subscription=None):
             name = name or _stripe_value(customer, "name", "")
 
     user_id = _resolve_support_user_id(
-        _stripe_value(session, "client_reference_id", "") or metadata.get("user_id", ""),
+        _stripe_value(session, "client_reference_id", "") or _stripe_value(metadata, "user_id", ""),
         email,
     )
 
@@ -959,12 +997,12 @@ def _build_support_payment_record(session, product: dict):
     email = (
         _stripe_value(customer_details, "email", "")
         or _stripe_value(session, "customer_email", "")
-        or metadata.get("customer_email", "")
+        or _stripe_value(metadata, "customer_email", "")
     )
-    name = _stripe_value(customer_details, "name", "") or metadata.get("customer_name", "")
+    name = _stripe_value(customer_details, "name", "") or _stripe_value(metadata, "customer_name", "")
     customer_id = _stripe_id(_stripe_value(session, "customer", ""))
     user_id = _resolve_support_user_id(
-        _stripe_value(session, "client_reference_id", "") or metadata.get("user_id", ""),
+        _stripe_value(session, "client_reference_id", "") or _stripe_value(metadata, "user_id", ""),
         email,
     )
     amount_cents = _stripe_value(session, "amount_total", 0) or 0
@@ -1468,7 +1506,7 @@ def _payment_success_response():
         support_product = _support_product_from_metadata(metadata) or expected_support_product
         is_support_payment = support_product is not None
         if (
-            metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY
+            _stripe_value(metadata, "product_key", "") == _PULSE_QUESTION_PRODUCT_KEY
             and _stripe_value(checkout_session, "payment_status", "") == "paid"
         ):
             _process_paid_pulse_checkout_session(checkout_session)
@@ -1751,15 +1789,17 @@ def _stripe_webhook_response():
         current_app.logger.exception("Invalid Stripe webhook payload")
         abort(400)
 
-    event_type = event.get("type")
-    data_object = event.get("data", {}).get("object", {})
+    event_type = _stripe_value(event, "type", "")
+    data_object = _stripe_value(_stripe_value(event, "data", {}) or {}, "object", {}) or {}
+    metadata = _stripe_value(data_object, "metadata", {}) or {}
+    product_key = _stripe_value(metadata, "product_key", "")
     if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
-        if data_object.get("metadata", {}).get("product_key") == _PULSE_QUESTION_PRODUCT_KEY:
+        if product_key == _PULSE_QUESTION_PRODUCT_KEY:
             try:
                 _process_paid_pulse_checkout_session(data_object)
             except Exception:
                 current_app.logger.exception("Pulse question checkout webhook processing failed.")
-        elif data_object.get("metadata", {}).get("product_key") in _SUPPORT_PRODUCT_KEYS:
+        elif product_key in _SUPPORT_PRODUCT_KEYS:
             try:
                 _record_support_checkout(data_object)
             except Exception:
@@ -1782,12 +1822,12 @@ def _stripe_webhook_response():
             current_app.logger.exception("Support invoice webhook processing failed.")
     elif event_type == "checkout.session.expired":
         try:
-            _set_order_status_by_session(data_object.get("id", ""), "expired")
+            _set_order_status_by_session(_stripe_id(data_object), "expired")
         except Exception:
             current_app.logger.exception("Checkout expiration webhook processing failed.")
     elif event_type == "checkout.session.async_payment_failed":
         try:
-            _set_order_status_by_session(data_object.get("id", ""), "failed")
+            _set_order_status_by_session(_stripe_id(data_object), "failed")
         except Exception:
             current_app.logger.exception("Checkout failure webhook processing failed.")
 
