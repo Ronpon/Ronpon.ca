@@ -318,9 +318,9 @@ def _fetch_order_by_id(order_id: int):
         return cur.fetchone()
 
 
-def _mark_order_paid(session):
-    metadata = session.get("metadata") or {}
-    order_id = session.get("client_reference_id") or metadata.get("order_id")
+def _mark_order_paid(session, fallback_order_id: int | None = None):
+    metadata = _stripe_value(session, "metadata", {}) or {}
+    order_id = _stripe_value(session, "client_reference_id", "") or metadata.get("order_id") or fallback_order_id
     if not order_id:
         return None
     try:
@@ -328,9 +328,9 @@ def _mark_order_paid(session):
     except (TypeError, ValueError):
         return None
 
-    customer_details = session.get("customer_details") or {}
-    email = customer_details.get("email") or session.get("customer_email") or ""
-    payment_intent_id = session.get("payment_intent") or ""
+    customer_details = _stripe_value(session, "customer_details", {}) or {}
+    email = _stripe_value(customer_details, "email", "") or _stripe_value(session, "customer_email", "") or ""
+    payment_intent_id = _stripe_id(_stripe_value(session, "payment_intent", ""))
     paid_at = _utc_now_iso()
 
     with get_conn() as conn:
@@ -346,7 +346,7 @@ def _mark_order_paid(session):
             """,
             (
                 "paid",
-                session.get("id", ""),
+                _stripe_id(session),
                 payment_intent_id,
                 email,
                 paid_at,
@@ -559,17 +559,19 @@ def _process_paid_pulse_checkout_session(checkout_session):
     return order
 
 
-def _sync_pulse_question_session_id(session_id: str):
+def _sync_pulse_question_session_id(session_id: str, fallback_order_id: int | None = None):
     if not session_id or not _stripe_configured():
         return None
     _set_stripe_key()
     checkout_session = stripe.checkout.Session.retrieve(session_id)
     metadata = _stripe_value(checkout_session, "metadata", {}) or {}
-    if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY:
+    if metadata.get("product_key") != _PULSE_QUESTION_PRODUCT_KEY and fallback_order_id is None:
         return None
 
     if _stripe_value(checkout_session, "payment_status", "") in {"paid", "no_payment_required"}:
-        return _process_paid_pulse_checkout_session(checkout_session)
+        if metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY:
+            return _process_paid_pulse_checkout_session(checkout_session)
+        return _mark_order_paid(checkout_session, fallback_order_id=fallback_order_id)
     if _stripe_value(checkout_session, "status", "") == "expired":
         _set_order_status_by_session(session_id, "expired")
     return _safe_fetch_order_by_session(session_id)
@@ -1579,8 +1581,19 @@ def pulse_question_send_emails(order_id: int):
         flash("Pulse submission not found.", "error")
         return redirect(url_for("shop.pulse_question_submissions", status="all"))
     if order["status"] != "paid":
-        flash("Emails can only be sent after the submission is marked paid.", "error")
-        return redirect(url_for("shop.pulse_question_submissions", status="all"))
+        session_id = order["stripe_checkout_session_id"] or ""
+        if session_id:
+            try:
+                _sync_pulse_question_session_id(session_id, fallback_order_id=order_id)
+                order = _fetch_order_by_id(order_id)
+            except Exception:
+                current_app.logger.exception("Pulse email retry payment sync failed.")
+                flash("Stripe payment sync failed. Try the Sync Stripe Checkout Session form or check app logs.", "error")
+                return redirect(url_for("shop.pulse_question_submissions", status="all"))
+        if not order or order["status"] != "paid":
+            status_label = order["status"] if order else "unknown"
+            flash(f"Stripe did not confirm this submission as paid yet. Current site status: {status_label}.", "error")
+            return redirect(url_for("shop.pulse_question_submissions", status="all"))
 
     if not email_configured():
         missing = ", ".join(_missing_pulse_email_config())
