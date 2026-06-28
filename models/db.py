@@ -570,5 +570,52 @@ def init_db(app_config) -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_tier ON support_subscriptions(tier)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_user ON support_subscriptions(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_support_subscriptions_customer ON support_subscriptions(stripe_customer_id)")
+        support_sent_at_definition = "TIMESTAMPTZ" if (_pg and DATABASE_URL) else "TEXT"
+        _ensure_column(cur, "support_subscriptions", "admin_email_sent_at", support_sent_at_definition)
+
+        # Stripe-backed one-time support payments.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_payments (
+                id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id                    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                product_key                TEXT    NOT NULL DEFAULT '',
+                support_slug               TEXT    NOT NULL DEFAULT '',
+                customer_email             TEXT    NOT NULL DEFAULT '',
+                customer_name              TEXT    NOT NULL DEFAULT '',
+                stripe_customer_id         TEXT    NOT NULL DEFAULT '',
+                stripe_checkout_session_id TEXT    NOT NULL UNIQUE,
+                stripe_payment_intent_id   TEXT    NOT NULL DEFAULT '',
+                stripe_price_id            TEXT    NOT NULL DEFAULT '',
+                amount_cents               INTEGER NOT NULL DEFAULT 0,
+                currency                   TEXT    NOT NULL DEFAULT 'cad',
+                status                     TEXT    NOT NULL DEFAULT '',
+                paid_at                    TEXT,
+                admin_email_sent_at        TEXT,
+                created_at                 TEXT    NOT NULL DEFAULT (datetime('now')),
+                updated_at                 TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """) if not (_pg and DATABASE_URL) else cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_payments (
+                id                         SERIAL PRIMARY KEY,
+                user_id                    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                product_key                TEXT    NOT NULL DEFAULT '',
+                support_slug               TEXT    NOT NULL DEFAULT '',
+                customer_email             TEXT    NOT NULL DEFAULT '',
+                customer_name              TEXT    NOT NULL DEFAULT '',
+                stripe_customer_id         TEXT    NOT NULL DEFAULT '',
+                stripe_checkout_session_id TEXT    NOT NULL UNIQUE,
+                stripe_payment_intent_id   TEXT    NOT NULL DEFAULT '',
+                stripe_price_id            TEXT    NOT NULL DEFAULT '',
+                amount_cents               INTEGER NOT NULL DEFAULT 0,
+                currency                   TEXT    NOT NULL DEFAULT 'cad',
+                status                     TEXT    NOT NULL DEFAULT '',
+                paid_at                    TIMESTAMPTZ,
+                admin_email_sent_at        TIMESTAMPTZ,
+                created_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_payments_customer ON support_payments(customer_email)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_payments_session ON support_payments(stripe_checkout_session_id)")
 
         conn.commit()

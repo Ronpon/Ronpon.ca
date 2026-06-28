@@ -1,28 +1,51 @@
 {% extends "base.html" %}
-{% block title %}Payment Complete - Ronpon.ca{% endblock %}
+{% block title %}Thank You - Ronpon.ca{% endblock %}
 
 {% block content %}
+{% set shown_support_product = support_product or expected_support_product %}
+{% set session_complete = checkout_session and checkout_session.status == "complete" %}
+{% set session_paid = checkout_session and checkout_session.payment_status in ["paid", "no_payment_required"] %}
 <div class="shop-page shop-detail-page">
     <div class="section-header">
-        <h1>Payment Complete</h1>
+        <h1>Thank You</h1>
     </div>
 
-    {% if is_support_payment %}
+    {% if is_support_payment or shown_support_product %}
     <div class="shop-status-panel shop-status-success">
         <h2>Thanks for supporting Ronpon Productions</h2>
-        {% if support_product and support_product.mode == "subscription" %}
-            {% if checkout_session and checkout_session.status == "complete" %}
+        {% if shown_support_product and shown_support_product.mode == "subscription" %}
+            {% if session_complete or session_paid %}
                 <p>
-                    Your {{ support_product.title }} membership is active.
+                    Your {{ shown_support_product.title }} membership is active.
                     Thank you for backing the work month after month.
                 </p>
             {% else %}
-                <p>Stripe has sent you back to Ronpon.ca. Your recurring support is still being confirmed.</p>
+                <p>
+                    Your recurring support is almost done. Stripe is finishing confirmation,
+                    and your receipt will arrive by email.
+                </p>
             {% endif %}
-        {% elif checkout_session and checkout_session.payment_status == "paid" %}
+        {% elif support_payment or session_paid %}
             <p>Your contribution went through. Thank you for helping keep the work moving.</p>
         {% else %}
-            <p>Stripe has sent you back to Ronpon.ca. The payment is still being confirmed.</p>
+            <p>
+                Your contribution is being finalized by Stripe. Your receipt will arrive by email.
+                Thank you for supporting the work.
+            </p>
+        {% endif %}
+        {% if support_payment %}
+        <dl class="shop-order-summary">
+            <div>
+                <dt>Amount</dt>
+                <dd>{{ "$%.2f"|format((support_payment.amount_cents or 0) / 100) }} {{ support_payment.currency|upper }}</dd>
+            </div>
+            {% if support_payment.customer_email %}
+            <div>
+                <dt>Email</dt>
+                <dd>{{ support_payment.customer_email }}</dd>
+            </div>
+            {% endif %}
+        </dl>
         {% endif %}
         <a href="{{ url_for('shop.index') }}" class="btn">Back to Shop</a>
     </div>
@@ -42,10 +65,31 @@
         </dl>
         <a href="{{ url_for('shop.index') }}" class="btn">Back to Shop</a>
     </div>
+    {% elif expected_product_key == "pulse_question" or order %}
+    <div class="shop-status-panel shop-status-success">
+        <h2>Question submitted</h2>
+        <p>
+            Thanks. Your checkout returned successfully, and Stripe is finishing confirmation.
+            Once confirmed, your Pulse question will be queued for review.
+        </p>
+        {% if order %}
+        <dl class="shop-order-summary">
+            <div>
+                <dt>Question</dt>
+                <dd>{{ order.question }}</dd>
+            </div>
+            <div>
+                <dt>Email</dt>
+                <dd>{{ order.customer_email }}</dd>
+            </div>
+        </dl>
+        {% endif %}
+        <a href="{{ url_for('shop.index') }}" class="btn">Back to Shop</a>
+    </div>
     {% else %}
-    <div class="shop-status-panel">
-        <h2>Payment is being confirmed</h2>
-        <p>Stripe has sent you back to Ronpon.ca. The webhook will finish confirming the submission shortly.</p>
+    <div class="shop-status-panel shop-status-success">
+        <h2>Thanks - your checkout returned successfully</h2>
+        <p>Stripe is finishing confirmation. If payment was completed, your receipt will arrive by email.</p>
         <a href="{{ url_for('shop.index') }}" class="btn btn-secondary">Back to Shop</a>
     </div>
     {% endif %}

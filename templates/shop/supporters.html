@@ -7,76 +7,135 @@
         <h1>Supporters</h1>
     </div>
     <p class="shop-intro">
-        Monthly Bronze, Silver, and Gold supporters tracked from Stripe subscription events.
+        One-time and monthly supporters tracked from Stripe events.
     </p>
 
-    <div class="shop-status-tabs">
-        {% for tab in status_tabs %}
-        <a href="{{ url_for('shop.supporters', status=tab.key) }}"
-           class="shop-status-tab {% if tab.active %}active{% endif %}">
-            {{ tab.label }} <span class="supporter-tab-count">{{ tab.count }}</span>
-        </a>
-        {% endfor %}
-    </div>
+    <section class="supporter-section">
+        <h2>One-Time Support</h2>
+        {% if one_time_payments %}
+        <div class="supporter-table-wrap">
+            <table class="supporter-table">
+                <thead>
+                    <tr>
+                        <th>Supporter</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Paid</th>
+                        <th>Stripe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in one_time_payments %}
+                    <tr>
+                        <td>
+                            <strong>{{ p.customer_name or 'Unknown supporter' }}</strong>
+                            <span>{{ p.customer_email or 'No email recorded' }}</span>
+                        </td>
+                        <td>
+                            {% if p.amount_cents %}
+                                {{ "$%.2f"|format((p.amount_cents or 0) / 100) }} {{ p.currency|upper }}
+                            {% else %}
+                                Pay what you want
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="supporter-status supporter-status-{{ p.status }}">
+                                {{ (p.status or 'recorded')|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if p.paid_at %}
+                                {{ (p.paid_at|string|replace('T', ' '))[:16] }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code>{{ p.stripe_checkout_session_id }}</code>
+                            {% if p.stripe_payment_intent_id %}
+                            <code>{{ p.stripe_payment_intent_id }}</code>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No one-time support payments recorded yet.</p>
+        {% endif %}
+    </section>
 
-    {% if subscriptions %}
-    <div class="supporter-table-wrap">
-        <table class="supporter-table">
-            <thead>
-                <tr>
-                    <th>Supporter</th>
-                    <th>Tier</th>
-                    <th>Status</th>
-                    <th>Amount</th>
-                    <th>Paid Through</th>
-                    <th>Stripe</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in subscriptions %}
-                <tr>
-                    <td>
-                        <strong>{{ s.account_display_name or s.customer_name or s.account_username or 'Unknown supporter' }}</strong>
-                        <span>{{ s.customer_email or s.account_email or 'No email recorded' }}</span>
-                    </td>
-                    <td>
-                        <span class="badge-support badge-support-{{ s.tier }}">{{ (s.tier or 'Support')|title }}</span>
-                    </td>
-                    <td>
-                        <span class="supporter-status supporter-status-{{ s.status }}">
-                            {{ s.status|replace('_', ' ')|title }}
-                        </span>
-                        {% if s.cancel_at_period_end %}
-                        <small>Canceling at period end</small>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if s.amount_cents %}
-                            {{ "$%.2f"|format((s.amount_cents or 0) / 100) }} {{ s.currency|upper }}/mo
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if s.current_period_end %}
-                            {{ (s.current_period_end|string|replace('T', ' '))[:16] }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        <code>{{ s.stripe_subscription_id }}</code>
-                        {% if s.stripe_customer_id %}
-                        <code>{{ s.stripe_customer_id }}</code>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="empty-state">No supporters match this view yet.</p>
-    {% endif %}
+    <section class="supporter-section">
+        <h2>Monthly Support</h2>
+        <div class="shop-status-tabs">
+            {% for tab in status_tabs %}
+            <a href="{{ url_for('shop.supporters', status=tab.key) }}"
+               class="shop-status-tab {% if tab.active %}active{% endif %}">
+                {{ tab.label }} <span class="supporter-tab-count">{{ tab.count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% if subscriptions %}
+        <div class="supporter-table-wrap">
+            <table class="supporter-table">
+                <thead>
+                    <tr>
+                        <th>Supporter</th>
+                        <th>Tier</th>
+                        <th>Status</th>
+                        <th>Amount</th>
+                        <th>Paid Through</th>
+                        <th>Stripe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in subscriptions %}
+                    <tr>
+                        <td>
+                            <strong>{{ s.account_display_name or s.customer_name or s.account_username or 'Unknown supporter' }}</strong>
+                            <span>{{ s.customer_email or s.account_email or 'No email recorded' }}</span>
+                        </td>
+                        <td>
+                            <span class="badge-support badge-support-{{ s.tier }}">{{ (s.tier or 'Support')|title }}</span>
+                        </td>
+                        <td>
+                            <span class="supporter-status supporter-status-{{ s.status }}">
+                                {{ s.status|replace('_', ' ')|title }}
+                            </span>
+                            {% if s.cancel_at_period_end %}
+                            <small>Canceling at period end</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.amount_cents %}
+                                {{ "$%.2f"|format((s.amount_cents or 0) / 100) }} {{ s.currency|upper }}/mo
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.current_period_end %}
+                                {{ (s.current_period_end|string|replace('T', ' '))[:16] }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code>{{ s.stripe_subscription_id }}</code>
+                            {% if s.stripe_customer_id %}
+                            <code>{{ s.stripe_customer_id }}</code>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No monthly supporters match this view yet.</p>
+        {% endif %}
+    </section>
 </div>
 {% endblock %}

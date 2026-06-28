@@ -493,7 +493,7 @@ def _support_product_by_price_id(price_id: str):
     if not price_id:
         return None
     for product in _SUPPORT_PRODUCTS:
-        if product["mode"] == "subscription" and _support_price_id(product) == price_id:
+        if _support_price_id(product) == price_id:
             return product
     return None
 
@@ -521,6 +521,23 @@ def _stripe_timestamp(value):
         return datetime.fromtimestamp(int(value), timezone.utc).isoformat(timespec="seconds")
     except (TypeError, ValueError, OSError):
         return None
+
+
+def _format_money(amount_cents: int | str | None, currency: str = "cad") -> str:
+    try:
+        cents = int(amount_cents or 0)
+    except (TypeError, ValueError):
+        cents = 0
+    return f"${cents / 100:.2f} {(currency or 'cad').upper()}"
+
+
+def _support_product_from_metadata(metadata: dict):
+    return _SUPPORT_PRODUCTS_BY_KEY.get((metadata or {}).get("product_key", ""))
+
+
+def _support_product_from_session(session):
+    metadata = _stripe_value(session, "metadata", {}) or {}
+    return _support_product_from_metadata(metadata)
 
 
 def _support_subscription_price(subscription):
@@ -633,9 +650,31 @@ def _build_support_subscription_record(session=None, subscription=None):
     }
 
 
-def _upsert_support_subscription(record: dict) -> None:
-    if not record or not record.get("stripe_subscription_id"):
+def _fetch_support_subscription_by_stripe_id(subscription_id: str):
+    if not subscription_id:
+        return None
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT * FROM support_subscriptions WHERE stripe_subscription_id = {ph()}",
+            (subscription_id,),
+        )
+        return cur.fetchone()
+
+
+def _set_support_subscription_admin_email_sent_at(subscription_id: str) -> None:
+    if not subscription_id:
         return
+    with get_conn() as conn:
+        conn.cursor().execute(
+            f"UPDATE support_subscriptions SET admin_email_sent_at = {ph()} WHERE stripe_subscription_id = {ph()}",
+            (_utc_now_iso(), subscription_id),
+        )
+
+
+def _upsert_support_subscription(record: dict):
+    if not record or not record.get("stripe_subscription_id"):
+        return None
 
     columns = (
         "user_id",
@@ -683,9 +722,228 @@ def _upsert_support_subscription(record: dict) -> None:
             """,
             values,
         )
+    return _fetch_support_subscription_by_stripe_id(record["stripe_subscription_id"])
+
+
+def _support_payment_price_id(session, product: dict) -> str:
+    return _stripe_id(_stripe_value(session, "price", "")) or _support_price_id(product)
+
+
+def _build_support_payment_record(session, product: dict):
+    if not session or not product or product["mode"] != "payment":
+        return None
+
+    metadata = _stripe_value(session, "metadata", {}) or {}
+    customer_details = _stripe_value(session, "customer_details", {}) or {}
+    email = (
+        _stripe_value(customer_details, "email", "")
+        or _stripe_value(session, "customer_email", "")
+        or metadata.get("customer_email", "")
+    )
+    name = _stripe_value(customer_details, "name", "") or metadata.get("customer_name", "")
+    customer_id = _stripe_id(_stripe_value(session, "customer", ""))
+    user_id = _resolve_support_user_id(
+        _stripe_value(session, "client_reference_id", "") or metadata.get("user_id", ""),
+        email,
+    )
+    amount_cents = _stripe_value(session, "amount_total", 0) or 0
+    try:
+        amount_cents = int(amount_cents)
+    except (TypeError, ValueError):
+        amount_cents = 0
+
+    status = _stripe_value(session, "payment_status", "") or _stripe_value(session, "status", "")
+    paid_at = _utc_now_iso() if status in {"paid", "complete", "no_payment_required"} else None
+
+    return {
+        "user_id": user_id,
+        "product_key": product["product_key"],
+        "support_slug": product["slug"],
+        "customer_email": (email or "").strip().lower(),
+        "customer_name": name or "",
+        "stripe_customer_id": customer_id,
+        "stripe_checkout_session_id": _stripe_id(session),
+        "stripe_payment_intent_id": _stripe_id(_stripe_value(session, "payment_intent", "")),
+        "stripe_price_id": _support_payment_price_id(session, product),
+        "amount_cents": amount_cents,
+        "currency": (_stripe_value(session, "currency", "") or "cad").lower(),
+        "status": status,
+        "paid_at": paid_at,
+        "updated_at": _utc_now_iso(),
+    }
+
+
+def _fetch_support_payment_by_session(session_id: str):
+    if not session_id:
+        return None
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT * FROM support_payments WHERE stripe_checkout_session_id = {ph()}",
+            (session_id,),
+        )
+        return cur.fetchone()
+
+
+def _set_support_payment_admin_email_sent_at(session_id: str) -> None:
+    if not session_id:
+        return
+    with get_conn() as conn:
+        conn.cursor().execute(
+            f"UPDATE support_payments SET admin_email_sent_at = {ph()} WHERE stripe_checkout_session_id = {ph()}",
+            (_utc_now_iso(), session_id),
+        )
+
+
+def _upsert_support_payment(record: dict):
+    if not record or not record.get("stripe_checkout_session_id"):
+        return None
+
+    columns = (
+        "user_id",
+        "product_key",
+        "support_slug",
+        "customer_email",
+        "customer_name",
+        "stripe_customer_id",
+        "stripe_checkout_session_id",
+        "stripe_payment_intent_id",
+        "stripe_price_id",
+        "amount_cents",
+        "currency",
+        "status",
+        "paid_at",
+        "updated_at",
+    )
+    values = tuple(record.get(column) for column in columns)
+    with get_conn() as conn:
+        conn.cursor().execute(
+            f"""
+            INSERT INTO support_payments ({", ".join(columns)})
+            VALUES ({ph(len(columns))})
+            ON CONFLICT (stripe_checkout_session_id) DO UPDATE SET
+                user_id = COALESCE(excluded.user_id, support_payments.user_id),
+                product_key = COALESCE(NULLIF(excluded.product_key, ''), support_payments.product_key),
+                support_slug = COALESCE(NULLIF(excluded.support_slug, ''), support_payments.support_slug),
+                customer_email = COALESCE(NULLIF(excluded.customer_email, ''), support_payments.customer_email),
+                customer_name = COALESCE(NULLIF(excluded.customer_name, ''), support_payments.customer_name),
+                stripe_customer_id = COALESCE(NULLIF(excluded.stripe_customer_id, ''), support_payments.stripe_customer_id),
+                stripe_payment_intent_id = COALESCE(NULLIF(excluded.stripe_payment_intent_id, ''), support_payments.stripe_payment_intent_id),
+                stripe_price_id = COALESCE(NULLIF(excluded.stripe_price_id, ''), support_payments.stripe_price_id),
+                amount_cents = CASE
+                    WHEN excluded.amount_cents > 0 THEN excluded.amount_cents
+                    ELSE support_payments.amount_cents
+                END,
+                currency = COALESCE(NULLIF(excluded.currency, ''), support_payments.currency),
+                status = COALESCE(NULLIF(excluded.status, ''), support_payments.status),
+                paid_at = COALESCE(excluded.paid_at, support_payments.paid_at),
+                updated_at = excluded.updated_at
+            """,
+            values,
+        )
+    return _fetch_support_payment_by_session(record["stripe_checkout_session_id"])
+
+
+def _support_admin_customer_label(record: dict) -> str:
+    name = record.get("customer_name", "")
+    email = record.get("customer_email", "")
+    if name and email:
+        return f"{name} <{email}>"
+    return name or email or "Not provided"
+
+
+def _send_support_payment_admin_email(payment, product: dict) -> None:
+    if not payment or not product or not email_configured():
+        return
+
+    payment_data = dict(payment)
+    admin_email = current_app.config.get("ADMIN_EMAIL", "")
+    if not admin_email or payment_data.get("admin_email_sent_at"):
+        return
+
+    supporters_url = _external_url("shop.supporters")
+    amount = _format_money(payment_data.get("amount_cents"), payment_data.get("currency", "cad"))
+    text = (
+        "New one-time support payment.\n\n"
+        f"Product: {product['title']}\n"
+        f"Amount: {amount}\n"
+        f"Customer: {_support_admin_customer_label(payment_data)}\n"
+        f"Status: {payment_data.get('status', '') or 'unknown'}\n\n"
+        f"Stripe session: {payment_data.get('stripe_checkout_session_id', '')}\n"
+        f"Stripe payment intent: {payment_data.get('stripe_payment_intent_id', '')}\n\n"
+        f"View support records:\n{supporters_url}"
+    )
+    html_body = _paragraph_html(
+        "New one-time support payment.",
+        (
+            f"Product: {product['title']}\n"
+            f"Amount: {amount}\n"
+            f"Customer: {_support_admin_customer_label(payment_data)}\n"
+            f"Status: {payment_data.get('status', '') or 'unknown'}"
+        ),
+        (
+            f"Stripe session: {payment_data.get('stripe_checkout_session_id', '')}\n"
+            f"Stripe payment intent: {payment_data.get('stripe_payment_intent_id', '')}"
+        ),
+        f"View support records:\n{supporters_url}",
+    )
+    try:
+        if send_email(admin_email, "New support payment", text, html_body):
+            _set_support_payment_admin_email_sent_at(payment_data.get("stripe_checkout_session_id", ""))
+    except Exception:
+        current_app.logger.exception("Support payment admin email failed.")
+
+
+def _send_support_subscription_admin_email(subscription, product: dict) -> None:
+    if not subscription or not product or not email_configured():
+        return
+
+    subscription_data = dict(subscription)
+    admin_email = current_app.config.get("ADMIN_EMAIL", "")
+    if not admin_email or subscription_data.get("admin_email_sent_at"):
+        return
+
+    supporters_url = _external_url("shop.supporters")
+    amount = _format_money(subscription_data.get("amount_cents"), subscription_data.get("currency", "cad"))
+    text = (
+        "New recurring supporter.\n\n"
+        f"Tier: {product['title']}\n"
+        f"Amount: {amount}/month\n"
+        f"Customer: {_support_admin_customer_label(subscription_data)}\n"
+        f"Status: {subscription_data.get('status', '') or 'unknown'}\n\n"
+        f"Stripe subscription: {subscription_data.get('stripe_subscription_id', '')}\n"
+        f"Stripe customer: {subscription_data.get('stripe_customer_id', '')}\n\n"
+        f"View supporters:\n{supporters_url}"
+    )
+    html_body = _paragraph_html(
+        "New recurring supporter.",
+        (
+            f"Tier: {product['title']}\n"
+            f"Amount: {amount}/month\n"
+            f"Customer: {_support_admin_customer_label(subscription_data)}\n"
+            f"Status: {subscription_data.get('status', '') or 'unknown'}"
+        ),
+        (
+            f"Stripe subscription: {subscription_data.get('stripe_subscription_id', '')}\n"
+            f"Stripe customer: {subscription_data.get('stripe_customer_id', '')}"
+        ),
+        f"View supporters:\n{supporters_url}",
+    )
+    try:
+        if send_email(admin_email, "New recurring supporter", text, html_body):
+            _set_support_subscription_admin_email_sent_at(subscription_data.get("stripe_subscription_id", ""))
+    except Exception:
+        current_app.logger.exception("Support subscription admin email failed.")
 
 
 def _record_support_checkout(session):
+    product = _support_product_from_session(session)
+    if product and product["mode"] == "payment":
+        payment_record = _build_support_payment_record(session, product)
+        payment = _upsert_support_payment(payment_record)
+        _send_support_payment_admin_email(payment, product)
+        return payment
+
     subscription_id = _stripe_id(_stripe_value(session, "subscription", ""))
     subscription = None
     if subscription_id:
@@ -694,14 +952,20 @@ def _record_support_checkout(session):
         except Exception:
             current_app.logger.exception("Stripe Subscription lookup failed after support checkout.")
     record = _build_support_subscription_record(session=session, subscription=subscription)
-    _upsert_support_subscription(record)
-    return record
+    subscription_row = _upsert_support_subscription(record)
+    if subscription_row:
+        product = product or _support_product_by_price_id(subscription_row["stripe_price_id"])
+        _send_support_subscription_admin_email(subscription_row, product)
+    return subscription_row
 
 
 def _record_support_subscription(subscription):
     record = _build_support_subscription_record(subscription=subscription)
-    _upsert_support_subscription(record)
-    return record
+    subscription_row = _upsert_support_subscription(record)
+    if subscription_row:
+        product = _support_product_by_price_id(subscription_row["stripe_price_id"])
+        _send_support_subscription_admin_email(subscription_row, product)
+    return subscription_row
 
 
 def _record_support_invoice_subscription(invoice):
@@ -747,7 +1011,10 @@ def _create_checkout_session(order_id: int, customer_email: str):
     return stripe.checkout.Session.create(
         mode="payment",
         line_items=[_line_item()],
-        success_url=f"{_external_url('shop.payment_success')}?session_id={{CHECKOUT_SESSION_ID}}",
+        success_url=(
+            f"{_external_url('shop.payment_success')}"
+            f"?session_id={{CHECKOUT_SESSION_ID}}&product={_PULSE_QUESTION_PRODUCT_KEY}"
+        ),
         cancel_url=f"{_external_url('shop.pulse_question')}?canceled=1",
         client_reference_id=str(order_id),
         customer_email=customer_email,
@@ -775,7 +1042,10 @@ def _create_support_checkout_session(product: dict):
     checkout_params = dict(
         mode=product["mode"],
         line_items=[{"price": price_id, "quantity": 1}],
-        success_url=f"{_external_url('shop.payment_success')}?session_id={{CHECKOUT_SESSION_ID}}",
+        success_url=(
+            f"{_external_url('shop.payment_success')}"
+            f"?session_id={{CHECKOUT_SESSION_ID}}&product={product['product_key']}"
+        ),
         cancel_url=_external_url("shop.index"),
         metadata=metadata,
     )
@@ -921,6 +1191,8 @@ def pulse_question_checkout():
 @rate_limit("shop.payment_success", 60, 60 * 60)
 def payment_success():
     session_id = request.args.get("session_id", "").strip()
+    expected_product_key = request.args.get("product", "").strip()
+    expected_support_product = _SUPPORT_PRODUCTS_BY_KEY.get(expected_product_key)
     if not session_id:
         flash("Payment session not found.", "error")
         return redirect(url_for("shop.index"))
@@ -931,31 +1203,46 @@ def payment_success():
     checkout_session = None
     is_support_payment = False
     support_product = None
+    status_check_failed = False
     try:
         _set_stripe_key()
         checkout_session = stripe.checkout.Session.retrieve(session_id)
-        metadata = checkout_session.get("metadata") or {}
-        support_product = _SUPPORT_PRODUCTS_BY_KEY.get(metadata.get("product_key", ""))
+        metadata = _stripe_value(checkout_session, "metadata", {}) or {}
+        support_product = _support_product_from_metadata(metadata) or expected_support_product
         is_support_payment = support_product is not None
         if (
             metadata.get("product_key") == _PULSE_QUESTION_PRODUCT_KEY
-            and checkout_session.get("payment_status") == "paid"
+            and _stripe_value(checkout_session, "payment_status", "") == "paid"
         ):
             order = _mark_order_paid(checkout_session)
             _send_paid_pulse_question_emails(order)
-        elif is_support_payment and support_product and support_product["mode"] == "subscription":
+        elif (
+            is_support_payment
+            and support_product
+            and (
+                _stripe_value(checkout_session, "status", "") == "complete"
+                or _stripe_value(checkout_session, "payment_status", "") in {"paid", "no_payment_required"}
+            )
+        ):
             _record_support_checkout(checkout_session)
     except Exception:
         current_app.logger.exception("Stripe Checkout Session lookup failed")
-        flash("Payment status could not be checked. We will confirm it by webhook.", "info")
+        status_check_failed = True
+        support_product = support_product or expected_support_product
+        is_support_payment = support_product is not None
 
     order = _fetch_order_by_session(session_id)
+    support_payment = _fetch_support_payment_by_session(session_id)
     return render_template(
         "shop/payment_success.html",
         order=order,
         checkout_session=checkout_session,
         is_support_payment=is_support_payment,
         support_product=support_product,
+        expected_product_key=expected_product_key,
+        expected_support_product=expected_support_product,
+        status_check_failed=status_check_failed,
+        support_payment=support_payment,
     )
 
 
@@ -1014,10 +1301,20 @@ def supporters():
                 """
             )
         subscriptions = cur.fetchall()
+        cur.execute(
+            """
+            SELECT *
+            FROM support_payments
+            ORDER BY COALESCE(paid_at, created_at) DESC, created_at DESC
+            LIMIT 100
+            """
+        )
+        one_time_payments = cur.fetchall()
 
     return render_template(
         "shop/supporters.html",
         subscriptions=subscriptions,
+        one_time_payments=one_time_payments,
         status_filter=status_filter,
         status_tabs=_support_status_filter_tabs(status_filter),
     )

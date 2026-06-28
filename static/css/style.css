@@ -2055,6 +2055,17 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
     font-size: 0.75rem;
 }
 
+.supporter-section {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+}
+
+.supporter-section h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
 .supporter-table-wrap {
     overflow-x: auto;
     border: 1px solid var(--color-border);
@@ -2133,7 +2144,10 @@ details[open] > .profile-section-toggle::before { content: '▾ '; }
 }
 
 .supporter-status-active,
-.supporter-status-trialing {
+.supporter-status-trialing,
+.supporter-status-paid,
+.supporter-status-complete,
+.supporter-status-no_payment_required {
     color: #07100f !important;
     background: #4ecdc4;
 }
