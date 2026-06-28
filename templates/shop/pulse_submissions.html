@@ -43,6 +43,30 @@
         </form>
     </div>
 
+    <div class="shop-config-panel">
+        <h2>Stripe Connection</h2>
+        <dl>
+            <div>
+                <dt>Stripe Package</dt>
+                <dd>{{ "Ready" if stripe_status.package else "Missing" }}</dd>
+            </div>
+            <div>
+                <dt>STRIPE_SECRET_KEY</dt>
+                <dd>
+                    {% if stripe_status.secret_key %}
+                        Set ({{ stripe_status.secret_mode }} mode)
+                    {% else %}
+                        Missing
+                    {% endif %}
+                </dd>
+            </div>
+            <div>
+                <dt>STRIPE_WEBHOOK_SECRET</dt>
+                <dd>{{ "Set" if stripe_status.webhook_secret else "Missing" }}</dd>
+            </div>
+        </dl>
+    </div>
+
     <form method="post" action="{{ url_for('shop.pulse_question_sync_session') }}" class="shop-sync-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="session_id">Sync Stripe Checkout Session</label>

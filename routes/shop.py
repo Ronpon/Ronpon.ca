@@ -220,6 +220,52 @@ def _set_stripe_key() -> None:
     stripe.api_key = current_app.config["STRIPE_SECRET_KEY"]
 
 
+def _stripe_secret_mode() -> str:
+    secret_key = current_app.config.get("STRIPE_SECRET_KEY", "")
+    if secret_key.startswith("sk_live_"):
+        return "live"
+    if secret_key.startswith("sk_test_"):
+        return "test"
+    return "missing" if not secret_key else "unknown"
+
+
+def _stripe_session_mode(session_id: str) -> str:
+    if session_id.startswith("cs_live_"):
+        return "live"
+    if session_id.startswith("cs_test_"):
+        return "test"
+    return "unknown"
+
+
+def _stripe_mode_warning(session_id: str) -> str:
+    key_mode = _stripe_secret_mode()
+    session_mode = _stripe_session_mode(session_id)
+    if key_mode in {"live", "test"} and session_mode in {"live", "test"} and key_mode != session_mode:
+        return f"This is a {session_mode} Checkout Session, but STRIPE_SECRET_KEY is {key_mode}."
+    return ""
+
+
+def _safe_exception_message(exc: Exception) -> str:
+    message = str(exc) or exc.__class__.__name__
+    secret_key = current_app.config.get("STRIPE_SECRET_KEY", "")
+    webhook_secret = current_app.config.get("STRIPE_WEBHOOK_SECRET", "")
+    for secret in (secret_key, webhook_secret):
+        if secret:
+            message = message.replace(secret, "[redacted]")
+    message = re.sub(r"\bsk_(live|test)_[A-Za-z0-9_]+", r"sk_\1_[redacted]", message)
+    message = re.sub(r"\bwhsec_[A-Za-z0-9_]+", "whsec_[redacted]", message)
+    return message[:500]
+
+
+def _stripe_status_summary() -> dict:
+    return {
+        "package": stripe is not None,
+        "secret_key": bool(current_app.config.get("STRIPE_SECRET_KEY")),
+        "secret_mode": _stripe_secret_mode(),
+        "webhook_secret": bool(current_app.config.get("STRIPE_WEBHOOK_SECRET")),
+    }
+
+
 def _external_url(endpoint: str, **values) -> str:
     public_origin = current_app.config.get("PUBLIC_ORIGIN", "")
     if public_origin:
@@ -1567,6 +1613,7 @@ def pulse_question_submissions():
         status=status,
         status_tabs=_pulse_submission_status_tabs(status),
         email_status=email_configuration_status(),
+        stripe_status=_stripe_status_summary(),
     )
 
 
@@ -1586,9 +1633,13 @@ def pulse_question_send_emails(order_id: int):
             try:
                 _sync_pulse_question_session_id(session_id, fallback_order_id=order_id)
                 order = _fetch_order_by_id(order_id)
-            except Exception:
+            except Exception as exc:
                 current_app.logger.exception("Pulse email retry payment sync failed.")
-                flash("Stripe payment sync failed. Try the Sync Stripe Checkout Session form or check app logs.", "error")
+                detail = _safe_exception_message(exc)
+                warning = _stripe_mode_warning(session_id)
+                if warning:
+                    detail = f"{warning} {detail}"
+                flash(f"Stripe payment sync failed: {detail}", "error")
                 return redirect(url_for("shop.pulse_question_submissions", status="all"))
         if not order or order["status"] != "paid":
             status_label = order["status"] if order else "unknown"
@@ -1664,9 +1715,13 @@ def pulse_question_sync_session():
             flash("Stripe session synced. Check the submission list below.", "success")
         else:
             flash("Stripe session was found, but it is not a paid Pulse question yet.", "info")
-    except Exception:
+    except Exception as exc:
         current_app.logger.exception("Manual Pulse question session sync failed.")
-        flash("That Stripe session could not be synced yet. Check the app logs for the exact Stripe error.", "error")
+        detail = _safe_exception_message(exc)
+        warning = _stripe_mode_warning(session_id)
+        if warning:
+            detail = f"{warning} {detail}"
+        flash(f"That Stripe session could not be synced: {detail}", "error")
     return redirect(url_for("shop.pulse_question_submissions", status="all"))
 
 
