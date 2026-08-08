@@ -48,6 +48,22 @@ GAMES = [
         "type": "flask",
         "platform": "Mobile",
     },
+    {
+        "id": "family-sudoku",
+        "title": "Family Sudoku",
+        "description": "Classic Sudoku using familiar family faces instead of numbers.",
+        "thumbnail": "games/family-sudoku/images/thumbnail.svg",
+        "type": "flask",
+        "platform": "PC",
+    },
+    {
+        "id": "family-sudoku-mobile",
+        "title": "Family Sudoku",
+        "description": "Large, touch-friendly Family Sudoku for iPhone and iPad.",
+        "thumbnail": "games/family-sudoku/images/thumbnail.svg",
+        "type": "flask",
+        "platform": "Mobile",
+    },
 ]
 
 PARTY_GAMES = [
@@ -95,3 +111,13 @@ def tic_tac_toe():
 @games_bp.route("/tic-tac-toe-mobile")
 def tic_tac_toe_mobile():
     return render_template("games/tic_tac_toe.html")
+
+
+@games_bp.route("/family-sudoku")
+def family_sudoku():
+    return render_template("games/family_sudoku.html")
+
+
+@games_bp.route("/family-sudoku-mobile")
+def family_sudoku_mobile():
+    return render_template("games/family_sudoku.html")

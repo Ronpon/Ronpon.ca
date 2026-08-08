@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Family Sudoku - Ronpon.ca{% endblock %}
+{% block head %}
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="{{ url_for('static', filename='games/family-sudoku/css/game.css') }}?v=20260808a">
+{% endblock %}
+{% block content %}
+<section class="fs-page" data-family-sudoku
+ data-faces-url="{{ url_for('static', filename='games/family-sudoku/faces.json') }}"
+ data-fallback-puzzles-url="{{ url_for('static', filename='games/family-sudoku/data/fallback-puzzles.json') }}"
+ data-generator-worker-url="{{ url_for('static', filename='games/family-sudoku/js/generator-worker.js') }}">
+  <div class="fs-topbar"><a class="fs-back" href="{{ url_for('games.index') }}">&larr; Games</a><div><h1 class="fs-title" data-game-title>Family Sudoku</h1><p class="fs-subtitle" data-game-subtitle>Tap an open square, then choose a face.</p></div><button class="fs-button fs-new" type="button" data-action="new">New puzzle</button></div>
+  <p class="fs-status" data-status role="status" aria-live="polite">Making a new puzzle...</p>
+  <div class="fs-layout"><main class="fs-stage"><div class="fs-board" data-board role="grid" aria-label="Family Sudoku board"></div></main><aside class="fs-controls" aria-label="Game controls"><label class="fs-label" for="fs-difficulty">Difficulty</label><select id="fs-difficulty" class="fs-select" data-difficulty><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select><div class="fs-actions"><button class="fs-button" data-action="notes" type="button">Notes: off</button><button class="fs-button" data-action="erase" type="button">Erase</button><button class="fs-button" data-action="undo" type="button">Undo</button><button class="fs-button" data-action="hint" type="button">Hint</button><button class="fs-button" data-action="check" type="button">Check</button><button class="fs-button" data-action="reset" type="button">Reset</button></div><details class="fs-help"><summary>How to play</summary><p>Each row, column, and 3x3 box uses every face once. Select a square and choose a face. Number keys are also available.</p></details></aside></div>
+  <div class="fs-overlay" data-picker hidden><div class="fs-picker" role="dialog" aria-modal="true" aria-labelledby="fs-picker-title" aria-describedby="fs-picker-description"><div class="fs-picker-head"><h2 id="fs-picker-title">Choose a face</h2><button class="fs-close" data-close type="button">Close</button></div><p id="fs-picker-description" data-picker-description></p><div class="fs-face-grid" data-face-grid></div></div></div>
+  <div class="fs-complete" data-complete hidden><div class="fs-dialog"><h2 data-complete-title>You did it!</h2><p data-complete-message>Great job. We love you.</p><p>Hints used: <span data-hints>0</span></p><button class="fs-button" data-complete-close type="button">Continue</button></div></div>
+  <div class="fs-fatal" data-fatal hidden><div class="fs-dialog"><h2>Family Sudoku could not start</h2><p data-fatal-message>Check the local game files and try again.</p></div></div>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='games/family-sudoku/js/game.mjs') }}?v=20260808a"></script>{% endblock %}

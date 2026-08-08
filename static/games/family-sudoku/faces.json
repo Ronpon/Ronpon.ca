@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "gameTitle": "Family Sudoku",
+  "subtitle": "Tap an open square, then choose a face.",
+  "completionTitle": "You did it!",
+  "completionMessage": "Great job. We love you.",
+  "defaultDifficulty": "easy",
+  "faces": [
+    {
+      "value": 1,
+      "name": "Family Member 1",
+      "shortLabel": "1",
+      "image": "images/faces/face-1.wpb.png"
+    },
+    {
+      "value": 2,
+      "name": "Family Member 2",
+      "shortLabel": "2",
+      "image": "images/faces/face-2.png"
+    },
+    {
+      "value": 3,
+      "name": "Family Member 3",
+      "shortLabel": "3",
+      "image": "images/faces/face-3.png"
+    },
+    {
+      "value": 4,
+      "name": "Family Member 4",
+      "shortLabel": "4",
+      "image": "images/faces/face-4.jfif"
+    },
+    {
+      "value": 5,
+      "name": "Family Member 5",
+      "shortLabel": "5",
+      "image": "images/faces/face-5.png"
+    },
+    {
+      "value": 6,
+      "name": "Family Member 6",
+      "shortLabel": "6",
+      "image": "images/faces/face-6.png"
+    },
+    {
+      "value": 7,
+      "name": "Family Member 7",
+      "shortLabel": "7",
+      "image": "images/faces/face-7.jpg"
+    },
+    {
+      "value": 8,
+      "name": "Family Member 8",
+      "shortLabel": "8",
+      "image": "images/faces/face-8.png"
+    },
+    {
+      "value": 9,
+      "name": "Family Member 9",
+      "shortLabel": "9",
+      "image": "images/faces/face-9.png"
+    }
+  ]
+}
