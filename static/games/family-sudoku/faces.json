@@ -8,55 +8,55 @@
   "faces": [
     {
       "value": 1,
-      "name": "Family Member 1",
+      "name": "Baba",
       "shortLabel": "1",
       "image": "images/faces/face-1.wpb.png"
     },
     {
       "value": 2,
-      "name": "Family Member 2",
+      "name": "Bopa",
       "shortLabel": "2",
       "image": "images/faces/face-2.png"
     },
     {
       "value": 3,
-      "name": "Family Member 3",
+      "name": "Brannen",
       "shortLabel": "3",
       "image": "images/faces/face-3.png"
     },
     {
       "value": 4,
-      "name": "Family Member 4",
+      "name": "Jack",
       "shortLabel": "4",
       "image": "images/faces/face-4.jfif"
     },
     {
       "value": 5,
-      "name": "Family Member 5",
+      "name": "John",
       "shortLabel": "5",
       "image": "images/faces/face-5.png"
     },
     {
       "value": 6,
-      "name": "Family Member 6",
+      "name": "Linda",
       "shortLabel": "6",
       "image": "images/faces/face-6.png"
     },
     {
       "value": 7,
-      "name": "Family Member 7",
+      "name": "Sue",
       "shortLabel": "7",
       "image": "images/faces/face-7.jpg"
     },
     {
       "value": 8,
-      "name": "Family Member 8",
+      "name": "Tay",
       "shortLabel": "8",
       "image": "images/faces/face-8.png"
     },
     {
       "value": 9,
-      "name": "Family Member 9",
+      "name": "Ron",
       "shortLabel": "9",
       "image": "images/faces/face-9.png"
     }

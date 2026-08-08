@@ -6,7 +6,7 @@
 {% endblock %}
 {% block content %}
 <section class="fs-page" data-family-sudoku
- data-faces-url="{{ url_for('static', filename='games/family-sudoku/faces.json') }}"
+ data-faces-url="{{ url_for('static', filename='games/family-sudoku/faces.json') }}?v=20260808b"
  data-fallback-puzzles-url="{{ url_for('static', filename='games/family-sudoku/data/fallback-puzzles.json') }}"
  data-generator-worker-url="{{ url_for('static', filename='games/family-sudoku/js/generator-worker.js') }}">
   <div class="fs-topbar"><a class="fs-back" href="{{ url_for('games.index') }}">&larr; Games</a><div><h1 class="fs-title" data-game-title>Family Sudoku</h1><p class="fs-subtitle" data-game-subtitle>Tap an open square, then choose a face.</p></div><button class="fs-button fs-new" type="button" data-action="new">New puzzle</button></div>
