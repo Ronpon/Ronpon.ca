@@ -155,6 +155,16 @@
     .fs-page { padding-right: max(16px, env(safe-area-inset-right)); padding-left: max(16px, env(safe-area-inset-left)); }
 }
 
+@media (min-width: 700px) and (max-width: 1200px) and (orientation: landscape) {
+    .fs-page { padding-top: 8px; padding-bottom: 28px; }
+    .fs-topbar { gap: 10px; }
+    .fs-status { min-height: 24px; margin: 8px 0; }
+    .fs-stage { width: min(100%, 760px, calc(100vh - 200px)); }
+    .fs-stage { width: min(100%, 760px, calc(100svh - 200px)); }
+    .fs-stage { width: min(100%, 760px, calc(100dvh - 200px)); }
+    .fs-controls { margin-top: 10px; }
+}
+
 @media (max-width: 500px) {
     .fs-topbar { gap: 8px; }
     .fs-topbar .fs-back { width: 100%; }
