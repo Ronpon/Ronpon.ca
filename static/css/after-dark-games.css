@@ -1,0 +1,64 @@
+/* Standalone game menus share the station palette; boards and game rules are untouched. */
+:root {
+    color-scheme: dark;
+    --bg: #1d2a22;
+    --surface: #26362a;
+    --surface2: #344432;
+    --surface3: #18271e;
+    --card-bg: #233729;
+    --border: #75815d;
+    --gold: #ddbd80;
+    --gold-light: #f0d69b;
+    --text: #f0e4c6;
+    --text-dim: #bac0a2;
+    --muted: #a8b492;
+}
+.after-dark-game { background: #1d2a22; color: #f0e4c6; }
+.after-dark-game :where(a,button,input,select):focus-visible { outline: 3px solid #f0d69b; outline-offset: 3px; }
+.werblers-station .setup-box { border: 6px solid #8e6846; box-shadow: 6px 8px #101a14; border-radius: 24px; }
+.werblers-station .game-title, .werblers-station .setup-title { text-shadow: none; color: #e7cb91; }
+.werblers-station .setup-box .menu-heading { font-family: 'Courier New', monospace; }
+.werblers-station #back-to-games, .game-station-return { color: #e4c58b; background: #1c2a20; border: 1px solid #9aa67b; padding: 10px 14px; border-radius: 4px; opacity: 1; font: bold 11px/1.5 'Courier New',monospace; text-decoration: none; min-height: 40px; }
+.game-station-return { display: block; width: fit-content; margin: 0 auto 25px; }
+.chess-station { font-family: Arial, Helvetica, sans-serif; }
+.chess-station #app { width: min(100%, 646px); padding: 0 4px; }
+.chess-station #info-panel { min-width: 0; width: 100%; }
+.chess-station #canvas-container { max-width: 100%; }
+.chess-station #game-canvas { max-width: 100%; height: auto; }
+.chess-station #info-panel { background: #283d2b; border-color: #86976b; color: #e1c38b; font-family: 'Courier New',monospace; }
+.chess-station #info-panel.in-check { border-color: #db8d75; color: #ffbea5; background: #4a2c24; }
+.chess-station #canvas-container { border-color: #9c764c; box-shadow: 4px 6px #101a14; }
+.chess-station :is(.setup-panel,.overlay-panel,.mg-result-panel,.mg-chooser-panel,.check-warning-panel) { background: #25372a; border-color: #9b8055; box-shadow: 5px 7px #101a14; }
+.chess-station :is(.setup-title,.setup-profile h3,.mg-title,.mg-chooser-name) { color: #e7ce96; font-family: 'Courier New',monospace; }
+.chess-station :is(.setup-count-btn,.setup-mode-btn,.setup-rule-btn,.setup-icon-btn,.setup-mg-btn,.mg-chooser-btn) { background: #344a33; border-color: #87996e; color: #eee2c0; }
+.chess-station :is(.setup-count-btn,.setup-mode-btn,.setup-rule-btn,.setup-icon-btn).active,
+.chess-station .setup-icon-btn.selected { background: #d9c28c; color: #213322; border-color: #efe0ac; }
+.chess-station .setup-name-input { background: #18291d; border-color: #87996e; color: #f0e4c6; }
+.chess-station .setup-name-input::placeholder { color: #b6bba0; }
+.chess-station .setup-divider { background: #86976b; }
+.chess-station :is(.setup-rule-desc,.setup-icon-label,.setup-mg-category-title,.count-sub) { color: #bec6a5; }
+.chess-station .mg-sidebar { background: #213324; }
+.chess-station .overlay-panel h2, .chess-station .mg-result-title, .chess-station .mg-arena-title { color: #e7ce96; font-family: 'Courier New', monospace; }
+.chess-station .btn { background: #354b33; border-color: #91a174; color: #eee2c0; }
+.chess-station .btn-primary, .chess-station .btn:hover { background: #ddc18b; color: #213322; border-color: #ddc18b; }
+.chess-station .btn-primary .count-sub, .chess-station .btn:hover .count-sub { color: #46533b; }
+.chess-station .setup-count-btn.disabled:hover { background: #344a33; color: #eee2c0; }
+.chess-station .setup-mode-label, .chess-station .setup-no-games { color: #bec6a5; }
+.chess-station input[type=checkbox] { accent-color: #b7cd94; }
+.chess-station .setup-icon-btn.selected { box-shadow: none; }
+.chess-station .overlay-panel { max-height: calc(100dvh - 28px); overflow-y: auto; }
+@media (max-width: 600px) {
+    .werblers-station .setup-box { border-width: 4px; border-radius: 15px; }
+    .werblers-station .game-title { font-size: clamp(26px, 8vw, 44px); letter-spacing: 3px; }
+    .werblers-station .setup-box { padding: 30px 18px; }
+    .werblers-station .profile-input, .werblers-station .btn-profile { max-width: 100%; }
+    .chess-station .overlay-panel { min-width: 0; width: calc(100% - 24px); padding: 20px 16px; }
+    .chess-station .setup-player-count { gap: 12px; }
+    .chess-station .setup-count-btn { min-width: 0; flex: 1; padding: 20px 8px; }
+    .chess-station .setup-profiles-row { flex-direction: column; }
+    .chess-station .setup-divider { width: 100%; height: 1px; }
+    .game-station-return { font-size: 10px; margin-bottom: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *:before, *:after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

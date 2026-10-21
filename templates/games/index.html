@@ -3,10 +3,12 @@
 
 {% block content %}
 <div class="section-header">
-    <h1>Games</h1>
+    <p class="station-eyebrow">CH 01 / THE GAME SHELF</p>
+    <h1>One more game.</h1>
+    <p class="section-intro">Pick a tape. Start an adventure. Try not to lose the whole evening.</p>
 </div>
 
-<h2 class="game-row-title">PC Games</h2>
+<h2 class="game-row-title">PC / The main screen</h2>
 <div class="game-grid">
     {% for game in pc_games %}
     <a href="{{ url_for('games.' + game.id|replace('-', '_')) }}" class="game-card">
@@ -29,7 +31,7 @@
     {% endfor %}
 </div>
 
-<h2 class="game-row-title">Mobile Games</h2>
+<h2 class="game-row-title">Mobile / The small screen</h2>
 <div class="game-grid">
     {% for game in mobile_games %}
     <a href="{{ url_for('games.' + game.id|replace('-', '_')) }}" class="game-card">
@@ -52,7 +54,7 @@
     {% endfor %}
 </div>
 
-<h2 class="game-row-title">Party Games</h2>
+<h2 class="game-row-title">Party games / Get everyone in</h2>
 <div class="game-grid">
     {% for game in party_games %}
     <a href="{{ url_for('party_games.index') }}" class="game-card">

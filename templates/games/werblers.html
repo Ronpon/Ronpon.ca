@@ -8,11 +8,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/after-dark-games.css') }}?v=20261021">
+  <meta name="theme-color" content="#202b26">
 </head>
-<body>
+<body class="after-dark-game werblers-station">
 
 <!-- Back to Games link -->
-<a id="back-to-games" href="{{ url_for('games.index') }}" title="Back to Games">&larr; Games</a>
+<a id="back-to-games" href="{{ url_for('games.index') }}" title="Back to Games">&larr; CH 01 / GAMES</a>
 
 <!-- Options button (always visible) -->
 <button id="options-btn" onclick="openOptionsModal()" title="Options">&#x2699;</button>

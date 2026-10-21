@@ -1,15 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Ronpon.ca{% endblock %}
+{% block title %}Ronpon.ca — Games, videos, and good times{% endblock %}
 
 {% block content %}
-<section class="hero">
-    <h1>Ronpon<span class="logo-dot">.ca</span></h1>
-    <p class="hero-tagline">Games, videos, and good times.</p>
-    <div class="hero-links">
-        <a href="{{ url_for('games.index') }}" class="btn">🎮 Play Games</a>
-        <a href="{{ url_for('videos.index') }}" class="btn btn-secondary">🎬 Videos</a>
-        <a href="{{ url_for('pulse.index') }}" class="btn btn-secondary">📊 The Pulse</a>
-        <a href="{{ url_for('shop.index') }}" class="btn btn-secondary">&#128717; Shop</a>
+{% set channels = [
+    {'number': '01', 'name': 'Games', 'title': 'One more game.', 'copy': 'That’s what you said three games ago.', 'endpoint': 'games.index', 'action': 'Play something', 'art': url_for('static', filename='games/thumbnails/Werblers Thumbnail.png')},
+    {'number': '02', 'name': 'Videos', 'title': 'Pass the remote.', 'copy': 'Settle in. There’s a whole video collection.', 'endpoint': 'videos.index', 'action': 'Browse videos', 'art': url_for('serve_site_image', filename='General Website Images/home-hero-ronpon-world.png')},
+    {'number': '03', 'name': 'The Pulse', 'title': 'Everybody’s got a take.', 'copy': 'Polls, opinions, and a game show. Bring yours.', 'endpoint': 'pulse.index', 'action': 'Tune into The Pulse', 'art': ''},
+    {'number': '04', 'name': 'The Shop', 'title': 'And now, a book break.', 'copy': 'Books, questions for The Pulse, and ways to support Ronpon.', 'endpoint': 'shop.index', 'action': 'Visit the shop', 'art': url_for('serve_site_image', filename='Shop/Nursery Rhymes Cover.jpg')}
+] %}
+<h1 class="sr-only">Ronpon.ca — Games, videos, and good times.</h1>
+<div class="home-station-line"><span>GAMES · VIDEOS · GOOD TIMES</span><span><i class="station-led" aria-hidden="true"></i> ON AIR (ISH)</span></div>
+<section class="tv-room" aria-label="Choose your Ronpon channel">
+    <div class="tv-antenna" aria-hidden="true"></div>
+    <div class="television" data-television>
+        <div class="tv-screen">
+            {% for item in channels %}
+            <section class="broadcast" id="channel-{{ item.number }}" data-broadcast="{{ loop.index0 }}" aria-labelledby="channel-title-{{ item.number }}"{% if not loop.first %} hidden{% endif %}>
+                <div class="channel-ident"><span>CH {{ item.number }}</span><span>{{ item.name|upper }}</span></div>
+                {% if item.art %}<img class="broadcast-art{% if loop.last %} broadcast-book{% endif %}" src="{{ item.art }}" alt=""{% if not loop.first %} loading="lazy"{% endif %}>
+                {% else %}<svg class="broadcast-wave" viewBox="0 0 500 200" aria-hidden="true"><path d="M0 110H100L130 55 170 165 215 15 260 185 300 90 325 110H500"/></svg>{% endif %}
+                <div class="broadcast-copy">
+                    <p class="broadcast-kicker">YOU’RE WATCHING RONPON</p>
+                    <h2 id="channel-title-{{ item.number }}">{{ item.title }}</h2>
+                    <p>{{ item['copy'] }}</p>
+                    <a class="broadcast-link" href="{{ url_for(item.endpoint) }}">{{ item.action }} &nearr;</a>
+                </div>
+            </section>
+            {% endfor %}
+            <div class="tv-scanlines" aria-hidden="true"></div>
+        </div>
+        <div class="tv-controls">
+            <span class="tv-maker">RONPON<small>ENTERTAINMENT SYSTEM</small></span>
+            <button class="tv-dial" type="button" data-dial aria-label="Tune to the next channel" hidden><span aria-hidden="true"></span></button>
+            <span class="dial-caption" data-tv-enhancement hidden>GIVE IT A TURN ↻</span>
+            <div class="channel-buttons" role="group" aria-label="Choose a channel" data-tv-enhancement hidden>
+                {% for item in channels %}<button type="button" data-channel="{{ loop.index0 }}" aria-controls="channel-{{ item.number }}" aria-label="Channel {{ item.number }}: {{ item.name }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ item.number }}</button>{% endfor %}
+            </div>
+            <div class="tv-speaker" aria-hidden="true"></div>
+            <span class="tv-power"><i aria-hidden="true"></i> POWER</span>
+        </div>
     </div>
+    <p class="sr-only" data-channel-status role="status" aria-live="polite"></p>
+    <div class="tv-shelf"><span>YOUR REGULARLY UNSCHEDULED ENTERTAINMENT.</span><span class="handwritten">the remote is always missing.</span></div>
+    <a href="#programme-guide" class="tv-scroll">↓ See what’s on</a>
+</section>
+<section class="programme-guide" id="programme-guide" aria-labelledby="guide-title">
+    <span class="handwritten">something for every attention span</span>
+    <h2 id="guide-title">The very unofficial<br>programme guide.</h2>
+    {% for item in channels %}
+    <div class="programme-row">
+        <span class="programme-number">CH {{ item.number }}</span>
+        <a class="programme-name" href="{{ url_for(item.endpoint) }}">{{ item.name|upper }} &nearr;</a>
+        <p>{{ item['copy'] }}</p>
+        <button type="button" data-channel="{{ loop.index0 }}" data-tune aria-controls="channel-{{ item.number }}" aria-label="Preview channel {{ item.number }}: {{ item.name }}" hidden>TUNE IN ↗</button>
+    </div>
+    {% endfor %}
+</section>
+<section class="home-game-shelf" aria-labelledby="shelf-title">
+    <div class="shelf-note"><h2 id="shelf-title">Still here?<br>Excellent.</h2><p>These games aren’t going to play themselves.</p><a href="{{ url_for('games.index') }}">All games &nearr;</a></div>
+    {% for title, endpoint, filename in [('Werblers', 'games.werblers', 'Werblers Thumbnail.png'), ('Battle Chess', 'games.battle_chess', 'Battle Chess Thumbnail.jpg'), ('Party Games', 'party_games.index', 'Party Games Thumb.png')] %}
+    <a class="vhs-game" href="{{ url_for(endpoint) }}" data-scroll-card><img src="{{ url_for('static', filename='games/thumbnails/' ~ filename) }}" alt="" loading="lazy"><span>{{ title }} &nearr;</span></a>
+    {% endfor %}
 </section>
 {% endblock %}

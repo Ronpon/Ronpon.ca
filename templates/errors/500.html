@@ -1,7 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Server Error — Ronpon.ca{% endblock %}
-
+{% block title %}500 — Ronpon.ca{% endblock %}
 {% block content %}
-<h1>500</h1>
-<p>Something went wrong. <a href="{{ url_for('main.home') }}">Go home</a>.</p>
+<section class="station-error">
+    <div class="signal-bars" aria-hidden="true"></div>
+    <p class="station-eyebrow">RONPON / STATION NOTICE</p>
+    <h1>500</h1>
+    <h2>Technical difficulties.</h2>
+    <p>Something went wrong at the station. Please try again in a moment.</p>
+    <a class="btn" href="{{ url_for('main.home') }}">Back to the programme guide &nearr;</a>
+</section>
 {% endblock %}

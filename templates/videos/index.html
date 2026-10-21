@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="videos-header">
-    <h1>Videos</h1>
+    <div><p class="station-eyebrow">CH 02 / THE VIDEO COLLECTION</p><h1>Pass the remote.</h1><p class="section-intro">Find a favourite. Follow a rabbit hole. Stay for one more.</p></div>
     {% if current_user.is_authenticated and current_user.is_admin %}
     <div class="videos-header-actions">
         <a href="{{ url_for('videos.add') }}" class="btn btn-small">+ Add Video</a>

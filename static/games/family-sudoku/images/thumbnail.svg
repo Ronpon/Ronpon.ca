@@ -1,1 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title"><title id="title">Family Sudoku</title><rect width="1600" height="900" fill="#151b2d"/><g transform="translate(380 120)" fill="#f4c95d" stroke="#fff" stroke-width="8"><circle cx="90" cy="90" r="54"/><circle cx="270" cy="90" r="54"/><circle cx="450" cy="90" r="54"/><circle cx="90" cy="270" r="54"/><circle cx="270" cy="270" r="54"/><circle cx="450" cy="270" r="54"/><circle cx="90" cy="450" r="54"/><circle cx="270" cy="450" r="54"/><circle cx="450" cy="450" r="54"/></g><text x="850" y="480" fill="#fff" font-family="sans-serif" font-size="92" font-weight="700">Family Sudoku</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-labelledby="title">
+  <title id="title">Family Sudoku</title>
+  <rect width="1600" height="1000" fill="#334a36"/>
+  <path d="M0 120H1600M0 880H1600" stroke="#81916a" stroke-width="3"/>
+  <g transform="translate(130 260)">
+    <rect width="480" height="480" rx="15" fill="#e2d4ab"/>
+    <path d="M160 0V480M320 0V480M0 160H480M0 320H480" stroke="#334a36" stroke-width="8"/>
+    <g fill="#92a078">
+      <circle cx="80" cy="80" r="52"/><circle cx="240" cy="80" r="52"/>
+      <circle cx="80" cy="240" r="52"/><circle cx="400" cy="240" r="52"/>
+      <circle cx="240" cy="400" r="52"/><circle cx="400" cy="400" r="52"/>
+    </g>
+    <g fill="#334a36"><circle cx="65" cy="70" r="5"/><circle cx="95" cy="70" r="5"/>
+      <circle cx="225" cy="390" r="5"/><circle cx="255" cy="390" r="5"/></g>
+    <path d="M62 90Q80 112 98 90M222 410Q240 432 258 410" fill="none" stroke="#334a36" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <g fill="#f0e5c9" font-family="'Courier New',monospace">
+    <text x="710" y="325" font-size="27" letter-spacing="5">FAMILIAR FACES.</text>
+    <text x="710" y="365" font-size="27" letter-spacing="5">FRESH PUZZLES.</text>
+    <text x="700" y="510" font-size="100" font-weight="bold">Family</text>
+    <text x="700" y="620" font-size="100" font-weight="bold">Sudoku</text>
+    <text x="710" y="715" font-size="28" fill="#d9bb80">9 FACES. 81 SQUARES.</text>
+  </g>
+</svg>

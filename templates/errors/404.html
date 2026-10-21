@@ -1,7 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Page Not Found — Ronpon.ca{% endblock %}
-
+{% block title %}404 — Ronpon.ca{% endblock %}
 {% block content %}
-<h1>404</h1>
-<p>Page not found. <a href="{{ url_for('main.home') }}">Go home</a>.</p>
+<section class="station-error">
+    <div class="signal-bars" aria-hidden="true"></div>
+    <p class="station-eyebrow">RONPON / STATION NOTICE</p>
+    <h1>404</h1>
+    <h2>No signal.</h2>
+    <p>This channel doesn’t seem to exist. Let’s get you back to something good.</p>
+    <a class="btn" href="{{ url_for('main.home') }}">Back to the programme guide &nearr;</a>
+</section>
 {% endblock %}

@@ -6,46 +6,35 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Ronpon.ca{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('serve_site_image', filename='General Website Images/Favicon.png') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/after-dark.css') }}?v=20261021">
+    <meta name="theme-color" content="#202b26">
+    <script src="{{ url_for('static', filename='js/after-dark.js') }}?v=20261021" defer></script>
 </head>
-<body>
-    <nav class="site-nav">
-        <a href="{{ url_for('main.home') }}" class="nav-logo">
-            <span class="logo-text">Ronpon</span><span class="logo-dot">.ca</span>
+{% set is_home = request.endpoint == 'main.home' %}
+{% set channel = '01' if request.path.startswith('/games') else '02' if request.path.startswith('/videos') else '03' if request.path.startswith('/thepulse') else '04' if request.path.startswith('/shop') else '' %}
+<body class="after-dark{% if is_home %} after-dark-home{% endif %}">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <nav class="site-nav" aria-label="Main navigation">
+        <a href="{{ url_for('main.home') }}" class="nav-logo" aria-label="Ronpon.ca home">
+            <span>RONPON<span class="logo-dot">.CA</span></span>
+            <small>AFTER DARK</small>
         </a>
-
-        <button class="nav-hamburger" id="nav-toggle" aria-label="Toggle navigation">
+        <button class="nav-hamburger" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">
             <span></span><span></span><span></span>
         </button>
-
         <div class="nav-menu" id="nav-menu">
             <div class="nav-tabs">
-                {% set is_supporters_path = request.path.startswith('/shop/supporters') %}
-                <a href="{{ url_for('games.index') }}"
-                   class="nav-tab {% if request.path.startswith('/games') %}active{% endif %}">
-                    <span class="nav-icon">🎮</span> Games</a>
-                <a href="{{ url_for('videos.index') }}"
-                   class="nav-tab {% if request.path.startswith('/videos') %}active{% endif %}">
-                    <span class="nav-icon">🎬</span> Videos</a>
-                <a href="{{ url_for('pulse.index') }}"
-                   class="nav-tab {% if request.path.startswith('/thepulse') %}active{% endif %}">
-                    <span class="nav-icon">📊</span> The Pulse</a>
-                <a href="{{ url_for('shop.index') }}"
-                   class="nav-tab {% if request.path.startswith('/shop') and not is_supporters_path %}active{% endif %}">
-                    <span class="nav-icon">&#128717;</span> Shop</a>
+                {% for number, endpoint, label in [('01', 'games.index', 'Games'), ('02', 'videos.index', 'Videos'), ('03', 'pulse.index', 'The Pulse'), ('04', 'shop.index', 'Shop')] %}
+                <a href="{{ url_for(endpoint) }}" class="nav-tab{% if channel == number %} active{% endif %}"{% if channel == number %} aria-current="page"{% endif %}>
+                    <span class="nav-channel" aria-hidden="true">{{ number }}</span>{{ label }}
+                </a>
+                {% endfor %}
                 {% if current_user is defined and current_user.is_authenticated and current_user.is_admin %}
-                <a href="{{ url_for('shop.supporters') }}"
-                   class="nav-tab {% if is_supporters_path %}active{% endif %}">
-                    <span class="nav-icon">&#9733;</span> Supporters</a>
+                <a href="{{ url_for('shop.supporters') }}" class="nav-tab nav-utility">Supporters</a>
                 {% endif %}
-                <a href="{{ url_for('main.contact') }}"
-                   class="nav-tab {% if request.path.startswith('/contact') %}active{% endif %}">
-                    <span class="nav-icon">&#9993;</span> Contact</a>
-
+                <a href="{{ url_for('main.contact') }}" class="nav-tab nav-utility{% if request.endpoint == 'main.contact' %} active{% endif %}">Contact</a>
             </div>
             <div class="nav-auth">
                 {% if current_user is defined and current_user.is_authenticated %}
@@ -59,10 +48,14 @@
             </div>
         </div>
     </nav>
-
-    <div class="nav-overlay" id="nav-overlay"></div>
-
-    <main class="content">
+    <div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
+    <main class="content{% if is_home %} home-content{% endif %}" id="main-content" tabindex="-1">
+        {% if not is_home %}
+        <div class="station-strip" aria-label="Current section">
+            <a href="{{ url_for('main.home') }}">RONPON / AFTER DARK</a>
+            <span>{% if channel %}CH {{ channel }}{% else %}STATION DESK{% endif %}<i aria-hidden="true"></i></span>
+        </div>
+        {% endif %}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -78,9 +71,12 @@
 
     <footer class="site-footer">
         <div class="footer-content">
-            <span class="footer-logo">Ronpon<span class="logo-dot">.ca</span></span>
+            <a href="{{ url_for('main.home') }}" class="footer-logo">RONPON<span class="logo-dot">.CA</span><small>AFTER DARK</small></a>
             <p>&copy; 2026 Ronpon.ca &mdash; Games, videos, and good times.</p>
-            <a href="{{ url_for('main.contact') }}" class="footer-link">Contact Us</a>
+            <div class="footer-controls">
+                <button type="button" class="motion-toggle" data-motion-toggle aria-pressed="false" hidden>Pause motion</button>
+                <a href="{{ url_for('main.contact') }}" class="footer-link">Say hello &nearr;</a>
+            </div>
         </div>
     </footer>
 
@@ -107,29 +103,6 @@
             }
             return nativeFetch(input, init);
         };
-
-        const toggle = document.getElementById('nav-toggle');
-        const menu = document.getElementById('nav-menu');
-        const overlay = document.getElementById('nav-overlay');
-        function closeNav() {
-            toggle.classList.remove('active');
-            menu.classList.remove('open');
-            overlay.classList.remove('visible');
-            document.body.style.overflow = '';
-        }
-        toggle.addEventListener('click', function() {
-            if (menu.classList.contains('open')) { closeNav(); }
-            else {
-                toggle.classList.add('active');
-                menu.classList.add('open');
-                overlay.classList.add('visible');
-                document.body.style.overflow = 'hidden';
-            }
-        });
-        overlay.addEventListener('click', closeNav);
-        menu.querySelectorAll('a').forEach(function(link) {
-            link.addEventListener('click', closeNav);
-        });
 
         document.querySelectorAll('.youtube-thumbnail[data-fallback-src]').forEach(function(img) {
             img.addEventListener('error', function() {

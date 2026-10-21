@@ -39,11 +39,12 @@
 {% block content %}
 <div class="game-frame-container">
     <div class="game-frame-header">
-        <h2>{{ game_title }}</h2>
+        <h1>{{ game_title }}</h1>
         <a href="{{ url_for('games.index') }}">&larr; All Games</a>
     </div>
     <iframe class="game-frame"
             src="{{ iframe_src }}"
+            title="{{ game_title }} game"
             allowfullscreen
             sandbox="allow-scripts allow-same-origin allow-popups">
     </iframe>
