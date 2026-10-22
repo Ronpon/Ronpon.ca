@@ -33,6 +33,7 @@ export class Board {
     }
 
     _onMoveMade(move) {
+        if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
         // Start slide animation from source to destination square
         const from = this._squareToCoords(move.from);
         const to = this._squareToCoords(move.to);
@@ -43,7 +44,7 @@ export class Board {
             toX: to.col * SQUARE_SIZE,
             toY: to.row * SQUARE_SIZE,
             start: performance.now(),
-            duration: 150,
+            duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : (this.fantasyActive ? 280 : 150),
             captured: move.captured ? {
                 type: move.captured,
                 color: move.color === 'w' ? 'b' : 'w',
@@ -74,6 +75,10 @@ export class Board {
 
     render() {
         if (!this.boardState) return;
+        if (this.fantasyActive && this.fantasy) {
+            this.fantasy.render(this);
+            return;
+        }
         const ctx = this.ctx;
         ctx.clearRect(0, 0, BOARD_SIZE, BOARD_SIZE);
 
@@ -282,6 +287,7 @@ export class Board {
     }
 
     getSquareFromPixel(x, y) {
+        if (this.fantasyActive && this.fantasy) return this.fantasy.getSquareFromPixel(x, y);
         const col = Math.floor(x / SQUARE_SIZE);
         const row = Math.floor(y / SQUARE_SIZE);
         if (col < 0 || col > 7 || row < 0 || row > 7) return null;

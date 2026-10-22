@@ -2,6 +2,7 @@ import { EventBus } from './EventBus.js';
 import { GameManager } from './GameManager.js';
 import { SkinManager } from './SkinManager.js';
 import { Board } from './Board.js';
+import { BoardAppearance } from './fantasy/BoardAppearance.js';
 import { InputHandler } from './InputHandler.js';
 import { MinigameManager } from './MinigameManager.js';
 import { PromotionDialog } from './ui/PromotionDialog.js';
@@ -61,6 +62,9 @@ class App {
 
         // Create board renderer (listens to BOARD_UPDATED events)
         this.board = new Board(this.canvas, this.skinManager, this.eventBus);
+        this.board.boardState = this.gameManager.chess.board();
+        this.boardAppearance = new BoardAppearance(this.board);
+        await this.boardAppearance.init();
 
         // Create input handler (click-to-select, click-to-move)
         this.inputHandler = new InputHandler(this.canvas, this.board, this.gameManager, this.eventBus);

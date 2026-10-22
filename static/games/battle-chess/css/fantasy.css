@@ -1,0 +1,81 @@
+.chess-station { background: #101b22; color: #e0d9c9; }
+.chess-station[data-board-theme="runeforge"] {
+    --board-backdrop: url('../assets/backgrounds/runeforge-forge.png');
+    background-color: #17151d;
+    background-image: linear-gradient(#17151ded, #17151de8), var(--board-backdrop);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+.chess-station[data-board-theme="elven"] {
+    --board-backdrop: url('../assets/backgrounds/elven-sanctuary.png');
+    background-color: #102721;
+    background-image: linear-gradient(#102721ed, #102721e8), var(--board-backdrop);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+.chess-station #app { padding: 24px 12px; width: min(100%, 826px); gap: 12px; }
+.forge-header { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 4px 12px; border-bottom: 1px solid #4b4b40; }
+.forge-eyebrow { font-size: 9px; letter-spacing: 2.6px; color: #a99d7f; }
+.forge-header h1 { margin: 6px 0 0; font: 36px Georgia, serif; letter-spacing: 1px; color: #ead9b8; }
+.forge-header h1 span { display: block; margin-top: 4px; font: italic 13px Georgia, serif; letter-spacing: .4px; color: #9ba9ad; }
+.forge-seal { font: 54px Georgia, serif; color: #b9995a; padding-right: 8px; }
+.board-appearance { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+.view-switch { display: inline-flex; padding: 3px; border: 1px solid #465257; border-radius: 7px; background: #16252c; flex-shrink: 0; }
+.board-appearance button, #fantasy-controls button { font: 12px 'Segoe UI', sans-serif; border: 1px solid transparent; background: transparent; color: #b7c2c3; border-radius: 4px; padding: 8px 12px; cursor: pointer; }
+.view-switch button[aria-pressed="true"] { background: #bc9c60; color: #172329; box-shadow: 0 1px 5px #0004; }
+.board-appearance button:hover, #fantasy-controls button:hover { background: #3b4d50; color: #fff1d4; }
+.board-appearance button:focus-visible, #fantasy-controls button:focus-visible { outline: 2px solid #9bffe4; outline-offset: 3px; }
+#board-view-status { font-size: 11px; text-align: right; color: #a9b8b8; max-width: 300px; }
+.chess-station #canvas-container { width: 100%; border: 1px solid #526064; border-radius: 8px; overflow: hidden; box-shadow: 0 12px 36px #0004; }
+.chess-station.runeforge-active #canvas-container {
+    background-color: #182629;
+    background-image: var(--board-backdrop);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+.chess-station #game-canvas { width: 100%; }
+#fantasy-canvas { width: 100%; aspect-ratio: 1; display: block; cursor: grab; touch-action: none; user-select: none; }
+#fantasy-canvas.is-dragging { cursor: grabbing; }
+.chess-station #game-canvas[hidden], #fantasy-canvas[hidden], #fantasy-controls[hidden], #fantasy-caption[hidden] { display: none; }
+.chess-station.runeforge-active #info-panel { border: 1px solid #46565a; background: #1a2b31; color: #e4d4ad; font: 13px 'Segoe UI', sans-serif; padding: 10px; }
+.chess-station.runeforge-active #info-panel.in-check { border-color: #f08091; color: #ffbcc6; background: #492832; }
+#fantasy-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+.forge-camera-controls { display: flex; flex-wrap: wrap; gap: 3px; }
+#fantasy-controls button { border-color: #3e525a; background: #182a32; }
+#fantasy-controls button[aria-pressed="true"] { color: #9bffe4; border-color: #83b5a9; }
+#fantasy-controls #export-runeforge { color: #e5c58b; border-color: #72664b; white-space: nowrap; }
+#fantasy-controls button:disabled, .board-appearance button:disabled { opacity: .5; cursor: wait; }
+.forge-caption { width: 100%; display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; padding: 6px 0; color: #d9ccb1; font-size: 10px; letter-spacing: 1.5px; }
+.forge-caption small { color: #a9b8b8; font-size: 10px; letter-spacing: 0; margin-left: 6px; }
+.forge-caption b { font-weight: normal; }
+.elven-active .forge-header { border-color: #5b7960; }
+.elven-active .forge-header h1 { color: #e2e9c6; }
+.elven-active .forge-header h1 span { color: #a3c6b5; }
+.elven-active .forge-seal { color: #b9c68b; }
+.elven-active .view-switch { background: #183c30; border-color: #527565; }
+.elven-active .view-switch button[aria-pressed="true"] { background: #b4c89a; color: #163627; }
+.chess-station.elven-active #canvas-container { border-color: #7b9c7f; box-shadow: 0 14px 42px #03191080, 0 0 36px #a2db9f0b; }
+.chess-station.elven-active #info-panel { background: #193a30; border-color: #517361; color: #d5e3ba; }
+.chess-station.elven-active #info-panel.in-check { background: #492832; border-color: #f08091; color: #ffbcc6; }
+.elven-active #fantasy-controls button { background: #17372e; border-color: #4c6b5b; }
+.elven-active .faction-dawn { background: #deedab; }
+.elven-active .faction-dusk { background: #9dc8ee; }
+.forge-caption i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; transform: rotate(45deg); }
+.faction-dawn { background: #f3dfa7; box-shadow: 0 0 9px #efd4a144; }
+.faction-dusk { background: #bd98e4; box-shadow: 0 0 9px #b88aec66; }
+.forge-caption p { width: 100%; text-align: center; font-size: 11px; letter-spacing: .2px; color: #8fa4aa; margin-top: -12px; }
+@media (max-width: 520px) {
+    .chess-station #app { padding: 14px 8px; gap: 10px; }
+    .forge-header h1 { font-size: 30px; }
+    .forge-eyebrow { letter-spacing: 1.5px; font-size: 8px; }
+    .board-appearance { align-items: center; flex-wrap: wrap; gap: 7px; }
+    .view-switch { width: 100%; }
+    .view-switch button { flex: 1; padding: 9px 8px; }
+    #board-view-status { font-size: 10px; width: 100%; max-width: none; text-align: center; }
+    #fantasy-controls { flex-wrap: wrap; justify-content: center; }
+    #fantasy-controls button { padding: 9px 10px; }
+    .forge-caption { gap: 20px; }
+}

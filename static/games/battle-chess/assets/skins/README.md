@@ -2,6 +2,17 @@
 
 Skins let you customise the look of the chess board and pieces.
 
+The game also includes **Runeforge 3D**, an original geometry-based board and piece
+collection. It uses a separate WebGL presentation layer rather than this 2D image
+manifest format. See [Runeforge assets](runeforge/ASSETS.md) for editable model
+source, the reusable GLB, camera controls, and dependencies. **Classic 2D** continues
+to use the skin system below.
+
+**Elven 3D** selects the [Sylvan Court collection](elven/ASSETS.md): six original
+elven piece models, a jade-and-moonstone board, and a woodland sanctuary. Both
+3D collections have detailed illustrated 2D backgrounds and can export their board
+and pieces as GLB. The artwork is documented in [Background art](../backgrounds/ART_DIRECTION.md).
+
 ## Quick Start
 
 1. Create a folder inside `assets/skins/` with a short unique name (e.g. `assets/skins/ocean`).

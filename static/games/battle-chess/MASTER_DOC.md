@@ -159,6 +159,18 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 ---
 
+## Fantasy Board Collection
+
+- **Runeforge 3D** and **Elven 3D / Sylvan Court** provide original fantasy boards and six piece models in two factions. Classic 2D remains available during play.
+- Original intricate 2D image backgrounds are composited beneath the transparent WebGL board. Images and generation prompts are in `assets/backgrounds/`; board/piece source is in `js/fantasy/`.
+- Hold either mouse button or one finger and drag to rotate and tilt. A six-pixel gesture threshold distinguishes taps from drags; releasing a drag cannot move a piece. Scroll outside the canvas to move the page. Camera buttons offer rotation, flip, top view, zoom and reset.
+- Theme switching preserves game state and selection; preferences are saved locally. Reduced-motion preferences shorten animations. WebGL failure returns to Classic without losing the game.
+- **Download 3D set** exports the selected board and 32 pieces as GLB. Each collection also has a bundled GLB and asset documentation under `assets/skins/`.
+- Three.js 0.180.0 is vendored in `lib/three/` with its MIT license. There is no runtime CDN or new server dependency.
+- `tests/battle_chess_fantasy_browser.py` checks real desktop/touch input, drag gestures, special moves, image loading, responsive layouts, theme persistence, GLB export and WebGL fallback. Run it using the existing Python environment; add `--elven` for Sylvan Court.
+
+---
+
 ## Architecture Notes
 
 - **Tech stack:** JavaScript / HTML5 (Canvas).
@@ -174,6 +186,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 | Date       | Change Description                          |
 |------------|---------------------------------------------|
+| 2026-10-22 | Added Runeforge and Sylvan Court 3D boards, original illustrated backgrounds, mouse/touch orbit controls, GLB exports, Classic fallback, and browser regression checks. |
 | 2026-04-16 | Initial master document created.            |
 | 2026-04-16 | Updated with clarifications: 1-2 players + AI, tie rules, check+minigame interaction, set order display, player sides fixed, JS/HTML5 tech stack. |
 | 2026-04-17 | Full implementation complete: project foundation, skin system, chess interactions (all special moves), setup wizard (4 screens), minigame framework (base class, manager, 4 selection modes, tie handling), Dodging Battle minigame, info panel with "Next Minigame", check+capture warning popup, forced checkmate on minigame loss, move/capture animations, sound manager stub, extension docs for skins and minigames. |

@@ -17,7 +17,7 @@ export class InputHandler {
         this.awaitingPromotion = null; // { from, to } when waiting for promotion choice
 
         this._onClick = this._onClick.bind(this);
-        this.canvas.addEventListener('click', this._onClick);
+        this.canvas.parentElement.addEventListener('click', this._onClick);
 
         this.eventBus.on(GameEvent.BOARD_UPDATED, () => this._clearSelection());
     }
@@ -26,9 +26,11 @@ export class InputHandler {
         if (this.gameManager.state !== GameState.PLAYING) return;
         if (this.awaitingPromotion) return; // block clicks while promotion popup is open
 
-        const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const canvas = this.board.fantasyActive ? this.board.fantasy.canvas : this.canvas;
+        if (e.target !== canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 

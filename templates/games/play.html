@@ -46,7 +46,7 @@
             src="{{ iframe_src }}"
             title="{{ game_title }} game"
             allowfullscreen
-            sandbox="allow-scripts allow-same-origin allow-popups">
+            sandbox="allow-scripts allow-same-origin allow-popups{% if game_title == 'Battle Chess' %} allow-downloads{% endif %}">
     </iframe>
 </div>
 {% endblock %}

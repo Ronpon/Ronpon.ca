@@ -7,15 +7,46 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♚</text></svg>">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="../../css/after-dark-games.css?v=20261021">
+    <link rel="stylesheet" href="css/fantasy.css">
 </head>
 <body class="after-dark-game chess-station">
     <div id="app">
+        <header class="forge-header">
+            <div><span class="forge-eyebrow">BATTLE CHESS / ORIGINAL COLLECTION</span><h1>Runeforge<span>Ivory &amp; Obsidian</span></h1></div>
+            <div class="forge-seal" aria-hidden="true">&#9672;</div>
+        </header>
+        <div class="board-appearance" aria-label="Board appearance">
+            <div class="view-switch" role="group" aria-label="Board style">
+                <button type="button" id="view-fantasy" aria-pressed="false">Runeforge 3D</button>
+                <button type="button" id="view-elven" aria-pressed="false">Elven 3D</button>
+                <button type="button" id="view-classic" aria-pressed="false">Classic 2D</button>
+            </div>
+            <span id="board-view-status" role="status">Preparing the arena...</span>
+        </div>
         <div id="info-panel">
             <span id="turn-indicator">Battle Chess</span>
             <span id="next-minigame" class="info-next-mg" style="display:none"></span>
         </div>
         <div id="canvas-container">
             <canvas id="game-canvas" width="640" height="640"></canvas>
+            <canvas id="fantasy-canvas" width="640" height="640" hidden aria-label="Runeforge 3D chessboard. Click a piece, then a highlighted square to move."></canvas>
+        </div>
+        <div id="fantasy-controls" hidden>
+            <div class="forge-camera-controls" role="group" aria-label="3D camera">
+                <button type="button" data-view="left" aria-label="Rotate left" title="Rotate left">&#8630;</button>
+                <button type="button" data-view="right" aria-label="Rotate right" title="Rotate right">&#8631;</button>
+                <button type="button" data-view="flip">Flip</button>
+                <button type="button" data-view="top" aria-pressed="false">Top view</button>
+                <button type="button" data-view="out" aria-label="Zoom out">&minus;</button>
+                <button type="button" data-view="in" aria-label="Zoom in">+</button>
+                <button type="button" data-view="reset">Reset</button>
+            </div>
+            <button type="button" id="export-runeforge">Download 3D set <span aria-hidden="true">&#8595;</span></button>
+        </div>
+        <div class="forge-caption" id="fantasy-caption" hidden>
+            <span><i class="faction-dawn"></i> <b id="faction-white">DAWN GUARD</b> <small>White</small></span>
+            <span><i class="faction-dusk"></i> <b id="faction-black">DUSK COURT</b> <small>Black</small></span>
+            <p>Click or tap to play. Hold and drag to rotate and tilt.</p>
         </div>
         <div id="overlay-container"></div>
     </div>
