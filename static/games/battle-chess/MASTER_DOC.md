@@ -32,6 +32,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 ### 3. Minigame Selection Screen (Popup)
 - Players choose which minigames to include from the available list.
+- **Select all minigames** checks or clears the entire list. It displays a partial-selection state when only some games are selected and stays synchronized with individual choices and Back navigation.
 - If **no minigames** are selected, the game plays as standard chess.
 - **"Mini Game Selection Mode"** option at the bottom of this screen:
   - **Greyed out** (non-interactable) unless more than 1 minigame is selected.
@@ -178,6 +179,15 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 ---
 
+## Fullscreen Board
+
+- **Full screen** expands only the game surface beyond the surrounding site and embedded frame. The decorative game heading and caption are hidden while the board, turn indicator, board-style choices, camera controls, and **Exit full screen** remain available.
+- The board stays square and fits the available viewport without page or game-frame scrolling. Its size follows the actual control heights, window resizing, and switches between Classic, Runeforge, and Elven views. Classic retains its 640-pixel backing canvas; only its displayed size changes.
+- Setup, battle, promotion, and game-over overlays remain within the fullscreen surface. Long setup/card content may scroll inside its own panel when needed. The exit control remains accessible above overlays.
+- Use **Exit full screen** or **Escape** to return to the embedded game. Denied browser requests leave the normal game usable and show a short error message.
+- `js/FullscreenController.js` owns browser fullscreen state and responsive board sizing; `css/fullscreen.css` scopes the layout. The existing iframe fullscreen permission is sufficient.
+- `.venv/Scripts/python.exe tests/battle_chess_fullscreen_browser.py` verifies native fullscreen inside the iframe, Select All/partial selection, all three playable views, short PC screens, capture/promotion overlays, exit/re-entry, and request rejection. Use `--url https://ronpon.ca/games/battle-chess` to check the deployed game; fixtures affect only browser-local play.
+
 ## Solo AI
 
 - `js/ai/ChessAI.js` searches a private copy of the current chess position using iterative deepening, alpha-beta pruning, material, and piece placement. Easy searches one ply with occasional variation; Medium and Hard allow deeper searches with increasing time/node limits. Difficulty levels describe relative strength, not a chess rating.
@@ -211,6 +221,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 | Date       | Change Description                          |
 |------------|---------------------------------------------|
+| 2026-10-23 | Added a scroll-free fullscreen board with responsive sizing, retained battle/promotion controls, browser exit handling, and Select All for minigame setup. |
 | 2026-10-23 | Enabled solo play with independent chess and battle AI difficulties, White/Black selection, a bounded worker chess engine, bots for all five capture minigames, safe turn ownership/cancellation, and solo regression checks. |
 | 2026-10-22 | Added Runeforge and Sylvan Court 3D boards, original illustrated backgrounds, mouse/touch orbit controls, GLB exports, Classic fallback, and browser regression checks. |
 | 2026-04-16 | Initial master document created.            |

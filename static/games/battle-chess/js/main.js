@@ -3,6 +3,7 @@ import { GameManager } from './GameManager.js';
 import { SkinManager } from './SkinManager.js';
 import { Board } from './Board.js';
 import { BoardAppearance } from './fantasy/BoardAppearance.js';
+import { FullscreenController } from './FullscreenController.js';
 import { InputHandler } from './InputHandler.js';
 import { MinigameManager } from './MinigameManager.js';
 import { PromotionDialog } from './ui/PromotionDialog.js';
@@ -54,6 +55,8 @@ class App {
     }
 
     async init() {
+        this.fullscreenController = new FullscreenController();
+        this.fullscreenController.init();
         this.canvas.width = BOARD_SIZE;
         this.canvas.height = BOARD_SIZE;
 

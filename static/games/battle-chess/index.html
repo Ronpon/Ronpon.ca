@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="../../css/after-dark-games.css?v=20261021">
     <link rel="stylesheet" href="css/fantasy.css">
+    <link rel="stylesheet" href="css/fullscreen.css">
 </head>
 <body class="after-dark-game chess-station">
     <div id="app">
@@ -15,6 +16,7 @@
             <div><span class="forge-eyebrow">BATTLE CHESS / ORIGINAL COLLECTION</span><h1>Runeforge<span>Ivory &amp; Obsidian</span></h1></div>
             <div class="forge-seal" aria-hidden="true">&#9672;</div>
         </header>
+        <div id="game-surface">
         <div class="board-appearance" aria-label="Board appearance">
             <div class="view-switch" role="group" aria-label="Board style">
                 <button type="button" id="view-fantasy" aria-pressed="false">Runeforge 3D</button>
@@ -22,7 +24,9 @@
                 <button type="button" id="view-classic" aria-pressed="false">Classic 2D</button>
             </div>
             <span id="board-view-status" role="status">Preparing the arena...</span>
+            <button type="button" id="toggle-fullscreen" aria-pressed="false" aria-controls="game-surface">Full screen</button>
         </div>
+        <p id="fullscreen-message" role="status" hidden></p>
         <div id="info-panel">
             <span id="turn-indicator">Battle Chess</span>
             <span id="next-minigame" class="info-next-mg" style="display:none"></span>
@@ -49,6 +53,7 @@
             <p>Click or tap to play. Hold and drag to rotate and tilt.</p>
         </div>
         <div id="overlay-container"></div>
+        </div>
     </div>
 
     <script src="lib/chess.js"></script>

@@ -283,6 +283,12 @@ export class SetupWizard {
 
         this._render(`
             <h2>Minigame Selection</h2>
+            ${hasGames ? `
+                <label class="setup-minigame-item">
+                    <input type="checkbox" id="select-all-minigames">
+                    <span class="setup-mg-name">Select all minigames</span>
+                </label>
+            ` : ''}
             <div class="setup-minigame-list">
                 ${gameListHTML}
             </div>
@@ -308,17 +314,20 @@ export class SetupWizard {
         if (hasGames) {
             const modeContainer = this.panel.querySelector('#mode-options');
             const modeButtons = this.panel.querySelectorAll('.setup-mode-btn');
+            const gameCheckboxes = [...this.panel.querySelectorAll('.setup-mg-check')];
+            const selectAll = this.panel.querySelector('#select-all-minigames');
             let selectedMode = this.config.minigameMode;
             modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === selectedMode));
 
             // Mode toggle disabled until 2+ games selected
             const updateModeState = () => {
-                const checked = this.panel.querySelectorAll('.setup-mg-check:checked').length;
-                const disabled = checked <= 1;
+                const checked = gameCheckboxes.filter(checkbox => checkbox.checked);
+                const disabled = checked.length <= 1;
                 modeContainer.classList.toggle('disabled', disabled);
                 modeButtons.forEach(b => b.disabled = disabled);
-                this.config.selectedMinigames = [...this.panel.querySelectorAll('.setup-mg-check:checked')]
-                    .map(checkbox => checkbox.dataset.id);
+                selectAll.checked = checked.length === gameCheckboxes.length;
+                selectAll.indeterminate = checked.length > 0 && checked.length < gameCheckboxes.length;
+                this.config.selectedMinigames = checked.map(checkbox => checkbox.dataset.id);
             };
 
             modeButtons.forEach(btn => {
@@ -330,8 +339,12 @@ export class SetupWizard {
                 });
             });
 
-            this.panel.querySelectorAll('.setup-mg-check').forEach(cb => {
+            gameCheckboxes.forEach(cb => {
                 cb.addEventListener('change', updateModeState);
+            });
+            selectAll.addEventListener('change', () => {
+                gameCheckboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
+                updateModeState();
             });
 
             updateModeState();
