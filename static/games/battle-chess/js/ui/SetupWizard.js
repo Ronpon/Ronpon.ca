@@ -1,4 +1,5 @@
 import { GameEvent, MinigameMode, MinigameAdvantage } from '../Constants.js';
+import { PLAYER_EMBLEMS, getPlayerEmblem, playerEmblemMarkup } from '../PlayerEmblems.js';
 
 /**
  * Multi-step setup wizard overlay.
@@ -29,12 +30,8 @@ export class SetupWizard {
         this._soloProfile = null;
         this._localProfiles = this.config.players.map(player => ({ ...player }));
 
-        // Available player icons (emoji-based for now)
-        this.availableIcons = [
-            '⚔️', '👑', '🏰', '🐴', '⚡', '🔥',
-            '🌟', '💎', '🎯', '🛡️', '🦁', '🐉',
-            '🦅', '🐺', '🎭', '🌙'
-        ];
+        // Preserve the saved icon values while presenting the shared crest artwork.
+        this.availableIcons = PLAYER_EMBLEMS.map(emblem => emblem.value);
     }
 
     show() {
@@ -159,31 +156,54 @@ export class SetupWizard {
 
     // ── Screen 2: Player Profiles ────────────────────────
     _showPlayerProfiles() {
+        this.config.players.forEach((player, idx) => {
+            if (!player.icon) player.icon = idx === 0 ? '⚔️' : '🛡️';
+        });
         const buildPlayerColumn = (idx) => {
             const player = this.config.players[idx];
             const defaultName = this.config.playerCount === 1 ? 'You' : `Player ${idx + 1}`;
             const colorLabel = idx === 0 ? 'White' : 'Black';
+            const side = colorLabel.toLowerCase();
+            const emblem = getPlayerEmblem(player.icon);
+            const profileHeader = `
+                <div class="setup-profile-header">
+                    <span class="setup-profile-eyebrow">${player.isAI ? 'Computer opponent' : this.config.playerCount === 1 ? 'Your army' : `Player ${idx + 1}`}</span>
+                    <h3>${colorLabel}</h3>
+                </div>
+            `;
             if (player.isAI) {
                 return `
-                    <div class="setup-profile setup-computer-profile" data-player="${idx}">
-                        <h3>${colorLabel}</h3>
-                        <div class="setup-computer-icon" aria-hidden="true">🤖</div>
+                    <div class="setup-profile setup-computer-profile" data-player="${idx}" data-side="${side}">
+                        ${profileHeader}
+                        <div class="setup-crest-preview setup-computer-icon">${playerEmblemMarkup('🤖')}</div>
+                        <p class="setup-crest-name">${getPlayerEmblem('🤖').label}</p>
                         <p class="setup-computer-name">Computer</p>
                         <p class="setup-computer-note">AI opponent</p>
                     </div>
                 `;
             }
             return `
-                <div class="setup-profile" data-player="${idx}">
-                    <h3>${colorLabel}</h3>
-                    <input type="text" class="setup-name-input" data-player="${idx}"
+                <div class="setup-profile" data-player="${idx}" data-side="${side}">
+                    ${profileHeader}
+                    <div class="setup-crest-preview">${playerEmblemMarkup(player.icon)}</div>
+                    <p class="setup-crest-name" aria-live="polite">${emblem.label}</p>
+                    <label class="setup-profile-name-label" for="setup-player-name-${idx}">Commander name</label>
+                    <input type="text" id="setup-player-name-${idx}" class="setup-name-input" data-player="${idx}"
                            aria-label="${colorLabel} player name" placeholder="${defaultName}" maxlength="16">
-                    <div class="setup-icon-label">Choose Icon</div>
-                    <div class="setup-icon-grid" data-player="${idx}">
-                        ${this.availableIcons.map((icon, i) => `
-                            <button class="setup-icon-btn" data-player="${idx}" data-icon="${icon}" data-index="${i}"
-                                    title="${icon}">${icon}</button>
-                        `).join('')}
+                    <div class="setup-icon-label" id="setup-icon-label-${idx}">Choose your crest</div>
+                    <div class="setup-icon-grid" data-player="${idx}" role="group" aria-labelledby="setup-icon-label-${idx}">
+                        ${this.availableIcons.map((icon, i) => {
+                            const choice = getPlayerEmblem(icon);
+                            const selected = player.icon === icon;
+                            return `
+                                <button type="button" class="setup-icon-btn${selected ? ' selected' : ''}"
+                                        data-player="${idx}" data-icon="${icon}" data-index="${i}"
+                                        title="${choice.label}" aria-label="${choice.label}" aria-pressed="${selected}">
+                                    ${playerEmblemMarkup(icon, 'setup-icon-art')}
+                                    <span class="setup-icon-name">${choice.label}</span>
+                                </button>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             `;
@@ -191,6 +211,7 @@ export class SetupWizard {
 
         this._render(`
             <h2>Player Setup</h2>
+            <p class="setup-profile-intro">${this.config.playerCount === 1 ? 'Name your commander and choose a crest.' : 'Name your commanders and choose their crests.'}</p>
             <div class="setup-profiles-row">
                 ${buildPlayerColumn(0)}
                 <div class="setup-divider"></div>
@@ -201,26 +222,27 @@ export class SetupWizard {
                 <button class="btn btn-primary" id="btn-next-profiles">Continue</button>
             </div>
         `);
+        this.panel.classList.add('player-setup-panel');
 
         this.panel.querySelectorAll('.setup-name-input').forEach(input => {
             const pIdx = Number(input.dataset.player);
             // Assign names as values so saved profile text is never interpreted as HTML.
             input.value = this.config.players[pIdx].name;
         });
-        this.config.players.forEach((player, idx) => {
-            if (!player.icon) player.icon = idx === 0 ? '⚔️' : '🛡️';
-        });
-
         this.panel.querySelectorAll('.setup-icon-btn').forEach(btn => {
             const pIdx = Number(btn.dataset.player);
             const icon = btn.dataset.icon;
-            btn.classList.toggle('selected', this.config.players[pIdx].icon === icon);
             btn.addEventListener('click', () => {
                 this.config.players[pIdx].icon = icon;
+                const profile = btn.closest('.setup-profile');
+                profile.querySelector('.setup-crest-preview').innerHTML = playerEmblemMarkup(icon);
+                profile.querySelector('.setup-crest-name').textContent = getPlayerEmblem(icon).label;
 
-                // Highlight selected icon for this player
-                this.panel.querySelectorAll(`.setup-icon-btn[data-player="${pIdx}"]`).forEach(b => {
-                    b.classList.toggle('selected', b.dataset.icon === icon);
+                // Update only the active player's crest and accessible selection state.
+                profile.querySelectorAll('.setup-icon-btn').forEach(button => {
+                    const selected = button.dataset.icon === icon;
+                    button.classList.toggle('selected', selected);
+                    button.setAttribute('aria-pressed', String(selected));
                 });
             });
         });

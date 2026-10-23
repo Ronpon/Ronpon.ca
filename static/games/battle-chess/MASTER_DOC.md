@@ -23,12 +23,15 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 - Choose **Battle AI difficulty** independently: Easy, Medium, or Hard. This controls minigame reaction time, mashing rate, hazard prediction, and memory recall.
 - Both difficulties default to **Medium** and remain selected when navigating Back.
 - Choose **White** to move first or **Black** to let the computer open the game. Players keep their White/Black seats and minigame sides throughout the match.
-- Only the human's profile is editable; the opponent is labeled **Computer** with a robot icon.
+- Only the human's profile is editable; the opponent is labeled **Computer** with an automaton crest.
 
 ### 2. Player Profile Setup (Popup)
 - Each player:
-  - Chooses a **player icon** from a set of available icons.
+  - Chooses one of **16 engraved crests**, with named choices, a live preview, and a visible selected state. Runeforge uses bronze/amethyst accents; Elven uses green/silver accents.
   - Types in a **player name**.
+- Crest buttons support keyboard selection and expose their pressed state. Each player's choice stays independent and is retained through Back navigation.
+- `js/PlayerEmblems.js` provides the same original vector art for setup, battle sidebars, card games, and canvas avatars. Existing icon values remain compatible with saved game configurations.
+- `.venv/Scripts/python.exe tests/battle_chess_profiles_browser.py` checks profile selection, keyboard controls, theme/viewport fit, Back navigation, solo Black, and crest rendering during captures. Use `--url https://ronpon.ca/games/battle-chess` for browser-local checks of the deployed version.
 
 ### 3. Minigame Selection Screen (Popup)
 - Players choose which minigames to include from the available list.
@@ -221,6 +224,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 | Date       | Change Description                          |
 |------------|---------------------------------------------|
+| 2026-10-23 | Replaced the emoji player picker with 16 original engraved crests, theme-aware profile cards, live previews, named keyboard-accessible choices, and matching SVG/canvas avatars throughout the battle minigames. |
 | 2026-10-23 | Added a scroll-free fullscreen board with responsive sizing, retained battle/promotion controls, browser exit handling, and Select All for minigame setup. |
 | 2026-10-23 | Enabled solo play with independent chess and battle AI difficulties, White/Black selection, a bounded worker chess engine, bots for all five capture minigames, safe turn ownership/cancellation, and solo regression checks. |
 | 2026-10-22 | Added Runeforge and Sylvan Court 3D boards, original illustrated backgrounds, mouse/touch orbit controls, GLB exports, Classic fallback, and browser regression checks. |

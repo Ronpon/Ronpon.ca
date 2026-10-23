@@ -1,4 +1,5 @@
 import { BaseMinigame } from './BaseMinigame.js';
+import { drawPlayerEmblem } from '../PlayerEmblems.js';
 
 /**
  * Dodging Battle — the first real Battle Chess minigame.
@@ -446,10 +447,8 @@ export class DodgingBattle extends BaseMinigame {
         ctx.fill();
 
         // Player icon
-        ctx.font = `${r}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(player.icon, player.x, player.y + 1);
+        ctx.fillStyle = '#f0e4c6';
+        drawPlayerEmblem(ctx, player.icon, player.x, player.y, r * 1.4, '#f0e4c6');
 
         // Lives indicator (small dots above player)
         if (player.lives > 1) {

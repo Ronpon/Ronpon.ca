@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { drawPlayerEmblem, playerEmblemMarkup } from '../static/games/battle-chess/js/PlayerEmblems.js';
 
 const names = ['BaseMinigame', 'DodgingBattle', 'MashingBattle', 'TimingBattle', 'HighestCard', 'MemoryMatch'];
 
@@ -59,6 +60,7 @@ function harness() {
     math.random = () => 0.5;
     const context = vm.createContext({
         document, Math: math, performance: { now: () => now },
+        drawPlayerEmblem, playerEmblemMarkup,
         setTimeout: (callback, delay) => schedule(callback, delay),
         setInterval: (callback, delay) => schedule(callback, delay, true),
         clearTimeout: id => timers.delete(id), clearInterval: id => timers.delete(id),

@@ -1,4 +1,5 @@
 import { BaseMinigame } from './BaseMinigame.js';
+import { playerEmblemMarkup } from '../PlayerEmblems.js';
 
 /**
  * Highest Card — luck-based card minigame.
@@ -173,7 +174,7 @@ export class HighestCard extends BaseMinigame {
         const el = this._cardEls[idx];
         const icon = this.players[playerIdx].icon || (playerIdx === 0 ? '⚔️' : '🛡️');
         el.classList.add('hc-card-selected');
-        el.innerHTML = `<span class="hc-card-inner" style="font-size:20px;">${icon}</span>`;
+        el.innerHTML = `<span class="hc-card-inner" style="font-size:20px;">${playerEmblemMarkup(icon)}</span>`;
         el.style.borderColor = playerIdx === 0 ? '#4ecdc4' : '#e94560';
         el.style.boxShadow = `0 0 8px ${playerIdx === 0 ? 'rgba(78,205,196,0.5)' : 'rgba(233,69,96,0.5)'}`;
     }
@@ -231,7 +232,7 @@ export class HighestCard extends BaseMinigame {
             const div = document.createElement('div');
             div.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:8px;';
             div.innerHTML = `
-                <div style="font-size:32px;">${player.icon || '🎮'}</div>
+                <div style="font-size:32px;">${playerEmblemMarkup(player.icon || (playerIdx === 0 ? '⚔️' : '🛡️'))}</div>
                 <div style="font-size:14px; font-weight:600; color:#e0e0e0;">${this._esc(player.name)}</div>
                 <div style="font-size:11px; color:${roleColor}; font-weight:700; text-transform:uppercase;">${role}</div>
                 <div class="hc-reveal-card" style="

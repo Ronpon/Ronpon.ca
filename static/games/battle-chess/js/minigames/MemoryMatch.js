@@ -1,4 +1,5 @@
 import { BaseMinigame } from './BaseMinigame.js';
+import { playerEmblemMarkup } from '../PlayerEmblems.js';
 
 /**
  * Memory Match — card memory minigame.
@@ -329,7 +330,7 @@ export class MemoryMatch extends BaseMinigame {
         const role = this.currentPlayer === this.attackerIdx ? 'Attacker' : 'Defender';
         const roleColor = this.currentPlayer === this.attackerIdx ? '#e94560' : '#4ecdc4';
         this._turnBar.innerHTML = `
-            <span style="font-size:24px;">${player.icon || '🎮'}</span>
+            <span style="font-size:24px;">${playerEmblemMarkup(player.icon || (this.currentPlayer === 0 ? '⚔️' : '🛡️'))}</span>
             <span style="font-size:14px; font-weight:600; color:#e0e0e0;">${this._esc(player.name)}</span>
             <span style="font-size:11px; color:${roleColor}; font-weight:700; text-transform:uppercase;">${role}</span>
         `;
@@ -348,13 +349,13 @@ export class MemoryMatch extends BaseMinigame {
 
         this._statusBar.innerHTML = `
             <div style="display:flex; align-items:center; gap:6px; ${active0}">
-                <span style="font-size:18px;">${this.players[0].icon || '⚔️'}</span>
+                <span style="font-size:18px;">${playerEmblemMarkup(this.players[0].icon || '⚔️')}</span>
                 <span style="font-size:12px;">${this._esc(this.players[0].name)}</span>
                 <span style="font-size:11px; color:${color0};">Cards: ${flipped0}/${maxFlips0}</span>
                 <span style="font-size:10px; color:#888;">(match ${this.playerTarget[0]})</span>
             </div>
             <div style="display:flex; align-items:center; gap:6px; ${active1}">
-                <span style="font-size:18px;">${this.players[1].icon || '🛡️'}</span>
+                <span style="font-size:18px;">${playerEmblemMarkup(this.players[1].icon || '🛡️')}</span>
                 <span style="font-size:12px;">${this._esc(this.players[1].name)}</span>
                 <span style="font-size:11px; color:${color1};">Cards: ${flipped1}/${maxFlips1}</span>
                 <span style="font-size:10px; color:#888;">(match ${this.playerTarget[1]})</span>

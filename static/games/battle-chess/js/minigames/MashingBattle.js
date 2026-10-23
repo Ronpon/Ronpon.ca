@@ -1,4 +1,5 @@
 import { BaseMinigame } from './BaseMinigame.js';
+import { drawPlayerEmblem } from '../PlayerEmblems.js';
 
 /**
  * Mashing Battle — button-mashing tug-of-war minigame.
@@ -227,11 +228,9 @@ export class MashingBattle extends BaseMinigame {
         const notchSpacing = barW / (this.NOTCH_COUNT - 1);
 
         // ── Player icons on sides ──
-        ctx.font = '32px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(p1.icon || '⚔️', 28, barY);
-        ctx.fillText(p2.icon || '🛡️', W - 28, barY);
+        ctx.fillStyle = '#f0e4c6';
+        drawPlayerEmblem(ctx, p1.icon || '⚔️', 28, barY, 32, '#f0e4c6');
+        drawPlayerEmblem(ctx, p2.icon || '🛡️', W - 28, barY, 32, '#f0e4c6');
 
         // ── Bar line ──
         ctx.strokeStyle = '#0f3460';

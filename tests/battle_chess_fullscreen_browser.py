@@ -57,6 +57,8 @@ def exercise(origin):
         page.goto(origin)
         ui = page.frame_locator('iframe')
         ui.locator('#btn-2p').click()
+        # Bring the fixed-height embed into the shorter desktop page viewport.
+        page.locator('iframe').evaluate("element => element.scrollIntoView({block: 'center', behavior: 'instant'})")
         ui.locator('#btn-next-profiles').click()
         all_games = ui.get_by_label('Select all minigames', exact=True)
         expect(all_games).not_to_be_checked()

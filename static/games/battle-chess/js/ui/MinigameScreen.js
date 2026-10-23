@@ -1,4 +1,5 @@
 import { GameEvent, GameState } from '../Constants.js';
+import { playerEmblemMarkup } from '../PlayerEmblems.js';
 
 /**
  * Full-screen minigame wrapper UI.
@@ -50,7 +51,7 @@ export class MinigameScreen {
         panel.className = 'mg-screen';
         panel.innerHTML = `
             <div class="mg-sidebar mg-sidebar-left">
-                <div class="mg-player-icon">${p1.icon || '⚔️'}</div>
+                <div class="mg-player-icon">${playerEmblemMarkup(p1.icon || '⚔️')}</div>
                 <div class="mg-player-name">${this._escapeHtml(p1.name)}</div>
                 <div class="mg-player-role mg-role-${p1Role.toLowerCase()}">${p1Role}</div>
                 ${p1HasAdv ? advBadge : ''}
@@ -61,7 +62,7 @@ export class MinigameScreen {
                 <div class="mg-arena" id="mg-arena"></div>
             </div>
             <div class="mg-sidebar mg-sidebar-right">
-                <div class="mg-player-icon">${p2.icon || '🛡️'}</div>
+                <div class="mg-player-icon">${playerEmblemMarkup(p2.icon || '🛡️')}</div>
                 <div class="mg-player-name">${this._escapeHtml(p2.name)}</div>
                 <div class="mg-player-role mg-role-${p2Role.toLowerCase()}">${p2Role}</div>
                 ${p2HasAdv ? advBadge : ''}
@@ -138,7 +139,7 @@ export class MinigameScreen {
         overlay.className = 'mg-result-overlay';
         overlay.innerHTML = `
             <div class="mg-result-panel">
-                <div class="mg-result-icon">${winner.icon || '🏆'}</div>
+                <div class="mg-result-icon">${playerEmblemMarkup(winner.icon || (winner === players[0] ? '⚔️' : '🛡️'))}</div>
                 <h3 class="mg-result-title">${winLabel}</h3>
                 <p class="mg-result-name">${this._escapeHtml(winner.name)}</p>
                 <button class="btn btn-primary mg-continue-btn">Continue</button>
