@@ -23,7 +23,9 @@ export class InputHandler {
     }
 
     _onClick(e) {
+        if (this.gameManager.online && !this.gameManager.online.canMove()) return;
         if (this.gameManager.state !== GameState.PLAYING) return;
+        if (this.gameManager.isAITurn()) return;
         if (this.awaitingPromotion) return; // block clicks while promotion popup is open
 
         const canvas = this.board.fantasyActive ? this.board.fantasy.canvas : this.canvas;

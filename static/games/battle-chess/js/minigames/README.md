@@ -90,8 +90,10 @@ Inside `init(container, config)` you receive:
 | Property | Description |
 |---|---|
 | `this.container` | DOM element to render into (the arena area) |
-| `this.players` | Array of `[player1, player2]` objects with `{ name, icon, color }` |
+| `this.players` | Array of `[White, Black]` objects with `{ name, icon, color, isAI }` |
 | `this.attackerColor` | `'w'` or `'b'` — which player is the attacker |
+| `this.aiDifficulty` | `'easy'`, `'medium'` (default), or `'hard'` |
+| `this.aiSettings` | Minigame reaction, mashing, dodging, and public-card memory settings for the selected difficulty |
 
 ## Helpers
 
@@ -99,7 +101,13 @@ Inside `init(container, config)` you receive:
 |---|---|
 | `this.getAttacker()` | Returns the attacker's player object |
 | `this.getDefender()` | Returns the defender's player object |
-| `this.requestFrame(cb)` | Calls `requestAnimationFrame`, auto-cancelled on `destroy()` |
+| `this.requestFrame(cb)` | Calls `requestAnimationFrame`, auto-cancelled on `end()` or `destroy()` |
+| `this.isAI(index)` | Whether the White (`0`) or Black (`1`) seat is computer controlled |
+| `this.setTimer(cb, ms)` | Tracked timeout, canceled on `end()`, `destroy()`, or reinitialization |
+| `this.setRepeatingTimer(cb, ms)` | Tracked interval with the same lifetime |
+| `this.clearTimer(timer)` | Cancels a tracked timeout or interval |
+
+All five playable minigames support either computer seat. Bots use the same press, movement, selection, and card-flip rules as human players. Human input cannot control the computer seat. Highest Card keeps uniform random face-down selections at every difficulty; Memory Match learns only cards revealed during play, with recall and capacity varying by difficulty.
 
 ## Controls Convention
 

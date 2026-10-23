@@ -1,4 +1,4 @@
-import { GameEvent } from '../Constants.js';
+import { GameEvent, GameState } from '../Constants.js';
 
 /**
  * Full-screen minigame wrapper UI.
@@ -19,10 +19,17 @@ export class MinigameScreen {
 
         this.eventBus.on(GameEvent.MINIGAME_START, (ctx) => this._show(ctx));
         this.eventBus.on('minigameTie', (ctx) => this._showTie(ctx));
+        this.eventBus.on(GameEvent.STATE_CHANGED, ({ to }) => {
+            if (this._currentCtx && (to === GameState.SETUP || to === GameState.GAME_OVER)) {
+                this._hide();
+            }
+        });
     }
 
-    _show({ gameEntry, captureCtx, players, attackerColor, advantage, isFirstTime, onReady, onEnd }) {
-        this._currentCtx = { gameEntry, players, attackerColor, advantage, onEnd };
+    _show({ gameEntry, captureCtx, players, attackerColor, advantage, aiDifficulty = 'medium', isFirstTime, onReady, onEnd }) {
+        this._destroyGame();
+        this._currentCtx = { gameEntry, players, attackerColor, advantage, aiDifficulty, onEnd };
+        const screenCtx = this._currentCtx;
 
         const p1 = players[0];
         const p2 = players[1];
@@ -35,6 +42,9 @@ export class MinigameScreen {
         const p2HasAdv = (advantage === 'attacker' && p2Role === 'Attacker') ||
                          (advantage === 'defender' && p2Role === 'Defender');
         const advBadge = '<div class="mg-advantage-badge">★ Advantage</div>';
+        const controlsHint = (player, controls) => player.isAI
+            ? `Computer controlled · ${aiDifficulty}`
+            : (controls || '');
 
         const panel = document.createElement('div');
         panel.className = 'mg-screen';
@@ -44,7 +54,7 @@ export class MinigameScreen {
                 <div class="mg-player-name">${this._escapeHtml(p1.name)}</div>
                 <div class="mg-player-role mg-role-${p1Role.toLowerCase()}">${p1Role}</div>
                 ${p1HasAdv ? advBadge : ''}
-                <div class="mg-controls-hint">${this._escapeHtml(gameEntry.controls?.player1 || '')}</div>
+                <div class="mg-controls-hint">${this._escapeHtml(controlsHint(p1, gameEntry.controls?.player1))}</div>
             </div>
             <div class="mg-center">
                 <div class="mg-title">${this._escapeHtml(gameEntry.name)}</div>
@@ -55,7 +65,7 @@ export class MinigameScreen {
                 <div class="mg-player-name">${this._escapeHtml(p2.name)}</div>
                 <div class="mg-player-role mg-role-${p2Role.toLowerCase()}">${p2Role}</div>
                 ${p2HasAdv ? advBadge : ''}
-                <div class="mg-controls-hint">${this._escapeHtml(gameEntry.controls?.player2 || '')}</div>
+                <div class="mg-controls-hint">${this._escapeHtml(controlsHint(p2, gameEntry.controls?.player2))}</div>
             </div>
         `;
 
@@ -67,17 +77,21 @@ export class MinigameScreen {
 
         // Create and init the game instance first to get the dynamic description
         const GameClass = gameEntry.GameClass;
-        this._gameInstance = new GameClass();
-        this._gameInstance.init(arena, {
+        const game = new GameClass();
+        this._gameInstance = game;
+        game.init(arena, {
             players,
             attackerColor,
             advantage,
+            aiDifficulty,
             onEnd: (result) => {
+                if (this._currentCtx !== screenCtx || this._gameInstance !== game) return;
                 this._destroyGame();
                 if (result.tie) {
                     onEnd(result);
                 } else {
                     this._showResult(result, players, attackerColor, () => {
+                        if (this._currentCtx !== screenCtx) return;
                         this._hide();
                         onEnd(result);
                     });
@@ -89,8 +103,9 @@ export class MinigameScreen {
 
         if (isFirstTime && dynamicDescription) {
             this._showExplanation(arena, dynamicDescription, () => {
+                if (this._currentCtx !== screenCtx || this._gameInstance !== game) return;
                 onReady();
-                this._gameInstance.start();
+                game.start();
             });
         } else {
             onReady();
@@ -144,6 +159,7 @@ export class MinigameScreen {
         if (!arena) return;
 
         this._destroyGame();
+        const screenCtx = this._currentCtx;
 
         const overlay = document.createElement('div');
         overlay.className = 'mg-result-overlay';
@@ -157,6 +173,7 @@ export class MinigameScreen {
         arena.appendChild(overlay);
 
         overlay.querySelector('.mg-replay-btn').addEventListener('click', () => {
+            if (this._currentCtx !== screenCtx) return;
             overlay.remove();
             this._hide();
             onReplay();
@@ -172,6 +189,7 @@ export class MinigameScreen {
 
     _hide() {
         this._destroyGame();
+        this._currentCtx = null;
         this.container.classList.remove('active');
         this.container.innerHTML = '';
     }

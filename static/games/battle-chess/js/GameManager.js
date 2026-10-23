@@ -1,4 +1,7 @@
 import { GameState, GameEvent, MinigameMode, MinigameAdvantage } from './Constants.js';
+import { ChessAI } from './ai/ChessAI.js';
+
+const AI_MOVE = Symbol('computer move');
 
 /**
  * Central game state machine. Owns the chess.js instance and all game config.
@@ -11,6 +14,10 @@ export class GameManager {
         this.chess = new Chess(); // chess.js global (loaded via <script>)
         this.pendingMove = null;
         this.pendingMoveInCheck = false; // was attacker in check when capture was attempted?
+        this.chessAI = new ChessAI(globalThis.Chess);
+        this.aiThinking = false;
+        this._aiTimer = null;
+        this._aiGeneration = 0;
 
         // ── Game configuration (populated during setup) ──
         this.config = {
@@ -22,7 +29,9 @@ export class GameManager {
             selectedMinigames: [],
             minigameMode: MinigameMode.RANDOM,
             minigameAdvantage: MinigameAdvantage.ATTACKER,
-            attackerLosesPiece: false
+            attackerLosesPiece: false,
+            chessDifficulty: 'medium',
+            aiDifficulty: 'medium'
         };
 
         // ── Minigame session tracking ──
@@ -38,10 +47,12 @@ export class GameManager {
     _setupEventListeners() {
         this.eventBus.on(GameEvent.SETUP_COMPLETE, (config) => this.startGame(config));
         this.eventBus.on(GameEvent.MINIGAME_END, (result) => this.resolveCapture(result));
+        this.eventBus.on(GameEvent.BOARD_UPDATED, () => this._scheduleAI());
     }
 
     // ── State transitions ────────────────────────────────
     setState(newState) {
+        if (newState !== GameState.PLAYING) this._cancelAI();
         const oldState = this.state;
         this.state = newState;
         this.eventBus.emit(GameEvent.STATE_CHANGED, { from: oldState, to: newState });
@@ -50,11 +61,22 @@ export class GameManager {
 
     // ── Game lifecycle ───────────────────────────────────
     startGame(config) {
+        this._cancelAI();
         if (config) {
             Object.assign(this.config, config);
         }
+        // Keep both seats in color order, including when the human chooses Black.
+        if (this.config.playerCount === 1 && !this.config.players.some(player => player.isAI)) {
+            const computerColor = this.config.humanColor === 'b' ? 'w' : 'b';
+            this.config.players = ['w', 'b'].map(color => ({
+                ...(this.config.players.find(player => player.color === color) || { color, name: 'Player' }),
+                isAI: color === computerColor,
+                ...(color === computerColor ? { name: 'Computer' } : {})
+            }));
+        }
         this.chess.reset();
         this.pendingMove = null;
+        this.pendingMoveInCheck = false;
         this.minigameState.currentIndex = 0;
         this.minigameState.firstTimePlayed.clear();
         this.setState(GameState.PLAYING);
@@ -88,11 +110,13 @@ export class GameManager {
      * and a CAPTURE_ATTEMPTED event is emitted instead.
      * Returns the executed move, a {pending} object, or null if invalid.
      */
-    attemptMove(from, to, promotion = 'q') {
+    attemptMove(from, to, promotion = 'q', source = null) {
+        if (this.online) return this.online.attemptMove(from, to, promotion);
         if (this.state !== GameState.PLAYING) return null;
+        if (this.isAITurn() && source !== AI_MOVE) return null;
 
         const validMoves = this.chess.moves({ square: from, verbose: true });
-        const targetMove = validMoves.find(m => m.to === to) || null;
+        const targetMove = validMoves.find(m => m.to === to && (!m.promotion || m.promotion === promotion)) || null;
 
         if (!targetMove) return null;
 
@@ -157,6 +181,19 @@ export class GameManager {
                 return;
             }
             if (this.config.attackerLosesPiece) {
+                // A failed king attack, or removing a pinned attacker, loses the game.
+                // Preserve the valid position for the final board instead of loading
+                // a FEN with a missing or exposed king for the next player.
+                const testBoard = new Chess(this.chess.fen());
+                testBoard.remove(move.from);
+                if (move.piece === 'k' || testBoard.in_check()) {
+                    this.setState(GameState.GAME_OVER);
+                    this.eventBus.emit(GameEvent.GAME_OVER, {
+                        ...this.getGameState(), isCheckmate: true, forcedCheckmate: true
+                    });
+                    this.pendingMoveInCheck = false;
+                    return;
+                }
                 this.chess.remove(move.from);
             }
             // Turn passes to the other player
@@ -187,8 +224,44 @@ export class GameManager {
     }
 
     getValidMoves(square) {
+        if (this.online && !this.online.canMove()) return [];
         if (this.state !== GameState.PLAYING) return [];
+        if (this.isAITurn()) return [];
         return this.chess.moves({ square, verbose: true });
+    }
+
+    isAITurn() {
+        return !this.online && this.config.playerCount === 1 && !!this.getCurrentPlayer()?.isAI;
+    }
+
+    canHumanMove() {
+        return this.state === GameState.PLAYING
+            && (this.online ? this.online.canMove() : !this.isAITurn());
+    }
+
+    _cancelAI() {
+        this._aiGeneration++;
+        clearTimeout(this._aiTimer);
+        this._aiTimer = null;
+        this.aiThinking = false;
+        this.chessAI.cancel();
+    }
+
+    _scheduleAI() {
+        this._cancelAI();
+        if (this.state !== GameState.PLAYING || !this.isAITurn() || this.chess.game_over()) return;
+        const generation = this._aiGeneration;
+        const fen = this.chess.fen();
+        this.aiThinking = true;
+        this._aiTimer = setTimeout(async () => {
+            this._aiTimer = null;
+            const move = await this.chessAI.chooseMove(fen, this.config.chessDifficulty);
+            if (generation !== this._aiGeneration || !move || this.state !== GameState.PLAYING
+                || !this.isAITurn() || this.chess.fen() !== fen) return;
+            this.aiThinking = false;
+            // AI captures follow the same pending-move and minigame path as human moves.
+            this.attemptMove(move.from, move.to, move.promotion || 'q', AI_MOVE);
+        }, 250);
     }
 
     getCurrentPlayer() {
@@ -197,8 +270,10 @@ export class GameManager {
     }
 
     reset() {
+        this._cancelAI();
         this.chess.reset();
         this.pendingMove = null;
+        this.pendingMoveInCheck = false;
         this.setState(GameState.SETUP);
     }
 }

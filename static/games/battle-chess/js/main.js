@@ -125,7 +125,9 @@ class App {
             : gameState.config.players[1];
         const colorName = gameState.turn === 'w' ? 'White' : 'Black';
 
-        let status = `${player.name} (${colorName}) to move`;
+        let status = gameState.config.playerCount === 1 && player.isAI
+            ? `${player.name} (${colorName}) is thinking…`
+            : `${player.name} (${colorName}) to move`;
         if (gameState.isCheck) {
             status += ' — CHECK!';
         }

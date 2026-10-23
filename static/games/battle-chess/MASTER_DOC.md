@@ -14,9 +14,16 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 ### 1. Player Count Selection (Popup)
 - Player chooses **1 or 2 players**.
-  - **1 Player:** Play against AI (to be implemented).
+  - **1 Player:** Play against the computer on the chessboard and in all five battle minigames.
   - **2 Players:** Local multiplayer.
 - **Local play only** for now, but architecture should support future online multiplayer.
+
+### Solo Settings (1 Player Only)
+- Choose **Chess difficulty**: Easy, Medium, or Hard. This controls the computer's board strategy and search budget.
+- Choose **Battle AI difficulty** independently: Easy, Medium, or Hard. This controls minigame reaction time, mashing rate, hazard prediction, and memory recall.
+- Both difficulties default to **Medium** and remain selected when navigating Back.
+- Choose **White** to move first or **Black** to let the computer open the game. Players keep their White/Black seats and minigame sides throughout the match.
+- Only the human's profile is editable; the opponent is labeled **Computer** with a robot icon.
 
 ### 2. Player Profile Setup (Popup)
 - Each player:
@@ -171,11 +178,29 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 ---
 
+## Solo AI
+
+- `js/ai/ChessAI.js` searches a private copy of the current chess position using iterative deepening, alpha-beta pruning, material, and piece placement. Easy searches one ply with occasional variation; Medium and Hard allow deeper searches with increasing time/node limits. Difficulty levels describe relative strength, not a chess rating.
+- `ChessAIWorker.js` runs the chess search in a Web Worker using the existing vendored chess rules library. Browsers without a working worker use a bounded search that yields to the UI. Resetting, replaying, entering a battle, or switching to online play invalidates pending computer moves.
+- Human board input is blocked during computer turns. Computer captures use the same pending capture, explanation, minigame, tie, check-loss, and result flow as human captures. The computer automatically chooses an enabled minigame when Attacker's Choice or Defender's Choice belongs to it; the human still chooses on their own turns.
+- **Dodging Battle:** the computer predicts visible projectile paths and chooses a safe movement direction. Higher difficulty reacts more frequently and looks further ahead; movement speed and lives follow the same rules as the human.
+- **Mashing Battle:** the computer presses at a difficulty-dependent rate after the countdown. Keyboard auto-repeat is ignored and the human cannot mash for the computer's seat.
+- **Timing Battle:** the computer waits for NOW! before reacting, using a difficulty-dependent delay. The human cannot submit reactions for the computer.
+- **Memory Match:** the computer remembers only cards revealed through normal play. Difficulty controls memory capacity, recall, and selection delay; hidden card values are never consulted to select a card.
+- **Highest Card:** the computer chooses an available face-down card automatically. Picks remain random at every difficulty; the AI does not see or change hidden card values.
+- Battle sidebars identify the computer's controls as automatic. AI timers and animation callbacks stop on results, reset, teardown, and replay.
+- A failed capture with attacker removal enabled ends the game if removing the attacking piece would remove or expose its king. The final board stays valid for display.
+
+### Solo verification
+
+- `node --test tests/battle_chess_ai_engine.test.mjs tests/battle_chess_ai_minigames.test.mjs` checks chess search, legal moves, turn ownership, cancellation, battle behavior, and cleanup.
+- `.venv/Scripts/python.exe tests/battle_chess_ai_browser.py` checks solo startup, independent difficulties, playing Black, AI captures and game selection, all five battle bots, reset cancellation, switching to local multiplayer, and phone-width setup with temporary databases.
+
 ## Architecture Notes
 
 - **Tech stack:** JavaScript / HTML5 (Canvas).
 - Build with **local multiplayer** first.
-- Support **1-player vs AI** (AI implementation TBD).
+- Solo chess and battle AI run entirely in the browser, without an external AI service.
 - Structure networking/game state so that **online multiplayer** can be added later without major refactoring.
   - Separate game logic from input handling.
   - Use a game state model that could be serialized/sent over a network.
@@ -186,6 +211,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 | Date       | Change Description                          |
 |------------|---------------------------------------------|
+| 2026-10-23 | Enabled solo play with independent chess and battle AI difficulties, White/Black selection, a bounded worker chess engine, bots for all five capture minigames, safe turn ownership/cancellation, and solo regression checks. |
 | 2026-10-22 | Added Runeforge and Sylvan Court 3D boards, original illustrated backgrounds, mouse/touch orbit controls, GLB exports, Classic fallback, and browser regression checks. |
 | 2026-04-16 | Initial master document created.            |
 | 2026-04-16 | Updated with clarifications: 1-2 players + AI, tie rules, check+minigame interaction, set order display, player sides fixed, JS/HTML5 tech stack. |

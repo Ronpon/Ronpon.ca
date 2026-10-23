@@ -1,4 +1,4 @@
-import { GameEvent, MinigameMode } from './Constants.js';
+import { GameEvent, GameState, MinigameMode } from './Constants.js';
 
 /**
  * Orchestrates the full minigame flow:
@@ -21,6 +21,9 @@ export class MinigameManager {
         this._captureCtx = null;
 
         this.eventBus.on(GameEvent.CAPTURE_ATTEMPTED, (ctx) => this._onCapture(ctx));
+        this.eventBus.on(GameEvent.STATE_CHANGED, ({ to }) => {
+            if (to !== GameState.MINIGAME) this._captureCtx = null;
+        });
     }
 
     // ── Registration ─────────────────────────────────────
@@ -81,10 +84,19 @@ export class MinigameManager {
                 : (ctx.attackerColor === 'w' ? config.players[1] : config.players[0]);
 
             const games = selected.map(id => this._registry.get(id)).filter(Boolean);
+            if (config.playerCount === 1 && chooserPlayer.isAI && games.length) {
+                const game = games[Math.floor(Math.random() * games.length)];
+                this._startMinigame(game.id);
+                return;
+            }
             this.eventBus.emit('minigameChoose', {
                 playerName: chooserPlayer.name,
                 games,
-                onChoice: (gameId) => this._startMinigame(gameId)
+                onChoice: (gameId) => {
+                    if (this._captureCtx === ctx && selected.includes(gameId)) {
+                        this._startMinigame(gameId);
+                    }
+                }
             });
         } else if (mode === MinigameMode.SET_ORDER) {
             const mgState = this.gameManager.minigameState;
@@ -99,6 +111,7 @@ export class MinigameManager {
     }
 
     _startMinigame(gameId) {
+        if (!this._captureCtx || this.gameManager.state !== GameState.MINIGAME) return;
         const entry = this._registry.get(gameId);
         if (!entry) {
             console.error(`[MinigameManager] Unknown minigame: ${gameId}`);
@@ -109,27 +122,35 @@ export class MinigameManager {
         const config = this.gameManager.config;
         const mgState = this.gameManager.minigameState;
         const isFirstTime = !mgState.firstTimePlayed.has(gameId);
+        const captureCtx = this._captureCtx;
 
         // Show the minigame screen (explanation → play → result)
         this.eventBus.emit(GameEvent.MINIGAME_START, {
             gameEntry: entry,
-            captureCtx: this._captureCtx,
+            captureCtx,
             players: config.players,
-            attackerColor: this._captureCtx.attackerColor,
+            attackerColor: captureCtx.attackerColor,
             advantage: config.minigameAdvantage || 'attacker',
+            aiDifficulty: config.aiDifficulty || 'medium',
             isFirstTime,
             onReady: () => {
-                mgState.firstTimePlayed.add(gameId);
+                if (this._captureCtx === captureCtx) mgState.firstTimePlayed.add(gameId);
             },
-            onEnd: (result) => this._onGameEnd(result, gameId)
+            onEnd: (result) => {
+                if (this._captureCtx === captureCtx) this._onGameEnd(result, gameId);
+            }
         });
     }
 
     _onGameEnd(result, gameId) {
+        if (!this._captureCtx || this.gameManager.state !== GameState.MINIGAME) return;
         if (result.tie) {
             // Tie → replay same minigame
+            const captureCtx = this._captureCtx;
             this.eventBus.emit('minigameTie', {
-                onReplay: () => this._startMinigame(gameId)
+                onReplay: () => {
+                    if (this._captureCtx === captureCtx) this._startMinigame(gameId);
+                }
             });
             return;
         }

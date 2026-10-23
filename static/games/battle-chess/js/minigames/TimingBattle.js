@@ -98,8 +98,8 @@ export class TimingBattle extends BaseMinigame {
 
     destroy() {
         document.removeEventListener('keydown', this._onKeyDown);
-        if (this._nowTimeout) clearTimeout(this._nowTimeout);
-        if (this._roundTimeout) clearTimeout(this._roundTimeout);
+        if (this._nowTimeout) this.clearTimer(this._nowTimeout);
+        if (this._roundTimeout) this.clearTimer(this._roundTimeout);
         super.destroy();
     }
 
@@ -120,15 +120,20 @@ export class TimingBattle extends BaseMinigame {
 
         // Random delay 2–6 seconds before NOW!
         const delay = 2000 + Math.random() * 4000;
-        this._nowTimeout = setTimeout(() => {
+        this._nowTimeout = this.setTimer(() => {
             if (this._destroyed) return;
             this.phase = 'ready';
             this.nowTime = performance.now();
             this.roundMessage = 'NOW!';
             this._draw();
+            for (let index = 0; index < 2; index++) {
+                if (this.isAI(index)) {
+                    this.setTimer(() => this._press(index), this.randomDelay(this.aiSettings.reaction));
+                }
+            }
 
             // Auto-judge after 2 seconds if nobody pressed
-            this._roundTimeout = setTimeout(() => {
+            this._roundTimeout = this.setTimer(() => {
                 if (this._destroyed) return;
                 if (this.phase === 'ready') {
                     this._judgeRound();
@@ -138,7 +143,9 @@ export class TimingBattle extends BaseMinigame {
     }
 
     _judgeRound() {
-        if (this._destroyed) return;
+        if (this._destroyed || this._ended) return;
+        this.clearTimer(this._nowTimeout);
+        this.clearTimer(this._roundTimeout);
         this.phase = 'judging';
 
         // P1 is always left, P2 is always right
@@ -185,32 +192,40 @@ export class TimingBattle extends BaseMinigame {
         if (this.position === 0) {
             // Icon at P1's end → P2 wins
             const attackerWins = !p1IsAttacker; // P2 is attacker if !p1IsAttacker
-            this._roundTimeout = setTimeout(() => {
+            this._roundTimeout = this.setTimer(() => {
                 if (!this._destroyed) this.end({ attackerWins, tie: false });
             }, 1200);
             return;
         } else if (this.position === this.NOTCH_COUNT - 1) {
             // Icon at P2's end → P1 wins
             const attackerWins = p1IsAttacker;
-            this._roundTimeout = setTimeout(() => {
+            this._roundTimeout = this.setTimer(() => {
                 if (!this._destroyed) this.end({ attackerWins, tie: false });
             }, 1200);
             return;
         }
 
         // Next round after a pause
-        this._roundTimeout = setTimeout(() => this._startRound(), 1800);
+        this._roundTimeout = this.setTimer(() => this._startRound(), 1800);
     }
 
     // ── Input ────────────────────────────────────────────
 
     _onKeyDown(e) {
+        if (e.repeat || this._destroyed || this._ended) return;
         const key = e.key.toLowerCase();
         if (key !== 'a' && key !== 'l') return;
+        const index = key === 'a' ? 0 : 1;
+        if (this.isAI(index)) return;
+        this._press(index);
+    }
+
+    _press(index) {
+        if (this._destroyed || this._ended) return;
         if (this.phase === 'judging' || this.phase === 'result' || this.phase === 'done') return;
 
-        const isP1 = key === 'a';
-        const isP2 = key === 'l';
+        const isP1 = index === 0;
+        const isP2 = index === 1;
 
         if (this.phase === 'waiting') {
             // Pressed too early!
@@ -219,7 +234,7 @@ export class TimingBattle extends BaseMinigame {
                 this.displayP1Ms = 'EARLY!';
                 // If P2 also early or hasn't gone yet, check if we should judge
                 if (this.p2Early || this.p2Time !== null) {
-                    clearTimeout(this._nowTimeout);
+                    this.clearTimer(this._nowTimeout);
                     this._judgeRound();
                 }
                 this._draw();
@@ -227,7 +242,7 @@ export class TimingBattle extends BaseMinigame {
                 this.p2Early = true;
                 this.displayP2Ms = 'EARLY!';
                 if (this.p1Early || this.p1Time !== null) {
-                    clearTimeout(this._nowTimeout);
+                    this.clearTimer(this._nowTimeout);
                     this._judgeRound();
                 }
                 this._draw();
@@ -247,8 +262,9 @@ export class TimingBattle extends BaseMinigame {
 
             // If both have responded, judge immediately
             if ((this.p1Time !== null || this.p1Early) && (this.p2Time !== null || this.p2Early)) {
-                clearTimeout(this._roundTimeout);
-                setTimeout(() => this._judgeRound(), 400);
+                this.clearTimer(this._roundTimeout);
+                this.phase = 'judging';
+                this._roundTimeout = this.setTimer(() => this._judgeRound(), 400);
             }
         }
     }

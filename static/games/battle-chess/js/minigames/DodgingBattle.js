@@ -78,6 +78,7 @@ export class DodgingBattle extends BaseMinigame {
         // ── Input ────────────────────────────────────────
         this.keys = {};
         this.playerSpeed = 180; // px/s
+        this._aiMovement = [{ dx: 0, dy: 0, nextDecision: 0 }, { dx: 0, dy: 0, nextDecision: 0 }];
 
         // ── Pause state (for attacker extra life) ────────
         this.paused = false;
@@ -126,7 +127,7 @@ export class DodgingBattle extends BaseMinigame {
     // ── Game Loop ────────────────────────────────────────
 
     _loop() {
-        if (this._destroyed) return;
+        if (this._destroyed || this._ended) return;
         const now = performance.now();
         const dt = Math.min((now - this._lastTime) / 1000, 0.05); // cap at 50ms
         this._lastTime = now;
@@ -134,6 +135,7 @@ export class DodgingBattle extends BaseMinigame {
         if (!this.paused) {
             this._update(dt);
         }
+        if (this._destroyed || this._ended) return;
         this._draw();
         this.requestFrame(() => this._loop());
     }
@@ -198,6 +200,13 @@ export class DodgingBattle extends BaseMinigame {
                 this.p1.alive = false;
                 this.p2.alive = false;
                 this.end({ attackerWins: false, tie: true });
+                return;
+            }
+            if (this.p1.lives <= 0 || this.p2.lives <= 0) {
+                this.p1.alive = this.p1.lives > 0;
+                this.p2.alive = this.p2.lives > 0;
+                const p1Wins = this.p1.alive;
+                this.end({ attackerWins: this.attackerColor === 'w' ? p1Wins : !p1Wins, tie: false });
                 return;
             }
             // If one still has lives, clear projectiles and pause for them
@@ -270,7 +279,7 @@ export class DodgingBattle extends BaseMinigame {
         const el = this.pauseOverlay?.querySelector('.mg-countdown');
         if (el) el.textContent = this.countdownValue;
         this.countdownValue--;
-        setTimeout(() => this._countdownTick(player), 1000);
+        this.setTimer(() => this._countdownTick(player), 1000);
     }
 
     // ── Player Movement ──────────────────────────────────
@@ -278,10 +287,20 @@ export class DodgingBattle extends BaseMinigame {
     _movePlayer(player, upKey, downKey, leftKey, rightKey, dt) {
         if (!player.alive) return;
         let dx = 0, dy = 0;
-        if (this.keys[upKey]) dy -= 1;
-        if (this.keys[downKey]) dy += 1;
-        if (this.keys[leftKey]) dx -= 1;
-        if (this.keys[rightKey]) dx += 1;
+        const index = player === this.p1 ? 0 : 1;
+        if (this.isAI(index)) {
+            const movement = this._aiMovement[index];
+            if (this.elapsed >= movement.nextDecision) {
+                Object.assign(movement, this._chooseAIDirection(player));
+                movement.nextDecision = this.elapsed + this.aiSettings.dodgeInterval;
+            }
+            ({ dx, dy } = movement);
+        } else {
+            if (this.keys[upKey]) dy -= 1;
+            if (this.keys[downKey]) dy += 1;
+            if (this.keys[leftKey]) dx -= 1;
+            if (this.keys[rightKey]) dx += 1;
+        }
 
         // Normalize diagonal
         if (dx !== 0 && dy !== 0) {
@@ -297,6 +316,43 @@ export class DodgingBattle extends BaseMinigame {
         const r = this.playerRadius;
         player.x = Math.max(r, Math.min(this.arenaSize - r, player.x));
         player.y = Math.max(r, Math.min(this.arenaSize - r, player.y));
+    }
+
+    _chooseAIDirection(player) {
+        const horizon = this.aiSettings.dodgeHorizon;
+        const speedScale = (this.speed + this.elapsed * 12) / this.speed;
+        const radius = this.playerRadius;
+        const clamp = position => Math.max(radius, Math.min(this.arenaSize - radius, position));
+        let best = { dx: 0, dy: 0 };
+        let bestCost = Infinity;
+
+        // Test the same eight movement directions available to a human, plus standing still.
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const length = Math.hypot(dx, dy) || 1;
+                const moveX = dx / length;
+                const moveY = dy / length;
+                const endX = clamp(player.x + moveX * this.playerSpeed * this.aiSettings.dodgeInterval);
+                const endY = clamp(player.y + moveY * this.playerSpeed * this.aiSettings.dodgeInterval);
+                // Prefer open space near the center when equally safe.
+                let cost = Math.hypot(endX - this.arenaSize / 2, endY - this.arenaSize / 2) * 0.02;
+                for (let time = 0.05; time <= horizon; time += 0.05) {
+                    const x = clamp(player.x + moveX * this.playerSpeed * time);
+                    const y = clamp(player.y + moveY * this.playerSpeed * time);
+                    for (const projectile of this.projectiles) {
+                        const px = projectile.x + projectile.vx * speedScale * time;
+                        const py = projectile.y + projectile.vy * speedScale * time;
+                        const clearance = Math.hypot(x - px, y - py) - radius - this.projectileRadius;
+                        cost += clearance < 0 ? 10000 : 1000 / ((clearance + 8) ** 2);
+                    }
+                }
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    best = { dx: moveX, dy: moveY };
+                }
+            }
+        }
+        return best;
     }
 
     // ── Projectile Spawning ──────────────────────────────
@@ -420,10 +476,16 @@ export class DodgingBattle extends BaseMinigame {
     // ── Input ────────────────────────────────────────────
 
     _onKeyDown(e) {
-        this.keys[e.key.toLowerCase()] = true;
+        const key = e.key.toLowerCase();
+        const index = 'wasd'.includes(key) ? 0 : 'ijkl'.includes(key) ? 1 : -1;
+        if (index < 0 || this.isAI(index) || this._destroyed || this._ended) return;
+        this.keys[key] = true;
     }
 
     _onKeyUp(e) {
-        this.keys[e.key.toLowerCase()] = false;
+        const key = e.key.toLowerCase();
+        const index = 'wasd'.includes(key) ? 0 : 'ijkl'.includes(key) ? 1 : -1;
+        if (index < 0 || this.isAI(index)) return;
+        this.keys[key] = false;
     }
 }

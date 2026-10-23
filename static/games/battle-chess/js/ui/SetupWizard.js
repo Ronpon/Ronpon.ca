@@ -2,7 +2,7 @@ import { GameEvent, MinigameMode, MinigameAdvantage } from '../Constants.js';
 
 /**
  * Multi-step setup wizard overlay.
- * Screens: Player Count → Player Profiles → Minigame Selection → Attacker Loss Rule
+ * Screens: Player Count → Solo Settings → Player Profiles → Minigame Selection → Rules
  * Emits SETUP_COMPLETE with the full game config when done.
  */
 export class SetupWizard {
@@ -14,6 +14,8 @@ export class SetupWizard {
         this.panel = null;
         this.config = {
             playerCount: 2,
+            chessDifficulty: 'medium',
+            aiDifficulty: 'medium',
             players: [
                 { name: '', icon: null, color: 'w' },
                 { name: '', icon: null, color: 'b' }
@@ -23,6 +25,9 @@ export class SetupWizard {
             minigameAdvantage: MinigameAdvantage.ATTACKER,
             attackerLosesPiece: false
         };
+        this._humanColor = 'w';
+        this._soloProfile = null;
+        this._localProfiles = this.config.players.map(player => ({ ...player }));
 
         // Available player icons (emoji-based for now)
         this.availableIcons = [
@@ -41,10 +46,10 @@ export class SetupWizard {
         this._render(`
             <h2>How Many Players?</h2>
             <div class="setup-player-count">
-                <button class="btn setup-count-btn disabled" disabled title="Coming Soon">
+                <button class="btn btn-primary setup-count-btn" id="btn-1p">
                     <span class="count-num">1</span>
                     <span class="count-label">Player</span>
-                    <span class="count-sub">vs AI — Coming Soon</span>
+                    <span class="count-sub">vs AI</span>
                 </button>
                 <button class="btn btn-primary setup-count-btn" id="btn-2p">
                     <span class="count-num">2</span>
@@ -54,8 +59,100 @@ export class SetupWizard {
             </div>
         `);
 
+        this.panel.querySelector('#btn-1p').addEventListener('click', () => {
+            if (this.config.playerCount !== 1) {
+                this._localProfiles = this.config.players.map(player => ({ ...player }));
+                if (!this._soloProfile) {
+                    const humanIndex = this._humanColor === 'w' ? 0 : 1;
+                    this._soloProfile = { ...this.config.players[humanIndex] };
+                }
+            }
+            this.config.playerCount = 1;
+            this._syncSoloPlayers();
+            this._showSoloSettings();
+        });
         this.panel.querySelector('#btn-2p').addEventListener('click', () => {
+            const profiles = this.config.playerCount === 1 ? this._localProfiles : this.config.players;
+            this.config.players = profiles.map((player, idx) => ({
+                name: player.name,
+                icon: player.icon,
+                color: idx === 0 ? 'w' : 'b'
+            }));
             this.config.playerCount = 2;
+            this._showPlayerProfiles();
+        });
+    }
+
+    _syncSoloPlayers() {
+        const human = this._soloProfile || { name: '', icon: null };
+        this.config.players = ['w', 'b'].map(color => color === this._humanColor ? {
+            name: human.name,
+            icon: human.icon,
+            color
+        } : {
+            name: 'Computer',
+            icon: '🤖',
+            color,
+            isAI: true
+        });
+    }
+
+    _showSoloSettings() {
+        this._render(`
+            <h2>Play Against AI</h2>
+            <div class="setup-solo-settings">
+                <div class="setup-setting">
+                    <label for="chess-difficulty">Chess difficulty</label>
+                    <p id="chess-difficulty-help">Controls the computer's chess strategy and planning on the board.</p>
+                    <select id="chess-difficulty" aria-describedby="chess-difficulty-help">
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="setup-setting">
+                    <label for="ai-difficulty">Battle AI difficulty</label>
+                    <p id="ai-difficulty-help">Controls the computer's reflexes, accuracy, and memory in battle minigames.</p>
+                    <select id="ai-difficulty" aria-describedby="ai-difficulty-help">
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="setup-setting">
+                    <label for="human-color">Your side</label>
+                    <select id="human-color">
+                        <option value="w">White — You move first</option>
+                        <option value="b">Black — Computer moves first</option>
+                    </select>
+                </div>
+            </div>
+            <div class="setup-actions">
+                <button class="btn" id="btn-back-solo">Back</button>
+                <button class="btn btn-primary" id="btn-next-solo">Continue</button>
+            </div>
+        `);
+
+        const chessDifficulty = this.panel.querySelector('#chess-difficulty');
+        const aiDifficulty = this.panel.querySelector('#ai-difficulty');
+        const humanColor = this.panel.querySelector('#human-color');
+        chessDifficulty.value = this.config.chessDifficulty;
+        aiDifficulty.value = this.config.aiDifficulty;
+        humanColor.value = this._humanColor;
+        chessDifficulty.addEventListener('change', () => {
+            this.config.chessDifficulty = chessDifficulty.value;
+        });
+        aiDifficulty.addEventListener('change', () => {
+            this.config.aiDifficulty = aiDifficulty.value;
+        });
+        humanColor.addEventListener('change', () => {
+            this._humanColor = humanColor.value;
+            this._syncSoloPlayers();
+        });
+        this.panel.querySelector('#btn-back-solo').addEventListener('click', () => {
+            this._showPlayerCount();
+        });
+        this.panel.querySelector('#btn-next-solo').addEventListener('click', () => {
             this._showPlayerProfiles();
         });
     }
@@ -63,13 +160,24 @@ export class SetupWizard {
     // ── Screen 2: Player Profiles ────────────────────────
     _showPlayerProfiles() {
         const buildPlayerColumn = (idx) => {
-            const defaultName = `Player ${idx + 1}`;
+            const player = this.config.players[idx];
+            const defaultName = this.config.playerCount === 1 ? 'You' : `Player ${idx + 1}`;
             const colorLabel = idx === 0 ? 'White' : 'Black';
+            if (player.isAI) {
+                return `
+                    <div class="setup-profile setup-computer-profile" data-player="${idx}">
+                        <h3>${colorLabel}</h3>
+                        <div class="setup-computer-icon" aria-hidden="true">🤖</div>
+                        <p class="setup-computer-name">Computer</p>
+                        <p class="setup-computer-note">AI opponent</p>
+                    </div>
+                `;
+            }
             return `
                 <div class="setup-profile" data-player="${idx}">
                     <h3>${colorLabel}</h3>
                     <input type="text" class="setup-name-input" data-player="${idx}"
-                           placeholder="${defaultName}" maxlength="16" value="">
+                           aria-label="${colorLabel} player name" placeholder="${defaultName}" maxlength="16">
                     <div class="setup-icon-label">Choose Icon</div>
                     <div class="setup-icon-grid" data-player="${idx}">
                         ${this.availableIcons.map((icon, i) => `
@@ -94,14 +202,21 @@ export class SetupWizard {
             </div>
         `);
 
-        // Icon selection state
-        const selected = [null, null];
+        this.panel.querySelectorAll('.setup-name-input').forEach(input => {
+            const pIdx = Number(input.dataset.player);
+            // Assign names as values so saved profile text is never interpreted as HTML.
+            input.value = this.config.players[pIdx].name;
+        });
+        this.config.players.forEach((player, idx) => {
+            if (!player.icon) player.icon = idx === 0 ? '⚔️' : '🛡️';
+        });
 
         this.panel.querySelectorAll('.setup-icon-btn').forEach(btn => {
+            const pIdx = Number(btn.dataset.player);
+            const icon = btn.dataset.icon;
+            btn.classList.toggle('selected', this.config.players[pIdx].icon === icon);
             btn.addEventListener('click', () => {
-                const pIdx = parseInt(btn.dataset.player);
-                const icon = btn.dataset.icon;
-                selected[pIdx] = icon;
+                this.config.players[pIdx].icon = icon;
 
                 // Highlight selected icon for this player
                 this.panel.querySelectorAll(`.setup-icon-btn[data-player="${pIdx}"]`).forEach(b => {
@@ -111,23 +226,28 @@ export class SetupWizard {
         });
 
         this.panel.querySelector('#btn-back-count').addEventListener('click', () => {
-            this._showPlayerCount();
+            this._saveProfiles();
+            if (this.config.playerCount === 1) this._showSoloSettings();
+            else this._showPlayerCount();
         });
 
         this.panel.querySelector('#btn-next-profiles').addEventListener('click', () => {
-            // Collect names
-            this.panel.querySelectorAll('.setup-name-input').forEach(input => {
-                const pIdx = parseInt(input.dataset.player);
-                const val = input.value.trim();
-                this.config.players[pIdx].name = val || `Player ${pIdx + 1}`;
-            });
-
-            // Collect icons (fallback to default)
-            this.config.players[0].icon = selected[0] || '⚔️';
-            this.config.players[1].icon = selected[1] || '🛡️';
-
+            this._saveProfiles(true);
             this._showMinigameSelection();
         });
+    }
+
+    _saveProfiles(useDefaults = false) {
+        this.panel.querySelectorAll('.setup-name-input').forEach(input => {
+            const pIdx = Number(input.dataset.player);
+            const fallback = this.config.playerCount === 1 ? 'You' : `Player ${pIdx + 1}`;
+            this.config.players[pIdx].name = input.value.trim() || (useDefaults ? fallback : '');
+        });
+        if (this.config.playerCount === 1) {
+            this._soloProfile = { ...this.config.players.find(player => !player.isAI) };
+        } else {
+            this._localProfiles = this.config.players.map(player => ({ ...player }));
+        }
     }
 
     // ── Screen 3: Minigame Selection ─────────────────────
@@ -149,7 +269,8 @@ export class SetupWizard {
                     <div class="setup-mg-category-title">${cat}</div>
                     ${catGames.map(g => `
                         <label class="setup-minigame-item">
-                            <input type="checkbox" class="setup-mg-check" data-id="${g.id}">
+                            <input type="checkbox" class="setup-mg-check" data-id="${g.id}"
+                                   ${this.config.selectedMinigames.includes(g.id) ? 'checked' : ''}>
                             <span class="setup-mg-thumb">${g.thumbnail || '🎮'}</span>
                             <span class="setup-mg-name">${g.name}</span>
                         </label>
@@ -169,7 +290,7 @@ export class SetupWizard {
                 <div class="setup-mode-section">
                     <label class="setup-mode-label">Selection Mode</label>
                     <div class="setup-mode-options" id="mode-options">
-                        <button class="btn setup-mode-btn active" data-mode="${MinigameMode.RANDOM}">Random</button>
+                        <button class="btn setup-mode-btn" data-mode="${MinigameMode.RANDOM}">Random</button>
                         <button class="btn setup-mode-btn" data-mode="${MinigameMode.ATTACKER_CHOICE}">Attacker's Choice</button>
                         <button class="btn setup-mode-btn" data-mode="${MinigameMode.DEFENDER_CHOICE}">Defender's Choice</button>
                         <button class="btn setup-mode-btn" data-mode="${MinigameMode.SET_ORDER}">Set Order</button>
@@ -187,7 +308,8 @@ export class SetupWizard {
         if (hasGames) {
             const modeContainer = this.panel.querySelector('#mode-options');
             const modeButtons = this.panel.querySelectorAll('.setup-mode-btn');
-            let selectedMode = MinigameMode.RANDOM;
+            let selectedMode = this.config.minigameMode;
+            modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === selectedMode));
 
             // Mode toggle disabled until 2+ games selected
             const updateModeState = () => {
@@ -195,12 +317,15 @@ export class SetupWizard {
                 const disabled = checked <= 1;
                 modeContainer.classList.toggle('disabled', disabled);
                 modeButtons.forEach(b => b.disabled = disabled);
+                this.config.selectedMinigames = [...this.panel.querySelectorAll('.setup-mg-check:checked')]
+                    .map(checkbox => checkbox.dataset.id);
             };
 
             modeButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
                     if (btn.disabled) return;
                     selectedMode = btn.dataset.mode;
+                    this.config.minigameMode = selectedMode;
                     modeButtons.forEach(b => b.classList.toggle('active', b === btn));
                 });
             });

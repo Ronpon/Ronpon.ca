@@ -103,6 +103,7 @@ export class HighestCard extends BaseMinigame {
 
         this._grid.addEventListener('click', this._onClick);
         this._updateTurnLabel();
+        this._scheduleAIPick();
     }
 
     destroy() {
@@ -113,9 +114,27 @@ export class HighestCard extends BaseMinigame {
     // ── Click handling ───────────────────────────────────
 
     _onClick(e) {
+        if (this._destroyed || this._ended || this.isAI(this.currentPicker)) return;
         const cardEl = e.target.closest('.hc-card');
         if (!cardEl) return;
         const idx = parseInt(cardEl.dataset.index);
+        this._selectCard(idx);
+    }
+
+    _scheduleAIPick() {
+        if (!this.isAI(this.currentPicker) || !['p1-pick', 'p2-pick'].includes(this.phase)) return;
+        const picker = this.currentPicker;
+        this.setTimer(() => {
+            if (this.currentPicker !== picker) return;
+            // No rank information is used: every unselected card has an equal chance.
+            const choices = this.deck.map((_, index) => index)
+                .filter(index => index !== this.p1Choice && index !== this.p2Choice);
+            this._selectCard(choices[Math.floor(Math.random() * choices.length)]);
+        }, this.randomDelay(this.aiSettings.cardDelay));
+    }
+
+    _selectCard(idx) {
+        if (this._destroyed || this._ended || !Number.isInteger(idx) || idx < 0 || idx >= this.deck.length) return;
 
         if (this.phase === 'p1-pick' || this.phase === 'p2-pick') {
             const pickerIsP1 = this.currentPicker === 0;
@@ -140,6 +159,7 @@ export class HighestCard extends BaseMinigame {
                 this.currentPicker = this.defenderIdx;
                 this.phase = 'p2-pick';
                 this._updateTurnLabel();
+                this._scheduleAIPick();
             } else if (this.phase === 'p2-pick') {
                 if (this.p1Choice !== null && this.p2Choice !== null) {
                     this.phase = 'reveal-ready';
@@ -189,6 +209,7 @@ export class HighestCard extends BaseMinigame {
     }
 
     _reveal() {
+        if (this._destroyed || this._ended || this.phase !== 'reveal-ready') return;
         this.phase = 'revealed';
         const card1 = this.deck[this.p1Choice];
         const card2 = this.deck[this.p2Choice];
@@ -235,7 +256,7 @@ export class HighestCard extends BaseMinigame {
         this._revealArea.appendChild(makeCardDisplay(this.players[1], card2, 1));
 
         // Determine winner after a moment
-        setTimeout(() => this._determineWinner(card1, card2), 1200);
+        this.setTimer(() => this._determineWinner(card1, card2), 1200);
     }
 
     _determineWinner(card1, card2) {
@@ -250,7 +271,7 @@ export class HighestCard extends BaseMinigame {
                 // True tie → rematch
                 resultDiv.innerHTML = `<div style="font-size:20px; font-weight:bold; color:#ffd700; margin-bottom:8px;">It's a tie!</div>`;
                 this._revealArea.parentNode.insertBefore(resultDiv, this._revealArea.nextSibling);
-                setTimeout(() => {
+                this.setTimer(() => {
                     if (!this._destroyed) this.end({ attackerWins: false, tie: true });
                 }, 1500);
                 return;
@@ -265,7 +286,7 @@ export class HighestCard extends BaseMinigame {
                 <div style="font-size:20px; font-weight:bold; color:#e94560;">${this._esc(winner.name)} (${role}) wins!</div>
             `;
             this._revealArea.parentNode.insertBefore(resultDiv, this._revealArea.nextSibling);
-            setTimeout(() => {
+            this.setTimer(() => {
                 if (!this._destroyed) this.end({ attackerWins: advantagedIsAttacker, tie: false });
             }, 2000);
         } else {
@@ -278,7 +299,7 @@ export class HighestCard extends BaseMinigame {
                 <div style="font-size:20px; font-weight:bold; color:#e94560;">${this._esc(winner.name)} (${role}) wins!</div>
             `;
             this._revealArea.parentNode.insertBefore(resultDiv, this._revealArea.nextSibling);
-            setTimeout(() => {
+            this.setTimer(() => {
                 if (!this._destroyed) this.end({ attackerWins, tie: false });
             }, 2000);
         }

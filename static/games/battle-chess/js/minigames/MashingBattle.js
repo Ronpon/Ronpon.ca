@@ -91,8 +91,8 @@ export class MashingBattle extends BaseMinigame {
 
     destroy() {
         document.removeEventListener('keydown', this._onKeyDown);
-        if (this._countdownTimer) clearTimeout(this._countdownTimer);
-        if (this._gameTimer) clearInterval(this._gameTimer);
+        if (this._countdownTimer) this.clearTimer(this._countdownTimer);
+        if (this._gameTimer) this.clearTimer(this._gameTimer);
         super.destroy();
     }
 
@@ -110,14 +110,17 @@ export class MashingBattle extends BaseMinigame {
 
         if (this.countdownValue > 0) {
             this.countdownValue--;
-            this._countdownTimer = setTimeout(() => this._countdownTick(), 1000);
+            this._countdownTimer = this.setTimer(() => this._countdownTick(), 1000);
         } else {
             // "GO!" frame — start after a brief moment
-            this._countdownTimer = setTimeout(() => {
+            this._countdownTimer = this.setTimer(() => {
                 this.countdownValue = -1; // signals "running"
                 this.running = true;
                 this._lastTime = performance.now();
-                this._gameTimer = setInterval(() => this._timerTick(), 100);
+                this._gameTimer = this.setRepeatingTimer(() => this._timerTick(), 100);
+                for (let index = 0; index < 2; index++) {
+                    if (this.isAI(index)) this._scheduleAIPress(index);
+                }
                 this._loop();
             }, 500);
         }
@@ -129,7 +132,7 @@ export class MashingBattle extends BaseMinigame {
         if (this.timeLeft <= 0) {
             this.timeLeft = 0;
             this.running = false;
-            clearInterval(this._gameTimer);
+            this.clearTimer(this._gameTimer);
             this._endGame();
         }
     }
@@ -147,18 +150,33 @@ export class MashingBattle extends BaseMinigame {
     // ── Input ────────────────────────────────────────────
 
     _onKeyDown(e) {
-        if (!this.running) return;
+        if (!this.running || e.repeat || this._destroyed || this._ended) return;
         const key = e.key.toLowerCase();
+        const index = key === 'a' ? 0 : key === 'l' ? 1 : -1;
+        if (index < 0 || this.isAI(index)) return;
+        this._press(index);
+    }
+
+    _scheduleAIPress(index) {
+        if (!this.running || !this.isAI(index)) return;
+        this.setTimer(() => {
+            this._press(index);
+            this._scheduleAIPress(index);
+        }, this.randomDelay(this.aiSettings.mash));
+    }
+
+    _press(index) {
+        if (!this.running || this._destroyed || this._ended) return;
 
         // P1 = A → pushes icon right (toward P2)
         // P2 = L → pushes icon left (toward P1)
-        if (key === 'a') {
+        if (index === 0) {
             this.p1Presses++;
             if (this.p1Presses >= this.PRESSES_PER_NOTCH) {
                 this.p1Presses = 0;
                 this.position = Math.min(this.NOTCH_COUNT - 1, this.position + 1);
             }
-        } else if (key === 'l') {
+        } else if (index === 1) {
             this.p2Presses++;
             if (this.p2Presses >= this.PRESSES_PER_NOTCH) {
                 this.p2Presses = 0;
@@ -175,7 +193,7 @@ export class MashingBattle extends BaseMinigame {
         const p1IsAttacker = this.attackerColor === 'w';
         this._draw();
 
-        setTimeout(() => {
+        this.setTimer(() => {
             if (this._destroyed) return;
             if (this.position === center) {
                 this.end({ attackerWins: false, tie: true });

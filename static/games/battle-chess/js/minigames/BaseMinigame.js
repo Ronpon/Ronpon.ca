@@ -10,6 +10,12 @@
  *   5. end({ attackerWins, tie }) — called by subclass when game concludes
  *   6. destroy() — clean up DOM, listeners, animation frames
  */
+const AI_SETTINGS = {
+    easy: { reaction: [550, 950], mash: [260, 380], dodgeInterval: 0.36, dodgeHorizon: 0.4, memoryLimit: 16, memoryRecall: 0.55, cardDelay: [700, 1100] },
+    medium: { reaction: [300, 550], mash: [145, 220], dodgeInterval: 0.2, dodgeHorizon: 0.7, memoryLimit: 32, memoryRecall: 0.82, cardDelay: [450, 750] },
+    hard: { reaction: [170, 320], mash: [85, 125], dodgeInterval: 0.1, dodgeHorizon: 1, memoryLimit: 52, memoryRecall: 1, cardDelay: [280, 500] }
+};
+
 export class BaseMinigame {
     constructor() {
         // ── Metadata (override in subclass) ──────────────
@@ -31,6 +37,8 @@ export class BaseMinigame {
         this.onEnd = null;             // callback: ({ attackerWins: bool, tie: bool }) => void
         this._animFrameId = null;
         this._destroyed = false;
+        this._ended = false;
+        this._timers = new Set();
     }
 
     /**
@@ -41,15 +49,22 @@ export class BaseMinigame {
      * @param {Array} config.players - [player1, player2] objects
      * @param {string} config.attackerColor - 'w' or 'b'
      * @param {string} config.advantage - 'attacker', 'defender', or 'none'
+     * @param {string} config.aiDifficulty - 'easy', 'medium', or 'hard'
      * @param {Function} config.onEnd - callback when game ends
      */
-    init(container, { players, attackerColor, advantage, onEnd }) {
+    init(container, { players, attackerColor, advantage, onEnd, aiDifficulty = 'medium' }) {
+        this.clearTimers();
+        if (this._animFrameId !== null) cancelAnimationFrame(this._animFrameId);
+        this._animFrameId = null;
         this.container = container;
         this.players = players;
         this.attackerColor = attackerColor;
         this.advantage = advantage || 'attacker';
         this.onEnd = onEnd;
         this._destroyed = false;
+        this._ended = false;
+        this.aiDifficulty = Object.hasOwn(AI_SETTINGS, aiDifficulty) ? aiDifficulty : 'medium';
+        this.aiSettings = AI_SETTINGS[this.aiDifficulty];
     }
 
     /**
@@ -67,7 +82,11 @@ export class BaseMinigame {
      * @param {boolean} result.tie - true if it's a tie (both eliminated)
      */
     end(result) {
-        if (this._destroyed) return;
+        if (this._destroyed || this._ended) return;
+        this._ended = true;
+        this.clearTimers();
+        if (this._animFrameId) cancelAnimationFrame(this._animFrameId);
+        this._animFrameId = null;
         if (this.onEnd) {
             this.onEnd(result);
         }
@@ -79,6 +98,7 @@ export class BaseMinigame {
      */
     destroy() {
         this._destroyed = true;
+        this.clearTimers();
         if (this._animFrameId) {
             cancelAnimationFrame(this._animFrameId);
             this._animFrameId = null;
@@ -102,7 +122,54 @@ export class BaseMinigame {
 
     /** Request an animation frame, tracked for auto-cleanup. */
     requestFrame(callback) {
-        this._animFrameId = requestAnimationFrame(callback);
+        if (this._destroyed || this._ended) return null;
+        this._animFrameId = requestAnimationFrame(() => {
+            this._animFrameId = null;
+            if (!this._destroyed && !this._ended) callback();
+        });
         return this._animFrameId;
+    }
+
+    /** Players keep the same White/Black seat in every battle. */
+    isAI(playerIndex) {
+        return this.players?.[playerIndex]?.isAI === true;
+    }
+
+    randomDelay(range) {
+        return range[0] + Math.random() * (range[1] - range[0]);
+    }
+
+    /** Timers stop on a result, teardown, or a new initialization. */
+    setTimer(callback, delay) {
+        if (this._destroyed || this._ended) return null;
+        const timer = setTimeout(() => {
+            this._timers.delete(timer);
+            if (!this._destroyed && !this._ended) callback();
+        }, delay);
+        this._timers.add(timer);
+        return timer;
+    }
+
+    setRepeatingTimer(callback, delay) {
+        if (this._destroyed || this._ended) return null;
+        const timer = setInterval(() => {
+            if (!this._destroyed && !this._ended) callback();
+        }, delay);
+        this._timers.add(timer);
+        return timer;
+    }
+
+    clearTimer(timer) {
+        clearTimeout(timer);
+        clearInterval(timer);
+        this._timers.delete(timer);
+    }
+
+    clearTimers() {
+        for (const timer of this._timers) {
+            clearTimeout(timer);
+            clearInterval(timer);
+        }
+        this._timers.clear();
     }
 }

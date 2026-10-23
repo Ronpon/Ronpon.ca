@@ -75,6 +75,8 @@ export class MemoryMatch extends BaseMinigame {
         this.currentPlayer = this.attackerIdx; // attacker goes first
         this.flippedThisTurn = []; // indices of cards flipped this turn
         this.turnLocked = false; // prevent clicks during flip-back delay
+        this._aiMemory = [new Map(), new Map()];
+        this._aiTurnTimer = null;
 
         this._onClick = this._onClick.bind(this);
     }
@@ -117,22 +119,28 @@ export class MemoryMatch extends BaseMinigame {
 
         this._grid.addEventListener('click', this._onClick);
         this._updateUI();
+        this._scheduleAITurn();
     }
 
     destroy() {
         if (this._grid) this._grid.removeEventListener('click', this._onClick);
-        if (this._flipTimeout) clearTimeout(this._flipTimeout);
+        if (this._flipTimeout) this.clearTimer(this._flipTimeout);
         super.destroy();
     }
 
     // ── Click handling ───────────────────────────────────
 
     _onClick(e) {
-        if (this.turnLocked || this._destroyed) return;
+        if (this.turnLocked || this._destroyed || this._ended || this.isAI(this.currentPlayer)) return;
 
         const cardEl = e.target.closest('.hc-card');
         if (!cardEl) return;
         const idx = parseInt(cardEl.dataset.index);
+        this._flipCard(idx);
+    }
+
+    _flipCard(idx) {
+        if (this.turnLocked || this._destroyed || this._ended || !Number.isInteger(idx)) return;
 
         // Can only flip face-down cards
         if (this.cardState[idx] !== 'down') return;
@@ -141,6 +149,7 @@ export class MemoryMatch extends BaseMinigame {
         this.cardState[idx] = 'up';
         this.flippedThisTurn.push(idx);
         this._renderCard(idx);
+        this._rememberCard(idx);
 
         const maxFlips = this.playerFlips[this.currentPlayer];
 
@@ -151,12 +160,12 @@ export class MemoryMatch extends BaseMinigame {
             const matchResult = this._checkMatch();
             if (matchResult) {
                 // Winner!
-                setTimeout(() => {
+                this.setTimer(() => {
                     if (!this._destroyed) this._handleWin(matchResult);
                 }, 800);
             } else {
                 // No match — show cards for 2 seconds, then flip back
-                this._flipTimeout = setTimeout(() => {
+                this._flipTimeout = this.setTimer(() => {
                     if (this._destroyed) return;
                     this._flipBackTurn();
                     this._switchTurn();
@@ -165,6 +174,59 @@ export class MemoryMatch extends BaseMinigame {
         }
 
         this._updateUI();
+        this._scheduleAITurn();
+    }
+
+    _rememberCard(idx) {
+        // Learn only when a card is publicly revealed, including the human's turns.
+        if (this.cardState[idx] !== 'up') return;
+        for (let player = 0; player < 2; player++) {
+            if (!this.isAI(player) || Math.random() >= this.aiSettings.memoryRecall) continue;
+            const memory = this._aiMemory[player];
+            memory.delete(idx);
+            memory.set(idx, this.deck[idx].value);
+            while (memory.size > this.aiSettings.memoryLimit) {
+                memory.delete(memory.keys().next().value);
+            }
+        }
+    }
+
+    _chooseAICard(player) {
+        const memory = this._aiMemory[player];
+        const available = this.cardState.map((state, index) => state === 'down' ? index : -1)
+            .filter(index => index >= 0);
+        if (!available.length) return null;
+        const randomCard = cards => cards[Math.floor(Math.random() * cards.length)];
+        const unseen = available.filter(index => !memory.has(index));
+        const shownValues = this.flippedThisTurn.map(index => this.deck[index].value);
+
+        if (shownValues.length && shownValues.every(value => value === shownValues[0])) {
+            const matching = available.filter(index => memory.get(index) === shownValues[0]);
+            if (matching.length) return randomCard(matching);
+        } else if (!shownValues.length) {
+            const groups = new Map();
+            for (const index of available) {
+                if (!memory.has(index)) continue;
+                const value = memory.get(index);
+                if (!groups.has(value)) groups.set(value, []);
+                groups.get(value).push(index);
+            }
+            const best = [...groups.values()].sort((a, b) => b.length - a.length)[0];
+            if (best && (best.length >= 2 || !unseen.length)) return randomCard(best);
+        }
+
+        return randomCard(unseen.length ? unseen : available);
+    }
+
+    _scheduleAITurn() {
+        if (this._aiTurnTimer !== null || this.turnLocked || !this.isAI(this.currentPlayer)) return;
+        const player = this.currentPlayer;
+        this._aiTurnTimer = this.setTimer(() => {
+            this._aiTurnTimer = null;
+            if (this.currentPlayer !== player || this.turnLocked) return;
+            const index = this._chooseAICard(player);
+            if (index !== null) this._flipCard(index);
+        }, this.randomDelay(this.aiSettings.cardDelay));
     }
 
     _checkMatch() {
@@ -202,6 +264,7 @@ export class MemoryMatch extends BaseMinigame {
         this.flippedThisTurn = [];
         this.turnLocked = false;
         this._updateUI();
+        this._scheduleAITurn();
     }
 
     _handleWin(matchResult) {
@@ -227,7 +290,7 @@ export class MemoryMatch extends BaseMinigame {
         `;
         this.container.appendChild(msg);
 
-        setTimeout(() => {
+        this.setTimer(() => {
             if (!this._destroyed) this.end({ attackerWins, tie: false });
         }, 2000);
     }
