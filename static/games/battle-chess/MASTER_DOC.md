@@ -48,8 +48,9 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 ### 4. Attacker Loss Rule (Popup)
 - Only shown if **at least 1 minigame** is selected.
 - **"Does attacker lose piece on loss? Y/N"**
-  - **Yes:** If the attacker loses the minigame, their attacking piece is removed from the board (defender's piece stays).
+  - **Yes:** If the attacker loses the minigame, their attacking non-king piece is removed from the board (defender's piece stays).
   - **No:** If the attacker loses, both pieces remain where they were (nothing happens).
+- Kings remain on the board when their capture fails. A minigame loss does not award a chess win.
 
 ---
 
@@ -58,12 +59,12 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 - Standard chess rules apply (movement, check, checkmate, etc.).
 - Minigames replace the normal capture mechanic when enabled.
 
-### Check + Minigame Interaction
-- If a player is in **check** and attempts to capture the threatening piece but **loses the minigame**, that counts as **checkmate** — they lose the game.
-- When the player attempts to capture a piece that has them in check, a **warning popup** appears:
-  - Text: **"Remember: If you fail to take this piece, you will be in checkmate."**
-  - Buttons: **"Fight"** | **"Back"**
-  - Checkbox: **"Don't show this again this game"**
+### Captures While in Check
+- Minigames decide only whether a capture succeeds and whether a losing attacking non-king piece is removed. The same rules apply to a human and the computer, for both colors.
+- A failed capture never declares an automatic checkmate or skips the selected attacker-removal rule.
+- If the attacking player's king is still in check, including when removing a pinned attacker exposes it, that player keeps the turn to make another legal check response. Otherwise the turn passes normally.
+- Kings stay in place after losing a capture battle. Standard checkmate and draw detection still apply to the resulting chess position.
+- There is no forced-checkmate warning before these captures.
 
 ---
 
@@ -92,8 +93,9 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 - **Attacker wins:** Defender's piece is removed; attacker's piece moves to that square (normal capture).
 - **Attacker loses:**
-  - If **"Attacker loses piece on loss"** = **Yes:** Attacker's piece is removed; defender's piece stays.
+  - If **"Attacker loses piece on loss"** = **Yes:** Attacker's non-king piece is removed; defender's piece stays.
   - If **"Attacker loses piece on loss"** = **No:** Nothing happens; both pieces remain where they were.
+- The result panel states the capture consequence before returning to the board. A king that remains in check must still receive a legal response; it is not an automatic minigame forfeit.
 
 ---
 
@@ -134,7 +136,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 **Gameplay:**
 - A thin horizontal bar with **9 notches** (1 center, 4 each side).
 - Player icons sit on either side: **Player 1 on left**, **Player 2 on right**.
-- A **circle with a Chess Battle icon** starts **1 notch closer to the attacker's side** (attacker disadvantage).
+- A **circle with a Chess Battle icon** starts **1 notch toward the opponent of the advantaged player**. White advantage starts at notch 5, Black at notch 3, and no advantage at the center (4).
 - A **3, 2, 1, GO!** countdown plays, then a **20-second timer** begins.
 - Players mash their key as fast as possible.
 - Every **5 presses** moves the icon **1 notch toward the opponent**.
@@ -150,7 +152,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 *Player 1 is always on the left, Player 2 always on the right.*
 
 **Gameplay:**
-- Same bar/notch layout as Mashing Battle. Icon starts **1 notch closer to the attacker's side**.
+- Same bar/notch layout and correctly directed one-notch advantage as Mashing Battle.
 - **"NOW!"** pops up at **random intervals** (every 2–6 seconds).
 - Players press their key as fast as possible after "NOW!" — reaction time shown in ms under each player.
 - **Faster press** → icon moves **1 notch toward the slower player's side** (winner gets point).
@@ -195,19 +197,22 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 - `js/ai/ChessAI.js` searches a private copy of the current chess position using iterative deepening, alpha-beta pruning, material, and piece placement. Easy searches one ply with occasional variation; Medium and Hard allow deeper searches with increasing time/node limits. Difficulty levels describe relative strength, not a chess rating.
 - `ChessAIWorker.js` runs the chess search in a Web Worker using the existing vendored chess rules library. Browsers without a working worker use a bounded search that yields to the UI. Resetting, replaying, entering a battle, or switching to online play invalidates pending computer moves.
-- Human board input is blocked during computer turns. Computer captures use the same pending capture, explanation, minigame, tie, check-loss, and result flow as human captures. The computer automatically chooses an enabled minigame when Attacker's Choice or Defender's Choice belongs to it; the human still chooses on their own turns.
+- Human board input is blocked during computer turns. Computer captures use the same pending capture, explanation, minigame, tie, piece-removal, and result flow as human captures. The computer automatically chooses an enabled minigame when Attacker's Choice or Defender's Choice belongs to it; the human still chooses on their own turns.
 - **Dodging Battle:** the computer predicts visible projectile paths and chooses a safe movement direction. Higher difficulty reacts more frequently and looks further ahead; movement speed and lives follow the same rules as the human.
 - **Mashing Battle:** the computer presses at a difficulty-dependent rate after the countdown. Keyboard auto-repeat is ignored and the human cannot mash for the computer's seat.
 - **Timing Battle:** the computer waits for NOW! before reacting, using a difficulty-dependent delay. The human cannot submit reactions for the computer.
 - **Memory Match:** the computer remembers only cards revealed through normal play. Difficulty controls memory capacity, recall, and selection delay; hidden card values are never consulted to select a card.
 - **Highest Card:** the computer chooses an available face-down card automatically. Picks remain random at every difficulty; the AI does not see or change hidden card values.
 - Battle sidebars identify the computer's controls as automatic. AI timers and animation callbacks stop on results, reset, teardown, and replay.
-- A failed capture with attacker removal enabled ends the game if removing the attacking piece would remove or expose its king. The final board stays valid for display.
+- Failed captures remove the attacking non-king piece when enabled, including checked or pinned attackers. An attacker whose king remains checked keeps the turn; the AI automatically finds another legal response. Failed king captures leave both pieces in place.
+- Failed captures rebuild the chess position before history/draw inspection, revoke castling rights for a removed corner rook, and clear en passant. Move clocks advance only when a turn passes, and piece removal resets the halfmove clock.
 
 ### Solo verification
 
 - `node --test tests/battle_chess_ai_engine.test.mjs tests/battle_chess_ai_minigames.test.mjs` checks chess search, legal moves, turn ownership, cancellation, battle behavior, and cleanup.
 - `.venv/Scripts/python.exe tests/battle_chess_ai_browser.py` checks solo startup, independent difficulties, playing Black, AI captures and game selection, all five battle bots, reset cancellation, switching to local multiplayer, and phone-width setup with temporary databases.
+- `node --test tests/battle_chess_capture_rules.test.mjs` checks symmetric capture outcomes, checks/pins, kings, castling rights, en passant, history safety, real AI replies, and normal chess endings.
+- `.venv/Scripts/python.exe tests/battle_chess_capture_rules_browser.py` reproduces twelve real capture battles using both human colors, both attacker-removal settings, successful captures, checked/pinned attackers, and legal continued play. `--url https://ronpon.ca/games/battle-chess` verifies browser-local games on the deployed site.
 
 ## Architecture Notes
 
@@ -224,6 +229,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 | Date       | Change Description                          |
 |------------|---------------------------------------------|
+| 2026-10-23 | Corrected failed capture resolution: apply attacker removal symmetrically, remove automatic battle forfeits, retain the turn to answer check, preserve kings and valid castling/history state, explain capture consequences, and fix reversed Mashing/Timing advantages. |
 | 2026-10-23 | Replaced the emoji player picker with 16 original engraved crests, theme-aware profile cards, live previews, named keyboard-accessible choices, and matching SVG/canvas avatars throughout the battle minigames. |
 | 2026-10-23 | Added a scroll-free fullscreen board with responsive sizing, retained battle/promotion controls, browser exit handling, and Select All for minigame setup. |
 | 2026-10-23 | Enabled solo play with independent chess and battle AI difficulties, White/Black selection, a bounded worker chess engine, bots for all five capture minigames, safe turn ownership/cancellation, and solo regression checks. |

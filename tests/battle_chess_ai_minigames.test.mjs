@@ -86,6 +86,23 @@ function harness() {
 
 function click(game, index) { game._onClick({ target: game._cardEls[index] }); }
 
+test('mashing and timing advantages start toward the opponent for either attacker color', () => {
+    for (const name of ['MashingBattle', 'TimingBattle']) {
+        for (const attackerColor of ['w', 'b']) {
+            for (const advantage of ['attacker', 'defender', 'none']) {
+                const h = harness();
+                const game = h.game(name, -1, 'medium', attackerColor);
+                game.init(game.container, { players: game.players, attackerColor, advantage });
+                const advantagedColor = advantage === 'attacker' ? attackerColor
+                    : attackerColor === 'w' ? 'b' : 'w';
+                const expected = advantage === 'none' ? 4 : advantagedColor === 'w' ? 5 : 3;
+                assert.equal(game.position, expected, `${name}: ${attackerColor} attacker, ${advantage} advantage`);
+                game.destroy();
+            }
+        }
+    }
+});
+
 test('ending and destroying stop every managed timer and animation, and end only fires once', () => {
     const h = harness();
     const game = h.game('BaseMinigame');

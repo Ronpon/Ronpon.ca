@@ -52,17 +52,10 @@ export class GameOverOverlay {
 
     _getResultText(gameState) {
         if (gameState.isCheckmate) {
-            // forcedCheckmate: the attacker lost the minigame while in check
-            // Regular checkmate: chess.js detected it (turn = side that's mated)
-            const loser = gameState.turn === 'w'
-                ? gameState.config.players[0].name
-                : gameState.config.players[1].name;
+            // Only a chess position with no legal check response is checkmate.
             const winner = gameState.turn === 'w'
                 ? gameState.config.players[1].name
                 : gameState.config.players[0].name;
-            if (gameState.forcedCheckmate) {
-                return `${loser} failed the minigame while in check — <strong>${winner}</strong> wins!`;
-            }
             return `Checkmate! <strong>${winner}</strong> wins!`;
         }
         if (gameState.isStalemate) {

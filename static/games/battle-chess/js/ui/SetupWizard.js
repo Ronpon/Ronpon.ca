@@ -449,13 +449,14 @@ export class SetupWizard {
         this._render(`
             <h2>Attacker Loss Rule</h2>
             <p class="setup-rule-desc">
-                When the attacking player <strong>loses</strong> a minigame, does their piece get removed from the board?
+                When an attempted capture <strong>fails</strong>, should the attacking piece be removed?
+                Kings always stay on the board.
             </p>
             <div class="setup-rule-options">
                 <button class="btn setup-rule-btn" id="rule-yes">
                     <span class="rule-icon">✕</span>
                     <span class="rule-title">Yes</span>
-                    <span class="rule-sub">Attacker's piece is removed</span>
+                    <span class="rule-sub">Losing non-king piece is removed</span>
                 </button>
                 <button class="btn setup-rule-btn" id="rule-no">
                     <span class="rule-icon">↩</span>

@@ -13,7 +13,6 @@ export class GameManager {
         this.state = GameState.SETUP;
         this.chess = new Chess(); // chess.js global (loaded via <script>)
         this.pendingMove = null;
-        this.pendingMoveInCheck = false; // was attacker in check when capture was attempted?
         this.chessAI = new ChessAI(globalThis.Chess);
         this.aiThinking = false;
         this._aiTimer = null;
@@ -76,7 +75,6 @@ export class GameManager {
         }
         this.chess.reset();
         this.pendingMove = null;
-        this.pendingMoveInCheck = false;
         this.minigameState.currentIndex = 0;
         this.minigameState.firstTimePlayed.clear();
         this.setState(GameState.PLAYING);
@@ -123,7 +121,6 @@ export class GameManager {
         // Capture with minigames enabled → trigger minigame
         if (targetMove.captured && this.config.selectedMinigames.length > 0) {
             this.pendingMove = targetMove;
-            this.pendingMoveInCheck = this.chess.in_check();
             this.setState(GameState.MINIGAME);
             this.eventBus.emit(GameEvent.CAPTURE_ATTEMPTED, {
                 move: targetMove,
@@ -168,39 +165,8 @@ export class GameManager {
                 this.eventBus.emit(GameEvent.MOVE_MADE, executedMove);
             }
         } else {
-            // Attacker lost the minigame
-            if (this.pendingMoveInCheck) {
-                // Was in check and failed to capture → checkmate
-                this.setState(GameState.GAME_OVER);
-                this.eventBus.emit(GameEvent.GAME_OVER, {
-                    ...this.getGameState(),
-                    isCheckmate: true,
-                    forcedCheckmate: true // lost minigame while in check
-                });
-                this.pendingMoveInCheck = false;
-                return;
-            }
-            if (this.config.attackerLosesPiece) {
-                // A failed king attack, or removing a pinned attacker, loses the game.
-                // Preserve the valid position for the final board instead of loading
-                // a FEN with a missing or exposed king for the next player.
-                const testBoard = new Chess(this.chess.fen());
-                testBoard.remove(move.from);
-                if (move.piece === 'k' || testBoard.in_check()) {
-                    this.setState(GameState.GAME_OVER);
-                    this.eventBus.emit(GameEvent.GAME_OVER, {
-                        ...this.getGameState(), isCheckmate: true, forcedCheckmate: true
-                    });
-                    this.pendingMoveInCheck = false;
-                    return;
-                }
-                this.chess.remove(move.from);
-            }
-            // Turn passes to the other player
-            this._switchTurn();
+            this._resolveFailedCapture(move);
         }
-
-        this.pendingMoveInCheck = false;
 
         this.setState(GameState.PLAYING);
         this.eventBus.emit(GameEvent.BOARD_UPDATED, this.getGameState());
@@ -208,11 +174,31 @@ export class GameManager {
     }
 
     // ── Helpers ──────────────────────────────────────────
-    _switchTurn() {
-        const fen = this.chess.fen();
-        const parts = fen.split(' ');
-        parts[1] = parts[1] === 'w' ? 'b' : 'w';
-        parts[3] = '-'; // clear en passant (no longer valid after forced turn switch)
+    _resolveFailedCapture(move) {
+        // Work from an isolated position: mutating a board with move history can
+        // make this chess.js version replay a removed piece during history()/draw checks.
+        const position = new Chess(this.chess.fen());
+        const removeAttacker = this.config.attackerLosesPiece && move.piece !== 'k';
+        if (removeAttacker) position.remove(move.from);
+
+        const parts = position.fen().split(' ');
+        parts[3] = '-'; // A failed attempt cannot preserve an en passant opportunity.
+        if (removeAttacker) {
+            const rookRight = { a1: 'Q', h1: 'K', a8: 'q', h8: 'k' }[move.from];
+            if (move.piece === 'r' && rookRight) {
+                parts[2] = parts[2].replace(rookRight, '') || '-';
+            }
+            parts[4] = '0';
+        }
+
+        // A lost battle is never an automatic chess loss. A checked player must
+        // still answer check; keep their turn so they can make another legal reply.
+        // Kings remain on the board when their capture fails.
+        if (!position.in_check()) {
+            parts[1] = move.color === 'w' ? 'b' : 'w';
+            if (!removeAttacker) parts[4] = String(Number(parts[4]) + 1);
+            if (move.color === 'b') parts[5] = String(Number(parts[5]) + 1);
+        }
         this.chess.load(parts.join(' '));
     }
 
@@ -273,7 +259,6 @@ export class GameManager {
         this._cancelAI();
         this.chess.reset();
         this.pendingMove = null;
-        this.pendingMoveInCheck = false;
         this.setState(GameState.SETUP);
     }
 }

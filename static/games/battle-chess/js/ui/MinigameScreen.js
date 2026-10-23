@@ -27,7 +27,7 @@ export class MinigameScreen {
         });
     }
 
-    _show({ gameEntry, captureCtx, players, attackerColor, advantage, aiDifficulty = 'medium', isFirstTime, onReady, onEnd }) {
+    _show({ gameEntry, captureCtx, players, attackerColor, advantage, attackerLosesPiece = false, aiDifficulty = 'medium', isFirstTime, onReady, onEnd }) {
         this._destroyGame();
         this._currentCtx = { gameEntry, players, attackerColor, advantage, aiDifficulty, onEnd };
         const screenCtx = this._currentCtx;
@@ -91,11 +91,18 @@ export class MinigameScreen {
                 if (result.tie) {
                     onEnd(result);
                 } else {
+                    const consequence = result.attackerWins
+                        ? 'The capture succeeds. The defending piece is taken.'
+                        : captureCtx?.move?.piece === 'k'
+                            ? 'The capture fails. The king and defending piece stay on the board.'
+                            : attackerLosesPiece
+                                ? 'The attacking piece is removed. The defending piece stays.'
+                                : 'The capture fails. Both pieces stay on the board.';
                     this._showResult(result, players, attackerColor, () => {
                         if (this._currentCtx !== screenCtx) return;
                         this._hide();
                         onEnd(result);
-                    });
+                    }, consequence);
                 }
             }
         });
@@ -129,7 +136,7 @@ export class MinigameScreen {
         });
     }
 
-    _showResult(result, players, attackerColor, onDone) {
+    _showResult(result, players, attackerColor, onDone, consequence) {
         const attacker = attackerColor === 'w' ? players[0] : players[1];
         const defender = attackerColor === 'w' ? players[1] : players[0];
         const winner = result.attackerWins ? attacker : defender;
@@ -142,6 +149,7 @@ export class MinigameScreen {
                 <div class="mg-result-icon">${playerEmblemMarkup(winner.icon || (winner === players[0] ? '⚔️' : '🛡️'))}</div>
                 <h3 class="mg-result-title">${winLabel}</h3>
                 <p class="mg-result-name">${this._escapeHtml(winner.name)}</p>
+                <p class="mg-result-consequence">${this._escapeHtml(consequence)}</p>
                 <button class="btn btn-primary mg-continue-btn">Continue</button>
             </div>
         `;

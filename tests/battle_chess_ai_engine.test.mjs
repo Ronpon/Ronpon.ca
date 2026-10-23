@@ -119,7 +119,7 @@ test('reset, two-player restart, and online play discard in-flight AI answers', 
     manager.reset();
 });
 
-test('capture promotions retain the selected piece and failed king battles keep a valid board', () => {
+test('capture promotions retain the selected piece and failed king battles continue on a valid board', () => {
     const manager = new GameManager(new EventBus());
     manager.startGame({ playerCount: 2, selectedMinigames: ['highest-card'], attackerLosesPiece: true });
     manager.chess.load('1r5k/P7/8/8/8/8/8/7K w - - 0 1');
@@ -130,7 +130,8 @@ test('capture promotions retain the selected piece and failed king battles keep 
     manager.chess.load('7k/8/8/8/8/8/1p6/1K6 w - - 0 1');
     assert.equal(manager.attemptMove('b1', 'b2').pending, true);
     manager.resolveCapture({ attackerWins: false });
-    assert.equal(manager.state, GameState.GAME_OVER);
+    assert.equal(manager.state, GameState.PLAYING);
     assert.equal(manager.chess.get('b1').type, 'k');
+    assert.equal(manager.chess.get('b2').type, 'p');
     manager.reset();
 });

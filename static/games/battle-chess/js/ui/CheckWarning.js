@@ -1,8 +1,6 @@
 /**
- * Warning popup shown when a player in check attempts a capture that will
- * trigger a minigame. Losing the minigame while in check = checkmate.
- *
- * "Remember: If you fail to take this piece, you will be in checkmate."
+ * Optional explanation for capture battles. Ordinary board input goes straight
+ * to the battle; a failed capture does not declare an automatic checkmate.
  * Buttons: "Fight" | "Back"
  * Checkbox: "Don't show this again this game"
  */
@@ -23,9 +21,11 @@ export class CheckWarning {
             const panel = document.createElement('div');
             panel.className = 'overlay-panel check-warning-panel';
             panel.innerHTML = `
-                <h2>⚠️ Warning</h2>
+                <h2>Capture Battle</h2>
                 <p class="check-warning-text">
-                    Remember: If you fail to take this piece, you will be in checkmate.
+                    The battle decides whether this capture succeeds. If attacker removal
+                    is enabled, a losing attacking piece is removed. Kings stay on the board.
+                    A king that is still in check must be moved or protected.
                 </p>
                 <label class="check-warning-suppress">
                     <input type="checkbox" class="check-warning-checkbox">

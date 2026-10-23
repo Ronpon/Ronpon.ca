@@ -131,6 +131,7 @@ export class MinigameManager {
             players: config.players,
             attackerColor: captureCtx.attackerColor,
             advantage: config.minigameAdvantage || 'attacker',
+            attackerLosesPiece: config.attackerLosesPiece,
             aiDifficulty: config.aiDifficulty || 'medium',
             isFirstTime,
             onReady: () => {

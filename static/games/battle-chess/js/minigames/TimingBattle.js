@@ -5,7 +5,7 @@ import { drawPlayerEmblem } from '../PlayerEmblems.js';
  * Timing Battle — reaction-time tug-of-war minigame.
  *
  * Same bar & notch layout as Mashing Battle. Player 1 left, Player 2 right.
- * Icon starts 1 notch closer to the attacker's side.
+ * The advantaged player starts 1 notch toward their opponent's side.
  * "NOW!" appears at random intervals (2–6s). Players race to press their key.
  * Faster player gains 1 notch. Pressing early loses 1 notch (penalty).
  * First to push the icon to the opponent's end wins.
@@ -34,15 +34,12 @@ export class TimingBattle extends BaseMinigame {
         if (this.advantage === 'none') {
             this.position = 4; // center — no advantage
         } else {
-            // 'attacker': start closer to attacker; 'defender': start closer to defender
+            // A lead means fewer rounds are needed to reach the opponent's end.
             const advantagedIsAttacker = this.advantage === 'attacker';
-            // If the advantaged side is the attacker, start 1 notch closer to attacker
-            // "closer to attacker" means the icon is nearer the attacker's goal line,
-            // so the attacker needs fewer wins to push it across
             if (p1IsAttacker === advantagedIsAttacker) {
-                this.position = 3; // closer to P1 (left) side
+                this.position = 5; // White leads toward Black (right)
             } else {
-                this.position = 5; // closer to P2 (right) side
+                this.position = 3; // Black leads toward White (left)
             }
         }
 

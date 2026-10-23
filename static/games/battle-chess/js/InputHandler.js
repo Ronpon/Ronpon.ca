@@ -95,26 +95,6 @@ export class InputHandler {
             return;
         }
 
-        // Check warning: in check + capture + minigames enabled
-        const inCheck = this.gameManager.chess.in_check();
-        const isCapture = !!targetMove.captured;
-        const minigamesOn = this.gameManager.config.selectedMinigames.length > 0;
-
-        if (inCheck && isCapture && minigamesOn && this.checkWarning) {
-            this.checkWarning.show().then(fight => {
-                if (fight) {
-                    this.gameManager.attemptMove(from, to);
-                    this._clearSelection();
-                    this.board.clearSelection();
-                } else {
-                    // Player chose "Back" — just deselect
-                    this._clearSelection();
-                    this.board.clearSelection();
-                }
-            });
-            return;
-        }
-
         this.gameManager.attemptMove(from, to);
         this._clearSelection();
         this.board.clearSelection();
