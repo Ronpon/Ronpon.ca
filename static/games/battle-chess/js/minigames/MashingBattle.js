@@ -84,6 +84,7 @@ export class MashingBattle extends BaseMinigame {
         this.container.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        if (this.network) { this._draw(); return; }
         document.addEventListener('keydown', this._onKeyDown);
 
         this._lastTime = performance.now();
@@ -208,6 +209,17 @@ export class MashingBattle extends BaseMinigame {
 
     // ── Drawing ──────────────────────────────────────────
 
+    applyNetworkState(battle, now) {
+        this.position = battle.position;
+        this.p1Presses = battle.presses.w % this.PRESSES_PER_NOTCH;
+        this.p2Presses = battle.presses.b % this.PRESSES_PER_NOTCH;
+        this.running = battle.phase === 'playing' && battle.outcome === null;
+        this.countdownValue = battle.phase === 'countdown' ? Math.max(0, Math.ceil(battle.startAt - now)) : -1;
+        this.timeLeft = battle.endsAt === null ? this.DURATION
+            : Math.max(0, battle.endsAt - (battle.phase === 'countdown' ? battle.startAt : now));
+        this._draw();
+    }
+
     _draw() {
         const ctx = this.ctx;
         const W = this.arenaW;
@@ -307,7 +319,7 @@ export class MashingBattle extends BaseMinigame {
         ctx.font = '11px "Segoe UI", sans-serif';
         ctx.fillStyle = '#888';
         ctx.textAlign = 'center';
-        ctx.fillText(p1.name, 28, barY + 30);
-        ctx.fillText(p2.name, W - 28, barY + 30);
+        ctx.fillText(p1.name, 90, barY + 84, 160);
+        ctx.fillText(p2.name, W - 90, barY + 84, 160);
     }
 }

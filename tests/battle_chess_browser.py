@@ -84,6 +84,10 @@ def run():
                 expect(h.locator('#turn-indicator')).to_contain_text('White', timeout=10000)
                 move(h, 'e4', 'd5')
                 expect(g.get_by_role('heading', name='Highest Card', exact=True)).to_be_visible(timeout=10000)
+                for frame in (h, g):
+                    frame.get_by_role('button', name='Got It', exact=True).click()
+                    expect(frame.locator('.mg-sidebar .player-emblem')).to_have_count(2)
+                    expect(frame.locator('.hc-card-back img')).to_have_count(52)
                 expect(g.get_by_role('button', name='Pick card 1', exact=True)).to_be_disabled()
                 h.get_by_role('button', name='Pick card 1', exact=True).click()
                 expect(g.get_by_role('button', name='Pick card 2', exact=True)).to_be_enabled(timeout=10000)
@@ -91,7 +95,9 @@ def run():
                 guest.reload()
                 expect(g.get_by_role('button', name='Pick card 2', exact=True)).to_be_enabled(timeout=10000)
                 g.get_by_role('button', name='Pick card 2', exact=True).click()
-                expect(h.locator('.online-card-face')).to_have_count(2, timeout=10000)
+                expect(h.get_by_role('button', name='Reveal', exact=True)).to_be_visible(timeout=10000)
+                h.get_by_role('button', name='Reveal', exact=True).click()
+                expect(h.locator('.hc-reveal-card')).to_have_count(2, timeout=10000)
                 if os.environ.get('BATTLE_CHESS_SCREENSHOT'):
                     host.screenshot(path=os.environ['BATTLE_CHESS_SCREENSHOT'], full_page=True)
                 h.get_by_role('button', name='Return to board', exact=True).click()

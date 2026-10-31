@@ -325,7 +325,7 @@ export class OnlineMultiplayer {
             : options.advantage === 'none' ? 'No advantage' : `${options.advantage} advantage`;
         return `${games.map(id => ONLINE_GAMES[id]).join(', ')} · ${advantage} · `
             + (options.attackerLosesPiece ? 'Losing attackers are removed.' : 'Losing attackers stay on the board.')
-            + ' Losing a battle while in check loses the game.';
+            + ' A checked attacker keeps the turn to answer check after a failed capture.';
     }
 
     _renderRoom() {
@@ -333,7 +333,7 @@ export class OnlineMultiplayer {
         if (!room) return;
         if (this.confirming && this.confirming.game === room.game && room.phase !== 'finished') return;
         this.confirming = null;
-        if (room.phase === 'battle' && room.battle.gameId !== 'highest-card' && room.battle.gameId !== undefined) {
+        if (room.phase === 'battle') {
             this.battleScreen.update(room);
             return;
         }
@@ -357,8 +357,6 @@ export class OnlineMultiplayer {
                 try { await navigator.clipboard.writeText(input.value); this._message('Invite link copied.'); }
                 catch { input.focus(); input.select(); this._message('Copy the selected invite link.'); }
             };
-        } else if (room.phase === 'battle') {
-            this._renderBattle();
         } else {
             this._panel('Game Over', '<p id="online-result"></p><button class="btn btn-primary" id="online-rematch">Play again</button>');
             const reasons = { 'checkmate': 'Checkmate.', 'stalemate': 'Stalemate.', 'draw': 'Draw.',
@@ -380,58 +378,6 @@ export class OnlineMultiplayer {
         leave.textContent = 'Leave room';
         leave.onclick = () => this.confirmAction('leave');
         this.container.querySelector('.online-panel').appendChild(leave);
-    }
-
-    _renderBattle() {
-        const { battle, you, players } = this.room;
-        this._panel('Highest Card', '<p id="online-battle-context"></p><p id="online-battle-rules"></p><div id="online-battle-content"></div>');
-        this.container.querySelector('#online-battle-context').textContent = `${players[battle.attacker].name} attacks ${battle.move.slice(0, 2)} → ${battle.move.slice(2, 4)}.`;
-        this.container.querySelector('#online-battle-rules').textContent = this._rules();
-        const content = this.container.querySelector('#online-battle-content');
-        if (battle.outcome === null) {
-            const picker = Object.keys(battle.picks).length ? (battle.attacker === 'w' ? 'b' : 'w') : battle.attacker;
-            const label = document.createElement('p');
-            label.textContent = picker === you ? 'Your turn — choose a face-down card.' : `Waiting for ${players[picker].name} to choose a card…`;
-            content.appendChild(label);
-            const grid = document.createElement('div');
-            grid.className = 'online-card-grid';
-            for (let i = 0; i < 52; i++) {
-                const chosen = Object.entries(battle.picks).find(([, index]) => index === i);
-                const button = document.createElement('button');
-                button.className = 'online-card';
-                button.textContent = chosen ? colorName(chosen[0])[0] : '♠';
-                button.setAttribute('aria-label', chosen ? `Card ${i + 1}, chosen by ${colorName(chosen[0])}` : `Pick card ${i + 1}`);
-                button.disabled = picker !== you || !!chosen || this.busy;
-                button.onclick = () => this.action('pick', { index: i });
-                grid.appendChild(button);
-            }
-            content.appendChild(grid);
-        } else {
-            const cards = document.createElement('div');
-            cards.className = 'online-revealed-cards';
-            for (const color of ['w', 'b']) {
-                const value = battle.cards[color];
-                const rank = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'][value % 13];
-                const suit = ['♠', '♥', '♦', '♣'][Math.floor(value / 13)];
-                const card = document.createElement('div');
-                const name = document.createElement('p');
-                name.textContent = players[color].name;
-                const face = document.createElement('strong');
-                face.className = 'online-card-face';
-                face.textContent = `${rank}${suit}`;
-                card.append(name, face);
-                cards.appendChild(card);
-            }
-            const result = document.createElement('p');
-            result.textContent = battle.outcome === 'tie' ? 'A tie! Pick again with a new deck.'
-                : battle.outcome === 'attacker' ? 'Attacker wins — the capture succeeds.' : 'Defender wins — the capture fails.';
-            const button = document.createElement('button');
-            button.className = 'btn btn-primary';
-            button.disabled = battle.ready.includes(you) || this.busy;
-            button.textContent = battle.ready.includes(you) ? 'Waiting for your opponent…' : battle.outcome === 'tie' ? 'Play the tie again' : 'Return to board';
-            button.onclick = () => this.action('continue');
-            content.append(cards, result, button);
-        }
     }
 
     confirmAction(type) {
@@ -480,7 +426,7 @@ export class OnlineMultiplayer {
     }
 
     _disablePanel(disabled) {
-        this.container.querySelectorAll('.online-panel button').forEach(button => {
+        this.container.querySelectorAll('.online-panel button, .online-battle-screen button').forEach(button => {
             if (disabled) {
                 button.dataset.wasDisabled = String(button.disabled);
                 button.disabled = true;

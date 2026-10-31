@@ -94,6 +94,7 @@ class BattleChessTests(unittest.TestCase):
         attacker = 0 if self.room['battle']['attacker'] == 'w' else 1
         self.action(attacker, 'pick', index=0)
         self.action(1 - attacker, 'pick', index=1)
+        self.action(attacker, 'reveal')
         self.action(0, 'continue')
         self.action(1, 'continue')
 
@@ -135,6 +136,7 @@ class BattleChessTests(unittest.TestCase):
         self.capture()
         self.assertNotIn('deck', json.dumps(self.room))
         self.assertIsNone(self.room['battle']['cards'])
+        self.action(0, 'reveal', status=409)
         self.action(1, 'pick', index=1, status=409)
         self.action(0, 'pick', index=52, status=400)
         self.action(0, 'pick', index=True, status=400)
@@ -144,6 +146,11 @@ class BattleChessTests(unittest.TestCase):
         self.action(0, 'pick', index=2, status=409)
         self.action(1, 'pick', index=0, status=400)
         self.action(1, 'pick', index=1)
+        self.assertIsNone(self.room['battle']['cards'])
+        self.assertIsNone(self.room['battle']['outcome'])
+        self.assertEqual(self.room['battle']['phase'], 'reveal-ready')
+        self.action(1, 'reveal')
+        self.action(0, 'reveal')  # simultaneous reveal is harmless
         self.assertEqual(len(self.room['battle']['cards']), 2)
         self.assertNotIn('deck', json.dumps(self.room))
 
@@ -157,6 +164,24 @@ class BattleChessTests(unittest.TestCase):
         self.assertEqual(board.piece_at(chess.D5).symbol(), 'P')
         self.assertEqual(self.room['phase'], 'playing')
         self.assertFalse(board.turn)
+
+    def test_highest_card_reveal_waits_for_both_picks_and_survives_refresh(self):
+        self.create({'advantage': 'none'})
+        self.join()
+        self.capture()
+        self.action(1, 'reveal', status=409)
+        self.action(0, 'pick', index=0)
+        self.action(1, 'reveal', status=409)
+        self.action(1, 'pick', index=1)
+        refreshed = rooms.get_room(self.code, self.tokens[0])
+        self.assertEqual(refreshed['battle']['phase'], 'reveal-ready')
+        self.assertIsNone(refreshed['battle']['cards'])
+        self.assertIsNone(refreshed['battle']['outcome'])
+        self.action(0, 'continue', status=400)
+        self.action(1, 'reveal')
+        self.assertEqual(len(self.room['battle']['cards']), 2)
+        self.assertEqual(self.room['phase'], 'battle')
+        self.assertEqual(rooms.get_room(self.code, self.tokens[0])['battle']['cards'], self.room['battle']['cards'])
 
     def test_attacker_loss_retains_or_removes_piece_and_passes_turn(self):
         for color in (chess.WHITE, chess.BLACK):
@@ -192,6 +217,7 @@ class BattleChessTests(unittest.TestCase):
                 battle_id = self.room['battle']['id']
                 self.action(0, 'pick', index=0)
                 self.action(1, 'pick', index=13)
+                self.action(0, 'reveal')
                 self.assertEqual(self.room['battle']['outcome'], 'tie' if advantage == 'none' else advantage)
                 self.action(0, 'continue')
                 self.action(1, 'continue')

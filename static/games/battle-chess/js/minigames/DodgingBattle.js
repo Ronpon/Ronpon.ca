@@ -107,6 +107,7 @@ export class DodgingBattle extends BaseMinigame {
         this.container.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        if (this.network) { this._draw(); return; }
         // Key listeners
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('keyup', this._onKeyUp);
@@ -386,6 +387,25 @@ export class DodgingBattle extends BaseMinigame {
     }
 
     // ── Drawing ──────────────────────────────────────────
+
+    applyNetworkState(battle, now, directions = 0, connected = true, receivedAt = performance.now()) {
+        const dt = battle.phase === 'playing' && connected
+            ? Math.min(0.12, Math.max(0, (performance.now() - receivedAt) / 1000)) : 0;
+        const speed = this.speed + battle.elapsed * 12;
+        this.projectiles = battle.projectiles.map(p => ({ ...p, x: p.x + p.vx * speed * dt, y: p.y + p.vy * speed * dt }));
+        for (const [color, player] of [['w', this.p1], ['b', this.p2]]) {
+            Object.assign(player, battle.actors[color], { alive: battle.actors[color].lives > 0 });
+            // Predict only the local seat between authoritative snapshots.
+            if (color === this.network.you && dt) {
+                const dx = Number(!!(directions & 8)) - Number(!!(directions & 4));
+                const dy = Number(!!(directions & 2)) - Number(!!(directions & 1));
+                const length = Math.hypot(dx, dy) || 1;
+                player.x = Math.max(16, Math.min(384, player.x + dx / length * this.playerSpeed * dt));
+                player.y = Math.max(16, Math.min(384, player.y + dy / length * this.playerSpeed * dt));
+            }
+        }
+        this._draw();
+    }
 
     _draw() {
         const ctx = this.ctx;

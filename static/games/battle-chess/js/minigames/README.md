@@ -111,6 +111,8 @@ All five playable minigames support either computer seat. Bots use the same pres
 
 ## Controls Convention
 
+Online play uses these same minigame classes and their renderers. Passing `network` to `init` mounts presentation without starting local timers or input simulation. `applyNetworkState(battle, now)` renders the server state. Card clicks call the network action callback, and `OnlineBattleScreen` owns seat-specific live controls, readiness, reconnects, and acknowledgements. Keep local and online artwork in these shared renderers.
+
 - **Player 1** (left side) typically uses **WASD** or mouse left area
 - **Player 2** (right side) typically uses **IJKL** or mouse right area
 - Controls are per-player, not per-role (attacker/defender)

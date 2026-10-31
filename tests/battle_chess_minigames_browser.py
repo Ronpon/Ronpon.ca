@@ -48,6 +48,14 @@ def run():
                         page.on('pageerror', lambda error: errors.append(str(error)))
                         page.on('response', lambda response: errors.append(f'{response.status}: {response.url}') if response.status >= 400 and '/battle-chess/api/' in response.url else None)
                     host, guest = pages
+                    # Exercise controls while a previous response is still in flight.
+                    delay = float(os.environ.get('BATTLE_CHESS_INPUT_DELAY_MS', '0')) / 1000
+                    if delay:
+                        def delayed_input(route):
+                            response = route.fetch()
+                            time.sleep(delay)
+                            route.fulfill(response=response)
+                        host.route('**/battle-input', delayed_input)
                     host.goto(origin + '/games/battle-chess')
                     h = host.frame_locator('iframe')
                     h.get_by_role('button', name='Play Online').click()
@@ -80,6 +88,9 @@ def run():
                         h.get_by_role('button', name='Confirm', exact=True).click()
                         expect(g.locator('#online-result')).to_contain_text('left the room', timeout=10000)
                     elif game == 'memory-match':
+                        for frame in (h, g):
+                            frame.get_by_role('button', name='Got It', exact=True).click()
+                            expect(frame.locator('.hc-card-back img')).to_have_count(52)
                         with rooms._locked_room(code) as (_, room):
                             room['battle']['deck'] = list(range(52))
                         expect(g.get_by_role('button', name='Flip card 1', exact=True)).to_be_disabled()
@@ -90,6 +101,9 @@ def run():
                         for index in (14, 27, 40):
                             h.get_by_role('button', name=f'Flip card {index}', exact=True).click()
                     else:
+                        for frame in (h, g):
+                            expect(frame.locator('.mg-sidebar .player-emblem')).to_have_count(2)
+                            expect(frame.locator('.online-game-surface canvas')).to_be_visible()
                         if game == 'dodging-battle':
                             # Keep random hazards out of the movement/reconnect check;
                             # inject a collision after both sets of controls are verified.
@@ -146,6 +160,10 @@ def run():
                                 guest.screenshot(path=str(screenshot.with_name(screenshot.stem + '-mobile.png')), full_page=True)
                             assert g.locator('.online-dodge-canvas').evaluate("el => el.getBoundingClientRect().top >= 0 && document.querySelector('.online-direction-pad').getBoundingClientRect().bottom <= innerHeight"), 'Mobile arena and controls should be visible together'
                             with rooms._locked_room(code) as (_, room):
+                                # Under delayed responses the players may overlap.
+                                # Isolate this targeted hit from the simultaneous-hit test.
+                                room['battle']['actors']['w']['y'] = 50
+                                room['battle']['actors']['b']['y'] = 350
                                 actor = room['battle']['actors']['b']
                                 room['battle']['projectiles'] = [dict(x=actor['x'], y=actor['y'], vx=0, vy=0)]
                             expect(h.locator('#online-battle-status')).to_contain_text('Attacker wins', timeout=10000)

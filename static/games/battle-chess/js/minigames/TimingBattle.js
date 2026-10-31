@@ -88,6 +88,7 @@ export class TimingBattle extends BaseMinigame {
         this.container.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        if (this.network) { this._draw(); return; }
         document.addEventListener('keydown', this._onKeyDown);
 
         this._draw();
@@ -269,6 +270,18 @@ export class TimingBattle extends BaseMinigame {
 
     // ── Drawing ──────────────────────────────────────────
 
+    applyNetworkState(battle, now) {
+        this.position = battle.position;
+        this.phase = battle.stage === 'signal' ? 'ready' : battle.stage;
+        this.roundMessage = battle.phase === 'countdown' ? String(Math.max(0, Math.ceil(battle.startAt - now)))
+            : battle.stage === 'signal' ? 'NOW!' : battle.stage === 'result' ? battle.message : 'Wait for it...';
+        for (const [color, index] of [['w', 1], ['b', 2]]) {
+            const reaction = battle.reactions[color];
+            this[`displayP${index}Ms`] = reaction === -1 ? 'EARLY!' : reaction === undefined ? '' : reaction + 'ms';
+        }
+        this._draw();
+    }
+
     _draw() {
         const ctx = this.ctx;
         const W = this.arenaW;
@@ -342,20 +355,20 @@ export class TimingBattle extends BaseMinigame {
         ctx.font = '11px "Segoe UI", sans-serif';
         ctx.fillStyle = '#888';
         ctx.textAlign = 'center';
-        ctx.fillText(p1.name, 28, barY + 28);
-        ctx.fillText(p2.name, W - 28, barY + 28);
+        ctx.fillText(p1.name, 90, barY + 78, 160);
+        ctx.fillText(p2.name, W - 90, barY + 78, 160);
 
         // ── Reaction times — P1 on left, P2 on right ──
         ctx.font = 'bold 14px "Segoe UI", sans-serif';
         if (this.displayP1Ms) {
             ctx.fillStyle = this.displayP1Ms === 'EARLY!' ? '#e94560' : '#4ecdc4';
             ctx.textAlign = 'center';
-            ctx.fillText(this.displayP1Ms, 28, barY + 44);
+            ctx.fillText(this.displayP1Ms, 28, barY + 44, 50);
         }
         if (this.displayP2Ms) {
             ctx.fillStyle = this.displayP2Ms === 'EARLY!' ? '#e94560' : '#4ecdc4';
             ctx.textAlign = 'center';
-            ctx.fillText(this.displayP2Ms, W - 28, barY + 44);
+            ctx.fillText(this.displayP2Ms, W - 28, barY + 44, 50);
         }
 
         // ── Central message (NOW! / Wait / Result) ──

@@ -1,5 +1,5 @@
 import { GameEvent, GameState } from '../Constants.js';
-import { playerEmblemMarkup } from '../PlayerEmblems.js';
+import { createBattleLayout, createBattleResult, captureConsequence } from './BattleLayout.js';
 
 /**
  * Full-screen minigame wrapper UI.
@@ -32,43 +32,12 @@ export class MinigameScreen {
         this._currentCtx = { gameEntry, players, attackerColor, advantage, aiDifficulty, onEnd };
         const screenCtx = this._currentCtx;
 
-        const p1 = players[0];
-        const p2 = players[1];
-        const p1Role = attackerColor === 'w' ? 'Attacker' : 'Defender';
-        const p2Role = attackerColor === 'b' ? 'Attacker' : 'Defender';
-
-        // Determine which player has the advantage
-        const p1HasAdv = (advantage === 'attacker' && p1Role === 'Attacker') ||
-                         (advantage === 'defender' && p1Role === 'Defender');
-        const p2HasAdv = (advantage === 'attacker' && p2Role === 'Attacker') ||
-                         (advantage === 'defender' && p2Role === 'Defender');
-        const advBadge = '<div class="mg-advantage-badge">★ Advantage</div>';
-        const controlsHint = (player, controls) => player.isAI
-            ? `Computer controlled · ${aiDifficulty}`
-            : (controls || '');
-
-        const panel = document.createElement('div');
-        panel.className = 'mg-screen';
-        panel.innerHTML = `
-            <div class="mg-sidebar mg-sidebar-left">
-                <div class="mg-player-icon">${playerEmblemMarkup(p1.icon || '⚔️')}</div>
-                <div class="mg-player-name">${this._escapeHtml(p1.name)}</div>
-                <div class="mg-player-role mg-role-${p1Role.toLowerCase()}">${p1Role}</div>
-                ${p1HasAdv ? advBadge : ''}
-                <div class="mg-controls-hint">${this._escapeHtml(controlsHint(p1, gameEntry.controls?.player1))}</div>
-            </div>
-            <div class="mg-center">
-                <div class="mg-title">${this._escapeHtml(gameEntry.name)}</div>
-                <div class="mg-arena" id="mg-arena"></div>
-            </div>
-            <div class="mg-sidebar mg-sidebar-right">
-                <div class="mg-player-icon">${playerEmblemMarkup(p2.icon || '🛡️')}</div>
-                <div class="mg-player-name">${this._escapeHtml(p2.name)}</div>
-                <div class="mg-player-role mg-role-${p2Role.toLowerCase()}">${p2Role}</div>
-                ${p2HasAdv ? advBadge : ''}
-                <div class="mg-controls-hint">${this._escapeHtml(controlsHint(p2, gameEntry.controls?.player2))}</div>
-            </div>
-        `;
+        const panel = createBattleLayout({
+            players, attackerColor, advantage, gameEntry,
+            controls: players.map((player, index) => player.isAI
+                ? `Computer controlled · ${aiDifficulty}`
+                : gameEntry.controls?.[index === 0 ? 'player1' : 'player2'])
+        });
 
         this.container.innerHTML = '';
         this.container.appendChild(panel);
@@ -91,13 +60,7 @@ export class MinigameScreen {
                 if (result.tie) {
                     onEnd(result);
                 } else {
-                    const consequence = result.attackerWins
-                        ? 'The capture succeeds. The defending piece is taken.'
-                        : captureCtx?.move?.piece === 'k'
-                            ? 'The capture fails. The king and defending piece stay on the board.'
-                            : attackerLosesPiece
-                                ? 'The attacking piece is removed. The defending piece stays.'
-                                : 'The capture fails. Both pieces stay on the board.';
+                    const consequence = captureConsequence(result.attackerWins, captureCtx?.move?.piece === 'k', attackerLosesPiece);
                     this._showResult(result, players, attackerColor, () => {
                         if (this._currentCtx !== screenCtx) return;
                         this._hide();
@@ -137,29 +100,8 @@ export class MinigameScreen {
     }
 
     _showResult(result, players, attackerColor, onDone, consequence) {
-        const attacker = attackerColor === 'w' ? players[0] : players[1];
-        const defender = attackerColor === 'w' ? players[1] : players[0];
-        const winner = result.attackerWins ? attacker : defender;
-        const winLabel = result.attackerWins ? 'Attacker Wins!' : 'Defender Wins!';
-
-        const overlay = document.createElement('div');
-        overlay.className = 'mg-result-overlay';
-        overlay.innerHTML = `
-            <div class="mg-result-panel">
-                <div class="mg-result-icon">${playerEmblemMarkup(winner.icon || (winner === players[0] ? '⚔️' : '🛡️'))}</div>
-                <h3 class="mg-result-title">${winLabel}</h3>
-                <p class="mg-result-name">${this._escapeHtml(winner.name)}</p>
-                <p class="mg-result-consequence">${this._escapeHtml(consequence)}</p>
-                <button class="btn btn-primary mg-continue-btn">Continue</button>
-            </div>
-        `;
-
-        const arena = this.container.querySelector('#mg-arena');
-        arena.appendChild(overlay);
-
-        overlay.querySelector('.mg-continue-btn').addEventListener('click', () => {
-            onDone();
-        });
+        const overlay = createBattleResult({ result, players, attackerColor, consequence, onContinue: onDone });
+        this.container.querySelector('#mg-arena').appendChild(overlay);
     }
 
     _showTie({ onReplay }) {

@@ -52,7 +52,7 @@ export class BaseMinigame {
      * @param {string} config.aiDifficulty - 'easy', 'medium', or 'hard'
      * @param {Function} config.onEnd - callback when game ends
      */
-    init(container, { players, attackerColor, advantage, onEnd, aiDifficulty = 'medium' }) {
+    init(container, { players, attackerColor, advantage, onEnd, aiDifficulty = 'medium', network = null }) {
         this.clearTimers();
         if (this._animFrameId !== null) cancelAnimationFrame(this._animFrameId);
         this._animFrameId = null;
@@ -61,6 +61,8 @@ export class BaseMinigame {
         this.attackerColor = attackerColor;
         this.advantage = advantage || 'attacker';
         this.onEnd = onEnd;
+        // Network mode shares presentation, but never runs local rules or timers.
+        this.network = network;
         this._destroyed = false;
         this._ended = false;
         this.aiDifficulty = Object.hasOwn(AI_SETTINGS, aiDifficulty) ? aiDifficulty : 'medium';

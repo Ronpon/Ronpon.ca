@@ -182,7 +182,7 @@ def act(code, token, payload):
         # Controls and acknowledgements are scoped to the game/battle, not the
         # rapidly changing room revision. Chess moves still require a revision.
         scoped = payload.get('game') == room['game'] and (kind in ('leave', 'resign') or
-            (kind in ('battle-ready', 'choose', 'flip', 'continue') and room['battle'] and payload.get('battleId') == room['battle']['id']))
+            (kind in ('battle-ready', 'choose', 'flip', 'reveal', 'continue') and room['battle'] and payload.get('battleId') == room['battle']['id']))
         if not scoped and (type(payload.get("version")) is not int or payload["version"] != room["version"]):
             raise RoomError("The room changed. Syncing the latest position; please try again.", 409)
         _advance(room)
@@ -203,6 +203,8 @@ def act(code, token, payload):
             _move(room, color, payload)
         elif kind == "pick" and room["phase"] == "battle":
             _pick(room, color, payload)
+        elif kind == "reveal" and room["phase"] == "battle":
+            _reveal_cards(room)
         elif kind in ('choose', 'battle-ready', 'flip') and room['phase'] == 'battle':
             battle = room['battle']
             try:
@@ -334,12 +336,22 @@ def _pick(room, color, payload):
         raise RoomError("Choose an available card.")
     battle["picks"][color] = index
     if len(battle["picks"]) == 2:
+        battle["phase"] = "reveal-ready"
+
+
+def _reveal_cards(room):
+    battle = room["battle"]
+    if battle.get('gameId') != 'highest-card' or len(battle.get('picks', {})) != 2:
+        raise RoomError("Both players must pick a card before the reveal.", 409)
+    # Simultaneous Reveal clicks are safe and never resolve the capture twice.
+    if battle["outcome"] is None:
         attacker = battle["attacker"]
         a = battle["deck"][battle["picks"][attacker]] % 13
         b = battle["deck"][battle["picks"][_other(attacker)]] % 13
         advantage = room["options"]["advantage"]
         battle["outcome"] = ("tie" if a == b and advantage == "none" else
                              "attacker" if a > b or (a == b and advantage == "attacker") else "defender")
+        battle["phase"] = "result"
 
 
 def _resolve_battle(room):

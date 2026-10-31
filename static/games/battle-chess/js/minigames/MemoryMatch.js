@@ -67,7 +67,8 @@ export class MemoryMatch extends BaseMinigame {
                 this.deck.push({ suit, value: val });
             }
         }
-        this._shuffle(this.deck);
+        if (this.network) this.deck.fill(null);
+        else this._shuffle(this.deck);
 
         // Card state: 'down' | 'up' | 'matched'
         this.cardState = new Array(52).fill('down');
@@ -94,18 +95,21 @@ export class MemoryMatch extends BaseMinigame {
 
         // Turn indicator bar
         this._turnBar = document.createElement('div');
-        this._turnBar.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:10px; min-height:30px;';
+        this._turnBar.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:10px; min-height:30px; flex-wrap:wrap;';
         this.container.appendChild(this._turnBar);
 
         // Card grid
         this._grid = document.createElement('div');
+        this._grid.className = 'hc-grid';
         this._grid.style.cssText = 'display:grid; grid-template-columns:repeat(13,1fr); gap:4px; max-width:620px; width:100%;';
         this.container.appendChild(this._grid);
 
         // Build card elements
         this._cardEls = [];
         for (let i = 0; i < 52; i++) {
-            const el = document.createElement('div');
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.ariaLabel = `Flip card ${i + 1}`;
             el.className = 'hc-card hc-card-back';
             el.dataset.index = i;
             el.innerHTML = '<img class="hc-card-img" src="Images/Battle%20Chess%20Card%20back.png" alt="card" draggable="false">';
@@ -115,7 +119,7 @@ export class MemoryMatch extends BaseMinigame {
 
         // Player status area (counters)
         this._statusBar = document.createElement('div');
-        this._statusBar.style.cssText = 'display:flex; justify-content:center; gap:40px; margin-top:4px;';
+        this._statusBar.style.cssText = 'display:flex; justify-content:center; gap:12px; margin-top:4px; flex-wrap:wrap;';
         this.container.appendChild(this._statusBar);
 
         this._grid.addEventListener('click', this._onClick);
@@ -141,6 +145,12 @@ export class MemoryMatch extends BaseMinigame {
     }
 
     _flipCard(idx) {
+        if (this.network) {
+            if (this.network.canAct() && !this.turnLocked && this.cardState[idx] === 'down') {
+                this.network.action('flip', { index: idx, turnNumber: this.network.battle().turnNumber });
+            }
+            return;
+        }
         if (this.turnLocked || this._destroyed || this._ended || !Number.isInteger(idx)) return;
 
         // Can only flip face-down cards
@@ -297,6 +307,25 @@ export class MemoryMatch extends BaseMinigame {
     }
 
     // ── Rendering ────────────────────────────────────────
+
+    applyNetworkState(battle) {
+        this.currentPlayer = battle.turn === 'w' ? 0 : 1;
+        this.playerFlips = this.playerTarget = [battle.targets.w, battle.targets.b];
+        this.flippedThisTurn = battle.flipped;
+        this.turnLocked = battle.hideAt !== null || battle.outcome !== null || battle.turn !== this.network.you;
+        for (const [index, element] of this._cardEls.entries()) {
+            const value = battle.cards[index];
+            const state = value === undefined ? 'down' : battle.outcome !== null ? 'matched' : 'up';
+            if (state !== this.cardState[index] || (value !== undefined && !this.deck[index])) {
+                this.cardState[index] = state;
+                this.deck[index] = value === undefined ? null : { value: this.values[value % 13], suit: this.suits[Math.floor(value / 13)] };
+                this._renderCard(index);
+            }
+            element.ariaLabel = value === undefined ? `Flip card ${index + 1}` : `Card ${index + 1}: ${this.deck[index].value}${this.deck[index].suit}`;
+            element.disabled = state !== 'down' || this.turnLocked || !this.network.canAct();
+        }
+        this._updateUI();
+    }
 
     _renderCard(idx) {
         const el = this._cardEls[idx];

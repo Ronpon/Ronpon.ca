@@ -16,33 +16,30 @@
 .online-panel .online-room-code { text-align: center; font-size: 36px; letter-spacing: 6px; color: #e7ce96; }
 .online-message { color: #f0d69b; min-height: 1.5em; }
 .online-panel button:disabled { opacity: .5; cursor: default; }
-#online-battle-content { display: flex; flex-direction: column; gap: 16px; }
-.online-card-grid { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 5px; }
-.online-card { min-height: 48px; border: 1px solid #ddbd80; border-radius: 5px; background: #344a33; color: #eee2c0; font-size: 20px; cursor: pointer; }
-.online-card:hover:not(:disabled) { background: #ddbd80; color: #213322; }
-.online-revealed-cards { display: flex; justify-content: space-around; gap: 20px; text-align: center; }
-.online-revealed-cards > div { min-width: 0; flex: 1; }
-.online-card-face { display: inline-block; padding: 28px 12px; margin-top: 10px; border-radius: 8px; background: #f5f5f0; color: #213322; font-size: 36px; }
-@media (max-width: 500px) { .online-card-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
-#online-game-mix:not([hidden]) { display: flex; flex-direction: column; gap: 10px; }
-#online-battle-play { display: flex; flex-direction: column; gap: 12px; }
-.online-card-revealed { background: #f0e4c6; color: #18291d; }
-.online-panel .online-card-revealed:disabled { opacity: 1; }
-.online-battle-panel { gap: 10px; }
-.online-battle-panel #online-battle-help { font-size: 13px; color: #bec6a5; }
-#online-battle-status { font-weight: bold; color: #f0d69b; min-height: 1.5em; }
-.online-tug-labels { display: flex; justify-content: space-between; }
-.online-tug { position: relative; height: 24px; margin: 18px; border-radius: 12px; background: repeating-linear-gradient(to right, #8d9d71 0 2px, #18291d 2px 12.5%); border: 1px solid #87996e; }
-.online-tug::after { content: ''; position: absolute; left: 50%; top: -8px; height: 38px; border-left: 2px solid #e7ce96; }
-.online-tug-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1; background: #ddbd80; color: #14231b; width: 36px; height: 36px; display: grid; place-items: center; font-size: 24px; border-radius: 50%; transition: left .1s; }
-#battle-tap { min-height: 64px; font-size: 22px; touch-action: manipulation; }
-.online-dodge-canvas { display: block; width: min(100%, 340px); aspect-ratio: 1; margin: auto; border: 2px solid #87996e; border-radius: 8px; }
-.online-direction-pad { display: flex; gap: 8px; justify-content: center; }
-.online-direction-pad .btn { min-width: 52px; min-height: 48px; padding: 6px 14px; font-size: 24px; touch-action: none; user-select: none; }
-.online-battle-connection:empty { display: none; }
-.online-battle-panel .online-message:empty { display: none; }
-@media (max-height: 600px) {
-    .online-battle-panel[data-mode="live"] { padding: 12px; gap: 6px; }
-    .online-battle-panel[data-mode="live"] :is(#online-battle-context, #online-battle-help) { display: none; }
-    .online-battle-panel[data-mode="live"] .online-dodge-canvas { width: min(100%, max(140px, calc(100dvh - 280px))); }
+
+.online-battle-screen #online-battle-context,
+.online-battle-screen #online-battle-status { padding: 6px 12px; text-align: center; font-size: 12px; line-height: 1.4; }
+.online-battle-screen #online-battle-context { color: #bec6a5; font-size: 11px; }
+.online-battle-screen #online-battle-status { color: #f0d69b; }
+.online-game-surface { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.online-game-surface > canvas { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+.online-control-tray { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 5px 12px; padding: 4px 8px; }
+.online-control-tray[hidden] { display: none; }
+.online-control-tray p { font-size: 11px; text-align: center; color: #bec6a5; }
+#battle-tap { min-width: 140px; min-height: 44px; touch-action: manipulation; }
+.online-direction-pad { display: flex; gap: 6px; }
+.online-direction-pad .btn { min-width: 44px; min-height: 44px; padding: 5px 10px; font-size: 22px; touch-action: none; user-select: none; }
+.online-battle-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 5px 8px; }
+.online-battle-footer p { font-size: 11px; color: #f0d69b; }
+.online-battle-footer p:empty { display: none; }
+.online-battle-footer .btn { padding: 6px 12px; font-size: 11px; }
+.online-battle-screen .mg-countdown { font-size: 64px; font-weight: bold; color: #e94560; }
+.online-battle-screen .mg-explanation,
+.online-battle-screen .mg-result-overlay { padding: 16px; overflow: auto; }
+.online-battle-screen .mg-result-consequence { margin-bottom: 4px; }
+.online-battle-screen .mg-continue-btn:disabled { opacity: .7; cursor: default; }
+@media (max-height: 560px) {
+    .online-battle-screen #online-battle-context { display: none; }
+    .online-battle-screen #online-battle-status { padding: 3px 8px; font-size: 11px; }
+    .online-battle-footer { padding: 3px 6px; }
 }

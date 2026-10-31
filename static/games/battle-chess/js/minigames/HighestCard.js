@@ -40,7 +40,7 @@ export class HighestCard extends BaseMinigame {
 
         // Build and shuffle deck
         this.suits = ['♠', '♥', '♦', '♣'];
-        this.suitColors = { '♠': '#e0e0e0', '♥': '#e94560', '♦': '#e94560', '♣': '#e0e0e0' };
+        this.suitColors = { '♠': '#222', '♥': '#c0392b', '♦': '#c0392b', '♣': '#222' };
         this.values = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
         this.valueRank = {};
         this.values.forEach((v, i) => this.valueRank[v] = i + 2);
@@ -51,7 +51,8 @@ export class HighestCard extends BaseMinigame {
                 this.deck.push({ suit, value: val, rank: this.valueRank[val] });
             }
         }
-        this._shuffle(this.deck);
+        if (this.network) this.deck.fill(null);
+        else this._shuffle(this.deck);
 
         // State
         this.p1Choice = null; // index into deck
@@ -83,13 +84,16 @@ export class HighestCard extends BaseMinigame {
 
         // Card grid
         this._grid = document.createElement('div');
+        this._grid.className = 'hc-grid';
         this._grid.style.cssText = 'display:grid; grid-template-columns:repeat(13,1fr); gap:4px; max-width:620px; width:100%;';
         this.container.appendChild(this._grid);
 
         // Build card elements
         this._cardEls = [];
         for (let i = 0; i < 52; i++) {
-            const el = document.createElement('div');
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.ariaLabel = `Pick card ${i + 1}`;
             el.className = 'hc-card hc-card-back';
             el.dataset.index = i;
             el.innerHTML = '<img class="hc-card-img" src="Images/Battle%20Chess%20Card%20back.png" alt="card" draggable="false">';
@@ -135,6 +139,11 @@ export class HighestCard extends BaseMinigame {
     }
 
     _selectCard(idx) {
+        if (this.network) {
+            if (this.network.canAct() && this.currentPicker === (this.network.you === 'w' ? 0 : 1)
+                && ['p1-pick', 'p2-pick'].includes(this.phase)) this.network.action('pick', { index: idx });
+            return;
+        }
         if (this._destroyed || this._ended || !Number.isInteger(idx) || idx < 0 || idx >= this.deck.length) return;
 
         if (this.phase === 'p1-pick' || this.phase === 'p2-pick') {
@@ -210,11 +219,17 @@ export class HighestCard extends BaseMinigame {
     }
 
     _reveal() {
+        if (this.network) { if (this.network.canAct()) this.network.action('reveal'); return; }
         if (this._destroyed || this._ended || this.phase !== 'reveal-ready') return;
         this.phase = 'revealed';
         const card1 = this.deck[this.p1Choice];
         const card2 = this.deck[this.p2Choice];
 
+        this._renderReveal(card1, card2);
+        this.setTimer(() => this._determineWinner(card1, card2), 1200);
+    }
+
+    _renderReveal(card1, card2) {
         // Build reveal display
         this._grid.style.display = 'none';
         this._revealArea.innerHTML = '';
@@ -256,8 +271,40 @@ export class HighestCard extends BaseMinigame {
         this._revealArea.appendChild(vs);
         this._revealArea.appendChild(makeCardDisplay(this.players[1], card2, 1));
 
-        // Determine winner after a moment
-        this.setTimer(() => this._determineWinner(card1, card2), 1200);
+    }
+
+    applyNetworkState(battle) {
+        const picks = battle.picks;
+        for (const [color, index] of [['w', 0], ['b', 1]]) {
+            const choice = picks[color] ?? null;
+            const property = index === 0 ? 'p1Choice' : 'p2Choice';
+            if (this[property] !== choice) {
+                if (this[property] !== null) this._clearSelection(this[property]);
+                if (choice !== null) this._markSelection(choice, index);
+                this[property] = choice;
+            }
+        }
+        if (battle.outcome !== null) {
+            if (this.phase !== 'revealed') {
+                const card = value => ({ value: this.values[value % 13], suit: this.suits[Math.floor(value / 13)], rank: value % 13 + 2 });
+                this._renderReveal(card(battle.cards.w), card(battle.cards.b));
+                this.phase = 'revealed';
+            }
+            this._turnLabel.textContent = battle.outcome === 'tie' ? "It's a tie!" : 'Cards revealed';
+        } else if (Object.keys(picks).length === 2) {
+            if (this.phase !== 'reveal-ready') { this.phase = 'reveal-ready'; this._showRevealButton(); }
+            this._revealArea.querySelector('button').disabled = !this.network.canAct();
+        } else {
+            this.phase = Object.keys(picks).length ? 'p2-pick' : 'p1-pick';
+            this.currentPicker = Object.keys(picks).length ? this.defenderIdx : this.attackerIdx;
+            this._updateTurnLabel();
+        }
+        for (const [index, element] of this._cardEls.entries()) {
+            const chosenBy = picks.w === index ? 'White' : picks.b === index ? 'Black' : null;
+            element.ariaLabel = chosenBy ? `Card ${index + 1}, chosen by ${chosenBy}` : `Pick card ${index + 1}`;
+            element.disabled = !!chosenBy || !this.network.canAct() || this.currentPicker !== (this.network.you === 'w' ? 0 : 1)
+                || !['p1-pick', 'p2-pick'].includes(this.phase);
+        }
     }
 
     _determineWinner(card1, card2) {

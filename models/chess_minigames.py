@@ -112,7 +112,7 @@ def advance(battle, now):
                 _timing_round(battle, cutoff)
             if battle['stage'] == 'waiting' and cutoff >= battle['cueAt']:
                 battle.update(stage='signal', cue=secrets.token_hex(12))
-            if battle['stage'] == 'signal' and cutoff >= battle['cueAt'] + 3:
+            if battle['stage'] == 'signal' and cutoff >= battle['cueAt'] + 2:
                 _judge_timing(battle, cutoff)
         elif game == 'dodging-battle':
             # At most 2s of catch-up before a disconnected match pauses.
