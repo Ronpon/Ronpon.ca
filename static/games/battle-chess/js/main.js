@@ -12,6 +12,7 @@ import { SetupWizard } from './ui/SetupWizard.js';
 import { MinigameScreen } from './ui/MinigameScreen.js';
 import { MinigameChooser } from './ui/MinigameChooser.js';
 import { CheckWarning } from './ui/CheckWarning.js';
+import { OnlineMultiplayer } from './OnlineMultiplayer.js';
 import { GameEvent, BOARD_SIZE } from './Constants.js';
 
 // ── Minigame imports (add new minigames here) ──
@@ -88,7 +89,8 @@ class App {
         this._setupEventListeners();
 
         // Show setup wizard
-        this.setupWizard.show();
+        this.onlineMultiplayer = new OnlineMultiplayer(this);
+        await this.onlineMultiplayer.init();
 
         console.log('[Battle Chess] Initialized — setup wizard shown');
     }

@@ -41,6 +41,8 @@ def add_security_headers(response):
 # ---------------------------------------------------------------------------
 from models.db import init_db
 init_db(Config)
+from models.battle_chess import init_tables as init_battle_chess_tables
+init_battle_chess_tables()
 
 # ---------------------------------------------------------------------------
 # Flask-Login
@@ -65,6 +67,7 @@ from routes.main import main_bp
 from routes.auth import auth_bp
 from routes.games import games_bp
 from routes.party_games import party_games_bp
+from routes.battle_chess import battle_chess_bp
 from routes.videos import videos_bp
 from routes.pulse import pulse_bp
 from routes.shop import shop_bp
@@ -73,6 +76,7 @@ app.register_blueprint(main_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(games_bp, url_prefix="/games")
 app.register_blueprint(party_games_bp, url_prefix="/games/party")
+app.register_blueprint(battle_chess_bp, url_prefix="/games/battle-chess/api")
 app.register_blueprint(videos_bp, url_prefix="/videos")
 app.register_blueprint(pulse_bp, url_prefix="/thepulse")
 app.register_blueprint(shop_bp)

@@ -88,9 +88,16 @@ def index():
 
 @games_bp.route("/battle-chess")
 def battle_chess():
+    from models.battle_chess import normalize_code, RoomError
+    iframe_src = "/static/games/battle-chess/index.html"
+    try:
+        code = normalize_code(request.args.get("room", ""))
+        iframe_src += "?room=" + code
+    except RoomError:
+        pass
     return render_template("games/play.html",
                            game_title="Battle Chess",
-                           iframe_src="/static/games/battle-chess/index.html")
+                           iframe_src=iframe_src)
 
 
 @games_bp.route("/werblers")

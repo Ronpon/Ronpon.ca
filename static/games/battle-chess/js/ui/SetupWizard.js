@@ -54,8 +54,15 @@ export class SetupWizard {
                     <span class="count-sub">Local Multiplayer</span>
                 </button>
             </div>
+            <div class="setup-actions">
+                <button class="btn btn-primary" id="btn-online">Play Online — Invite a Friend</button>
+            </div>
         `);
 
+        this.panel.querySelector('#btn-online').addEventListener('click', () => {
+            this.hide();
+            this.eventBus.emit('showOnline');
+        });
         this.panel.querySelector('#btn-1p').addEventListener('click', () => {
             if (this.config.playerCount !== 1) {
                 this._localProfiles = this.config.players.map(player => ({ ...player }));

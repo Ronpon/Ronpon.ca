@@ -1,0 +1,48 @@
+#online-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; font-size: 13px; }
+#online-bar[hidden] { display: none; }
+.online-active #canvas-container { width: min(100%, max(220px, calc(100dvh - 150px))); }
+#online-status { flex: 1 1 240px; line-height: 1.5; }
+#online-bar .btn { padding: 8px 12px; }
+.online-panel { display: flex; flex-direction: column; gap: 16px; width: min(600px, calc(100% - 24px)); }
+.online-panel h2 { margin-bottom: 0; }
+.online-panel p { line-height: 1.5; overflow-wrap: anywhere; }
+.online-panel label { display: flex; flex-direction: column; gap: 8px; }
+.online-panel .setup-name-input { width: 100%; margin: 0; text-align: left; }
+.online-panel fieldset { display: flex; flex-direction: column; gap: 14px; border: 1px solid #87996e; border-radius: 8px; padding: 16px; }
+.online-panel legend { padding: 0 8px; }
+.online-panel select { width: 100%; background: #18291d; color: #f0e4c6; border: 1px solid #87996e; border-radius: 6px; padding: 10px; font: inherit; }
+.online-panel .online-checkbox { flex-direction: row; align-items: center; }
+.online-panel .online-hint { font-size: 13px; color: #bec6a5; }
+.online-panel .online-room-code { text-align: center; font-size: 36px; letter-spacing: 6px; color: #e7ce96; }
+.online-message { color: #f0d69b; min-height: 1.5em; }
+.online-panel button:disabled { opacity: .5; cursor: default; }
+#online-battle-content { display: flex; flex-direction: column; gap: 16px; }
+.online-card-grid { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 5px; }
+.online-card { min-height: 48px; border: 1px solid #ddbd80; border-radius: 5px; background: #344a33; color: #eee2c0; font-size: 20px; cursor: pointer; }
+.online-card:hover:not(:disabled) { background: #ddbd80; color: #213322; }
+.online-revealed-cards { display: flex; justify-content: space-around; gap: 20px; text-align: center; }
+.online-revealed-cards > div { min-width: 0; flex: 1; }
+.online-card-face { display: inline-block; padding: 28px 12px; margin-top: 10px; border-radius: 8px; background: #f5f5f0; color: #213322; font-size: 36px; }
+@media (max-width: 500px) { .online-card-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+#online-game-mix:not([hidden]) { display: flex; flex-direction: column; gap: 10px; }
+#online-battle-play { display: flex; flex-direction: column; gap: 12px; }
+.online-card-revealed { background: #f0e4c6; color: #18291d; }
+.online-panel .online-card-revealed:disabled { opacity: 1; }
+.online-battle-panel { gap: 10px; }
+.online-battle-panel #online-battle-help { font-size: 13px; color: #bec6a5; }
+#online-battle-status { font-weight: bold; color: #f0d69b; min-height: 1.5em; }
+.online-tug-labels { display: flex; justify-content: space-between; }
+.online-tug { position: relative; height: 24px; margin: 18px; border-radius: 12px; background: repeating-linear-gradient(to right, #8d9d71 0 2px, #18291d 2px 12.5%); border: 1px solid #87996e; }
+.online-tug::after { content: ''; position: absolute; left: 50%; top: -8px; height: 38px; border-left: 2px solid #e7ce96; }
+.online-tug-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1; background: #ddbd80; color: #14231b; width: 36px; height: 36px; display: grid; place-items: center; font-size: 24px; border-radius: 50%; transition: left .1s; }
+#battle-tap { min-height: 64px; font-size: 22px; touch-action: manipulation; }
+.online-dodge-canvas { display: block; width: min(100%, 340px); aspect-ratio: 1; margin: auto; border: 2px solid #87996e; border-radius: 8px; }
+.online-direction-pad { display: flex; gap: 8px; justify-content: center; }
+.online-direction-pad .btn { min-width: 52px; min-height: 48px; padding: 6px 14px; font-size: 24px; touch-action: none; user-select: none; }
+.online-battle-connection:empty { display: none; }
+.online-battle-panel .online-message:empty { display: none; }
+@media (max-height: 600px) {
+    .online-battle-panel[data-mode="live"] { padding: 12px; gap: 6px; }
+    .online-battle-panel[data-mode="live"] :is(#online-battle-context, #online-battle-help) { display: none; }
+    .online-battle-panel[data-mode="live"] .online-dodge-canvas { width: min(100%, max(140px, calc(100dvh - 280px))); }
+}

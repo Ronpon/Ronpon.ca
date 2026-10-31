@@ -16,7 +16,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 - Player chooses **1 or 2 players**.
   - **1 Player:** Play against the computer on the chessboard and in all five battle minigames.
   - **2 Players:** Local multiplayer.
-- **Local play only** for now, but architecture should support future online multiplayer.
+- **Play Online — Invite a Friend:** Create or join a private two-player room with a six-character code or invite link. The host is White; the guest is Black. No account is required.
 
 ### Solo Settings (1 Player Only)
 - Choose **Chess difficulty**: Easy, Medium, or Hard. This controls the computer's board strategy and search budget.
@@ -216,12 +216,34 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 ## Architecture Notes
 
-- **Tech stack:** JavaScript / HTML5 (Canvas).
-- Build with **local multiplayer** first.
+- **Tech stack:** JavaScript / HTML5 Canvas / Three.js, with Flask and database-backed rooms for online play.
+- Local multiplayer runs entirely in the browser.
 - Solo chess and battle AI run entirely in the browser, without an external AI service.
-- Structure networking/game state so that **online multiplayer** can be added later without major refactoring.
-  - Separate game logic from input handling.
-  - Use a game state model that could be serialized/sent over a network.
+- Online multiplayer uses server-validated chess and battle state; clients render snapshots and submit only their own moves and controls.
+
+## Online Multiplayer
+
+- Online mode offers **all five capture minigames** or **classic chess**. Choose a single game or a mix, with random selection, set order, attacker choice, or defender choice. Set order follows the listed checked games and advances on each new capture; ties replay the same game.
+- The host chooses battle advantage (attacker, defender, or none) and whether a losing attacker is removed. In **Highest Card**, the attacker picks a face-down card first, then the defender picks a different card. Both cards are revealed together, and both players acknowledge the result before play continues. Ties with no advantage use a new shuffled deck.
+- **Memory Match:** attacker goes first. Both players see each revealed card; hidden card values stay on the server. Flip four cards per turn and match four suits of a rank to win. An advantaged player flips and matches three instead. Unmatched cards remain visible for two seconds before the other player's turn. Refresh restores the current turn and revealed cards.
+- **Mashing Battle:** both players confirm readiness, then share a three-second countdown and a twenty-second battle. White presses A, Black presses L, or either uses Space/the tap button for their own seat. Every five presses pushes one notch toward the opponent; the side past the center wins. Key auto-repeat is ignored. Inputs are batched and rate-bounded. The advantaged player starts one notch ahead toward the opponent (White at 5, Black at 3); no advantage starts at 4.
+- **Timing Battle:** both players confirm readiness. A hidden server schedule reveals NOW! after two to six seconds; each player can respond once per round. Early presses lose a point. The server measures reactions from when it first sent that player the signal, reducing polling-order bias without trusting client timestamps. A round ends when both respond or the response window closes. First to push to the far end wins. Stable connections give the fairest results; unequal network latency can still affect measured reactions. Reconnecting restarts an unfinished reaction round with a new hidden cue while retaining the score.
+- **Dodging Battle:** each browser controls only its own circle with WASD, IJKL, arrows, or pointer/touch direction buttons. The server simulates movement, shared projectiles, speed increases, and collisions in fixed 20 ms steps. An advantaged player receives a second life, with a five-second countdown after using it. Simultaneous final hits cause a tie. Lost key-up events expire; clients cannot supply positions, lives, or collision outcomes.
+- A failed battle follows the same capture/removal rules as local play. Kings stay on the board. A checked attacker keeps the turn to answer check, including after a pinned attacker is removed; there are no automatic battle forfeits. Normal chess endings still apply.
+- Only the player whose turn it is can move. Standard special moves, promotion choices, checkmate, stalemate, insufficient material, threefold repetition, and the fifty-move draw rule are validated on the server.
+- Players can resign, leave, and request a rematch. A rematch needs both players' consent and keeps the same colors and settings. Leaving during play concedes the game.
+- Refreshing the same tab restores its seat and any pending battle. Disconnections retry automatically; the opponent sees connection status. Timed battles pause after two seconds without either player's control heartbeat. Both players must explicitly confirm readiness to resume after a new countdown; Mashing preserves its remaining time and score, and Dodging preserves its arena. There is no automatic disconnect forfeit. Rooms expire after 24 hours without activity. Closing a tab does not immediately resign; a seat token is stored in session storage, so a new browser/device cannot recover that seat just from the public invite link.
+- `OnlineMultiplayer.js` connects the existing board/input flow to `/games/battle-chess/api`. The existing local minigame engine continues to handle local games.
+- `models/battle_chess.py` owns authoritative rules and hidden card decks using `chess==1.11.2`. Room state is stored in `battle_chess_rooms`, created at application startup on SQLite or PostgreSQL. SQLite write transactions and PostgreSQL row locks serialize updates across threads/workers. Revision checks reject stale commands; action IDs prevent duplicate execution after a lost response.
+- Clients poll roughly every 1.2 seconds on the chessboard and every 250 ms during card battles. Timed games exchange sequenced control frames about every 100 ms, with immediate reaction/key-change submissions when possible. One control request per browser is in flight at a time; retries use the same sequence number, so presses cannot be counted twice. Independent player inputs and battle acknowledgements use battle/game identifiers rather than conflicting chessboard revisions. `models/chess_minigames.py` advances simulations inside the room's database lock; no worker-local simulation or timer is needed. Reconnect retries wait one second. Mutations use the site's CSRF protection and room-specific random seat tokens; only token hashes are persisted. API responses are private and uncached, with creation/join/action/poll/control rate limits. Production capacity still depends on database and request latency; these fast control exchanges are intended for private two-player rooms.
+- Install the updated `requirements.txt` and restart the Flask/Gunicorn app to activate the API and create the table. No additional service or WebSocket infrastructure is required. Online mode requires the Flask app; serving only the static game files supports local play.
+
+### Multiplayer verification
+
+- `.venv/Scripts/python.exe -m unittest discover -s tests -p test_battle_chess.py` — temporary-database tests for room access, CSRF, concurrency, legal turns, special moves, hidden cards, battle rules, reconnect state, draws, rematches, and expiration.
+- `.venv/Scripts/python.exe -m unittest discover -s tests -p "test_battle_chess*.py"` — includes all minigame rules, server timers, input sequencing, game selection, extra lives, shared collisions, pause/resume, and hidden-card/cue tests.
+- `.venv/Scripts/python.exe tests/battle_chess_browser.py` — optional Playwright integration test using Microsoft Edge (or installed Chromium), independent browsers, and temporary databases. Covers invites, actual board clicks, battle refresh, connection loss/recovery, resignation, rematch, local setup, and the mobile lobby. Install Playwright separately for this check; it is not a production dependency.
+- `.venv/Scripts/python.exe tests/battle_chess_minigames_browser.py` — two-browser gameplay checks for all four additional games and defender-choice selection, including the real Mashing countdown/timer, keyboard and mobile direction controls, disconnect/rejoin, and shared capture outcomes. Optional game IDs as arguments narrow this check.
 
 ---
 
@@ -229,6 +251,7 @@ Battle Chess plays like a normal chess game with one key twist: whenever a piece
 
 | Date       | Change Description                          |
 |------------|---------------------------------------------|
+| 2026-10-30 | Released private online rooms, invite links, all five server-controlled battle minigames, reconnect and disconnect handling, resignation, rematches, and multiplayer API/browser checks. |
 | 2026-10-23 | Corrected failed capture resolution: apply attacker removal symmetrically, remove automatic battle forfeits, retain the turn to answer check, preserve kings and valid castling/history state, explain capture consequences, and fix reversed Mashing/Timing advantages. |
 | 2026-10-23 | Replaced the emoji player picker with 16 original engraved crests, theme-aware profile cards, live previews, named keyboard-accessible choices, and matching SVG/canvas avatars throughout the battle minigames. |
 | 2026-10-23 | Added a scroll-free fullscreen board with responsive sizing, retained battle/promotion controls, browser exit handling, and Select All for minigame setup. |
