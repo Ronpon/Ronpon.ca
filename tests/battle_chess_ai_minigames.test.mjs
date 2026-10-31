@@ -331,3 +331,33 @@ test('local two-player games schedule no computer actions', () => {
     assert.equal(cards.p2Choice, null);
     cards.destroy();
 });
+
+test('network dodging moves between slow replies and a pending release never snaps backward', () => {
+    const h = harness();
+    const game = h.game('DodgingBattle', -1);
+    game.network = { you: 'w' };
+    const battle = { phase: 'playing', elapsed: 0, projectiles: [],
+        actors: { w: { x: 120, y: 200, lives: 1 }, b: { x: 280, y: 200, lives: 1 } },
+        directions: { w: 8, b: 0 } };
+    game.applyNetworkState(battle, 0, 8, true, 0, 0);
+    let previous = game.p1.x;
+    for (let frame = 1; frame <= 30; frame++) {
+        h.tick(16);
+        game.applyNetworkState(battle, frame * .016, 8, true, 0, frame * .016);
+        assert.ok(game.p1.x > previous, 'Held movement must keep drawing between HTTP replies');
+        previous = game.p1.x;
+    }
+    assert.ok(Math.abs(game.p1.x - (120 + 180 * .48)) < 1);
+    for (let frame = 31; frame <= 40; frame++) {
+        h.tick(16);
+        game.applyNetworkState(battle, frame * .016, 0, true, 0, frame * .016);
+        assert.equal(game.p1.x, previous, 'An old held-key snapshot must not undo a local release');
+    }
+    battle.directions.w = 0;
+    battle.actors.w.x = previous + 8;
+    h.tick(16);
+    game.applyNetworkState(battle, .656, 0, true, 0, .05);
+    assert.ok(game.p1.x > previous && game.p1.x < battle.actors.w.x, 'Reconcile smoothly after acknowledgement');
+    game.destroy();
+    assert.equal(h.timers.size, 0);
+});

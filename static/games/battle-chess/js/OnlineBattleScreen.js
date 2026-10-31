@@ -141,7 +141,8 @@ export class OnlineBattleScreen {
             return;
         }
         this.root.querySelector('#online-battle-context').textContent = players[b.attacker].name + ' attacks ' + b.move.slice(0, 2) + ' → ' + b.move.slice(2, 4) + '. You play ' + (you === 'w' ? 'White' : 'Black') + '.';
-        this.game.applyNetworkState(b, this.now(), this._directions(), this.online.connected, this.room._receivedAt);
+        this.game.applyNetworkState(b, this.now(), this._directions(), this.online.connected,
+            this.room._receivedAt, this.now() - this.room.serverTime);
         const countdown = b.phase === 'countdown';
         if (this.mode === 'ready') status.textContent = b.phase === 'paused'
             ? 'Connection interrupted. The battle is paused. Both players must be ready to resume.'

@@ -388,21 +388,47 @@ export class DodgingBattle extends BaseMinigame {
 
     // ── Drawing ──────────────────────────────────────────
 
-    applyNetworkState(battle, now, directions = 0, connected = true, receivedAt = performance.now()) {
-        const dt = battle.phase === 'playing' && connected
-            ? Math.min(0.12, Math.max(0, (performance.now() - receivedAt) / 1000)) : 0;
+    applyNetworkState(battle, now, directions = 0, connected = true, receivedAt = performance.now(), snapshotAge) {
+        const timestamp = performance.now();
+        const age = Math.max(0, snapshotAge ?? (timestamp - receivedAt) / 1000);
+        const active = battle.phase === 'playing' && connected;
+        const dt = active ? Math.min(0.75, age) : 0;
+        const frameTime = Math.min(0.05, Math.max(0, (timestamp - (this._networkFrameAt ?? timestamp)) / 1000));
+        this._networkFrameAt = timestamp;
+        this._networkPositions ??= {};
+        const velocity = mask => {
+            const dx = Number(!!(mask & 8)) - Number(!!(mask & 4));
+            const dy = Number(!!(mask & 2)) - Number(!!(mask & 1));
+            const length = Math.hypot(dx, dy) || 1;
+            return { x: dx / length * this.playerSpeed, y: dy / length * this.playerSpeed };
+        };
         const speed = this.speed + battle.elapsed * 12;
         this.projectiles = battle.projectiles.map(p => ({ ...p, x: p.x + p.vx * speed * dt, y: p.y + p.vy * speed * dt }));
         for (const [color, player] of [['w', this.p1], ['b', this.p2]]) {
-            Object.assign(player, battle.actors[color], { alive: battle.actors[color].lives > 0 });
-            // Predict only the local seat between authoritative snapshots.
-            if (color === this.network.you && dt) {
-                const dx = Number(!!(directions & 8)) - Number(!!(directions & 4));
-                const dy = Number(!!(directions & 2)) - Number(!!(directions & 1));
-                const length = Math.hypot(dx, dy) || 1;
-                player.x = Math.max(16, Math.min(384, player.x + dx / length * this.playerSpeed * dt));
-                player.y = Math.max(16, Math.min(384, player.y + dy / length * this.playerSpeed * dt));
+            const actor = battle.actors[color];
+            const applied = battle.directions?.[color] || 0;
+            const serverVelocity = velocity(applied);
+            const target = { x: actor.x + serverVelocity.x * dt, y: actor.y + serverVelocity.y * dt };
+            const position = this._networkPositions[color] ??= { x: actor.x, y: actor.y };
+            if (battle.phase !== 'playing') { position.x = actor.x; position.y = actor.y; }
+            else if (active && age < 1.25) {
+                if (color === this.network.you) {
+                    // Move immediately, including while a control reply is in flight.
+                    const localVelocity = velocity(directions);
+                    position.x += localVelocity.x * frameTime;
+                    position.y += localVelocity.y * frameTime;
+                }
+                // Reconcile after the server has applied the current local keys.
+                // A pending key release must not snap back to an older held-key frame.
+                if (color !== this.network.you || applied === directions) {
+                    const blend = 1 - Math.exp(-frameTime * 12);
+                    position.x += (target.x - position.x) * blend;
+                    position.y += (target.y - position.y) * blend;
+                }
             }
+            position.x = Math.max(16, Math.min(384, position.x));
+            position.y = Math.max(16, Math.min(384, position.y));
+            Object.assign(player, actor, position, { alive: actor.lives > 0 });
         }
         this._draw();
     }

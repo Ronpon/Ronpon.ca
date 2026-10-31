@@ -212,14 +212,29 @@ class MinigameSimulationTests(unittest.TestCase):
         self.assertGreater(b['actors']['w']['x'], 140)
         self.assertLess(b['actors']['w']['x'], 150)
         self.assertEqual(b['actors']['b']['x'], 280)
-        self.advance(b, 3.4)
+        self.advance(b, 4.4)
         x = b['actors']['w']['x']
-        self.advance(b, 3.7)
+        self.advance(b, 4.7)
         self.assertEqual(b['actors']['w']['x'], x)
+        self.assertEqual(games.public(b, 'b')['directions']['w'], 0)
         b['actors']['w']['x'] = 383
-        games.input_frame(b, 'w', {'seq': 2, 'keys': 8}, 3.7)
-        self.advance(b, 3.9)
+        games.input_frame(b, 'w', {'seq': 2, 'keys': 8}, 4.7)
+        self.advance(b, 4.9)
         self.assertEqual(b['actors']['w']['x'], 384)
+
+    def test_dodging_held_movement_survives_slow_control_round_trips(self):
+        b = self.game('dodging-battle')
+        b['actors']['w']['x'] = 16
+        b['spawnTimer'] = -100
+        for seq, now in enumerate([3, 3.65, 4.3], start=1):
+            self.advance(b, now)
+            games.input_frame(b, 'w', {'seq': seq, 'keys': 8}, now)
+        self.advance(b, 4.6)
+        self.assertAlmostEqual(b['actors']['w']['x'], 16 + 180 * 1.6, delta=4)
+        self.assertEqual(games.public(b, 'b')['directions']['w'], 8)
+        games.input_frame(b, 'w', {'seq': 4, 'keys': 0}, 4.6)
+        self.advance(b, 4.8)
+        self.assertEqual(games.public(b, 'b')['directions']['w'], 0)
 
     def test_timing_resume_restarts_unfinished_cue_without_changing_score(self):
         b = self.game('timing-battle')

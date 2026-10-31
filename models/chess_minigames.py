@@ -10,6 +10,7 @@ GAMES = ('highest-card', 'memory-match', 'mashing-battle', 'timing-battle', 'dod
 LIVE_GAMES = ('mashing-battle', 'timing-battle', 'dodging-battle')
 STEP = 0.02
 DISCONNECT_AFTER = 2.0
+CONTROL_LIFETIME = 1.25  # Tolerate a delayed reply plus the next control heartbeat.
 
 
 class BattleError(ValueError):
@@ -212,7 +213,7 @@ def _dodge_step(battle):
     for color, actor in battle['actors'].items():
         control = battle['controls'][color]
         # Lost key-up messages never leave a player moving indefinitely.
-        keys = control['keys'] if battle['lastTick'] - control['at'] < .35 else 0
+        keys = control['keys'] if battle['lastTick'] - control['at'] < CONTROL_LIFETIME else 0
         dx, dy = bool(keys & 8) - bool(keys & 4), bool(keys & 2) - bool(keys & 1)
         length = math.hypot(dx, dy) or 1
         actor['x'] = max(16, min(384, actor['x'] + dx / length * 180 * dt))
@@ -264,6 +265,10 @@ def public(battle, color):
         state['cards'] = {str(i): battle['deck'][i] for i in battle['flipped']}
     elif game in LIVE_GAMES:
         state['ack'] = battle['seq'][color]
+        if game == 'dodging-battle':
+            state['directions'] = {c: control['keys'] if battle['phase'] == 'playing'
+                and battle['lastTick'] - control['at'] < CONTROL_LIFETIME else 0
+                for c, control in battle['controls'].items()}
         if game == 'timing-battle':
             state['cue'] = battle['cue'] if battle['stage'] == 'signal' and battle['phase'] == 'playing' else None
     return state
