@@ -52,6 +52,83 @@ def _extract_gains(combat_info: dict, log: list, log_start: int, content_module)
 class InteractiveTurnMixin:
     """Step-by-step interactive turn methods mixed into Game."""
 
+    def combat_preview(self):
+        """Current combat totals, recomputed after equipment or consumable use."""
+        from .combat import combat_totals
+        pc = self._pending_combat
+        if not pc or "monster" not in pc:
+            return {}
+        player, monster = self.current_player, pc["monster"]
+        player_mod = monster_mod = 0
+        breakdown = []
+        if pc.get("type") == "miniboss":
+            player_mod, monster_mod, _ = enc._apply_miniboss_modifiers(player, monster, breakdown, self.is_night)
+            player_mod += pc.get("ogre_player_mod", 0)
+            monster_mod += pc.get("ogre_monster_mod", 0)
+        elif pc.get("type") == "werbler":
+            player_mod, monster_mod = enc._apply_werbler_modifiers(player, monster, breakdown, self.is_night)
+            kneel = 10 * sum(c.effect_id == "kneel" for c in player.curses)
+            monster_mod += kneel
+            if kneel:
+                breakdown.append(f"  KNEEL!: Werbler strength +{kneel}.")
+        return {**combat_totals(player, monster, is_night=self.is_night,
+                               extra_strength=player_mod + self._prefight_str_bonus,
+                               monster_modifier=monster_mod + self._prefight_monster_str_bonus),
+                "ability_player_mod": player_mod, "ability_monster_mod": monster_mod,
+                "ability_breakdown": breakdown, "prefight_str_bonus": self._prefight_str_bonus,
+                "prefight_monster_str_bonus": self._prefight_monster_str_bonus}
+
+    def can_scavenge(self):
+        po = self._pending_offer
+        return bool(po and po.get("type") in ("chest", "shop") and not po.get("from_mystery")
+                    and not po.get("scavenger_used")
+                    and any(t.effect_id == "scavenger" for t in self.current_player.traits))
+
+    def scavenger_swap(self, item_index=0):
+        """Replace one offered item, once per chest/shop, in every play mode."""
+        if not self.can_scavenge():
+            raise ValueError("Scavenger is not available for this offer.")
+        po = self._pending_offer
+        if type(item_index) is not int or not 0 <= item_index < len(po["items"]):
+            raise ValueError("Choose an offered item to replace.")
+        deck = self.item_decks[po["level"]]
+        if deck.is_empty():
+            raise ValueError("The item deck is empty.")
+        old = po["items"][item_index]
+        new = deck.draw()
+        deck.put_bottom(old)
+        po["items"][item_index] = new
+        po["scavenger_used"] = True
+        return [f"  Scavenger: put {old.name} back, drew {new.name}."]
+
+    def crossroads_discard(self, sources):
+        """Validate the full sacrifice before removing any equipped items."""
+        pc = self._pending_combat
+        if not pc or pc.get("monster") is None or pc["monster"].effect_id != "crossroads_demon":
+            raise ValueError("Not a Crossroads Demon encounter.")
+        if not isinstance(sources, list):
+            raise ValueError("Choose equipped items to discard.")
+        player = self.current_player
+        slots = {"equip_helmet": player.helmets, "equip_chest": player.chest_armor,
+                 "equip_leg": player.leg_armor, "equip_weapon": player.weapons}
+        selected, seen = [], set()
+        for source in sources:
+            if not isinstance(source, dict) or not isinstance(source.get("source"), str):
+                raise ValueError("Choose equipped items to discard.")
+            slot, index = source["source"], source.get("index")
+            if slot not in slots or type(index) is not int or not 0 <= index < len(slots[slot]) or (slot, index) in seen:
+                raise ValueError("Choose each equipped item only once.")
+            seen.add((slot, index))
+            item = slots[slot][index]
+            if item.locked_by_curse_id and any(c.effect_id == item.locked_by_curse_id for c in player.curses):
+                raise ValueError(f"{item.name} is locked by a curse and cannot be removed.")
+            selected.append(item)
+        for slot, index in sorted(seen, key=lambda pair: pair[1], reverse=True):
+            slots[slot].pop(index)
+        pc.setdefault("crossroads_discards", []).extend(selected)
+        _fx.refresh_tokens(player)
+        return self.combat_preview()
+
     def get_available_abilities(self) -> list[dict]:
         """Return "you may" abilities the current player can activate this turn.
 
@@ -177,8 +254,8 @@ class InteractiveTurnMixin:
         For CHEST / SHOP tiles the drawn item(s) are stored in
         ``self._pending_offer`` and the method returns early with
         ``phase == "offer_chest"`` or ``"offer_shop"``so the UI can ask the
-        player what to do with them.  All other tile types are resolved
-        automatically and return ``phase == "done"``.
+        player what to do with them. Combat, Charlie Work, and mystery events
+        also pause for input; only completed encounters return ``done``.
 
         Parameters
         ----------
@@ -198,6 +275,8 @@ class InteractiveTurnMixin:
         """
         if activated is None:
             activated = {}
+        if self._pending_trait_loss is not None:
+            raise ValueError("Choose the traits to lose first.")
 
         player = self.current_player
         self.turn_number += 1
@@ -286,37 +365,7 @@ class InteractiveTurnMixin:
                 log.append("  Touchdown!: teleported to tile 90 (Werbler)!")
                 tile = self.board[90]
                 tile.revealed = True
-                werbler = self.player_werblers.get(player.player_id)
-                if werbler is None:
-                    log.append("No werbler assigned — skipping.")
-                    combat_result = None
-                else:
-                    td_ctx = GameContext(
-                        log=log,
-                        is_night=self.is_night,
-                        players=self.players,
-                        decide_fn=self._decide,
-                        select_fn=self._select,
-                        trait_deck=self.trait_deck,
-                        curse_deck=self.curse_deck,
-                        item_decks=self.item_decks,
-                        monster_decks=self.monster_decks,
-                    )
-                    combat_result, self.status = enc.encounter_werbler(
-                        player, werbler, td_ctx,
-                    )
-                if self.status == GameStatus.WON:
-                    self.winner = player.player_id
-                    log.append(f"\U0001f389 Game Over \u2014 {player.name} Wins!")
-                self._finish_post_encounter(player, log)
-                self._advance_turn()
-                return {
-                    "phase": "done", "log": log,
-                    "moved_from": old_pos, "moved_to": 90,
-                    "card_played": 0, "tile_type": TileType.WERBLER.name,
-                    "combat_result": combat_result.name if combat_result else None,
-                    "game_status": self.status.name, "winner": self.winner,
-                }
+                return self._begin_werbler_combat(player, log, old_pos, 0)
 
         # 8. Empty hand check
         if not player.movement_hand:
@@ -570,7 +619,7 @@ class InteractiveTurnMixin:
                 "monster_name": monster.name,
                 "monster_strength": monster.strength + _male_bonus,
                 "monster_bonus_vs_male": _male_bonus,
-                "player_strength": player.combat_strength(),
+                "player_strength": player.combat_strength(is_night=self.is_night),
                 "player_id": player.player_id,
                 "player_name": player.name,
                 "hero_id": player.hero.id.name if player.hero else None,
@@ -579,6 +628,7 @@ class InteractiveTurnMixin:
                 "result": None,
                 "ill_come_in_again_available": reroll_count > 0,
             }
+            combat_info.update(self.combat_preview())
             self._last_combat_info = combat_info
             return {
                 "phase": "combat",
@@ -664,7 +714,7 @@ class InteractiveTurnMixin:
             combat_info = {
                 "monster_name": miniboss.name,
                 "monster_strength": miniboss.strength + _ab_monster_mod + ogre_monster_mod,
-                "player_strength": max(0, player.combat_strength() + _ab_player_mod + ogre_player_mod),
+                "player_strength": max(0, player.combat_strength(is_night=self.is_night) + _ab_player_mod + ogre_player_mod),
                 "ability_player_mod": _ab_player_mod + ogre_player_mod,
                 "ability_monster_mod": _ab_monster_mod + ogre_monster_mod,
                 "ability_breakdown": _ab_log,
@@ -677,6 +727,7 @@ class InteractiveTurnMixin:
                 "level": 1 if new_pos == 30 else 2,
                 "result": None,
             }
+            combat_info.update(self.combat_preview())
             self._last_combat_info = combat_info
             return {
                 "phase": "combat", "log": log,
@@ -685,60 +736,9 @@ class InteractiveTurnMixin:
                 "combat_info": combat_info,
             }
 
-        # 15.7 WERBLER — pause for pre-fight phase
+        # Final boss arrivals always pause for combat and loss choices.
         if actual_type == TileType.WERBLER:
-            werbler = self.player_werblers.get(player.player_id)
-            if werbler is None:
-                log.append("No werbler assigned \u2014 skipping.")
-                self._finish_post_encounter(player, log)
-                self._advance_turn()
-                return {
-                    "phase": "done", "log": log,
-                    "moved_from": old_pos, "moved_to": new_pos,
-                    "card_played": card_value, "tile_type": tile.tile_type.name,
-                    "combat_result": None, "game_status": self.status.name, "winner": self.winner,
-                }
-            self._prefight_str_bonus = 0
-            self._prefight_monster_str_bonus = 0
-            # Compute ability modifiers for pre-fight STR display
-            _ab_log: list[str] = []
-            _ab_player_mod, _ab_monster_mod = enc._apply_werbler_modifiers(
-                player, werbler, _ab_log, self.is_night)
-            self._pending_combat = {
-                "type": "werbler",
-                "monster": werbler,
-                "other_players": [p for p in self.players if p is not player],
-                "level": 3,
-                "log": log,
-                "old_pos": old_pos, "new_pos": new_pos,
-                "card_value": card_value, "tile_type": tile.tile_type.name,
-                "ability_player_mod": _ab_player_mod,
-                "ability_monster_mod": _ab_monster_mod,
-                "ability_breakdown": _ab_log,
-            }
-            combat_info = {
-                "monster_name": werbler.name,
-                "monster_strength": werbler.strength + _ab_monster_mod,
-                "player_strength": max(0, player.combat_strength() + _ab_player_mod),
-                "ability_player_mod": _ab_player_mod,
-                "ability_monster_mod": _ab_monster_mod,
-                "ability_breakdown": _ab_log,
-                "nice_hat_bonus": getattr(werbler, "_brady_nice_hat_bonus", 0),
-                "description": werbler.description,
-                "player_id": player.player_id,
-                "player_name": player.name,
-                "hero_id": player.hero.id.name if player.hero else None,
-                "category": "werbler",
-                "level": 3,
-                "result": None,
-            }
-            self._last_combat_info = combat_info
-            return {
-                "phase": "combat", "log": log,
-                "moved_from": old_pos, "moved_to": new_pos,
-                "card_played": card_value, "tile_type": tile.tile_type.name,
-                "combat_info": combat_info,
-            }
+            return self._begin_werbler_combat(player, log, old_pos, card_value)
 
         # 16. All other tile types — auto-resolve
         combat_result = self._resolve_auto_encounter(
@@ -755,6 +755,64 @@ class InteractiveTurnMixin:
             "combat_result": combat_result.name if combat_result else None,
             "combat_info": self._last_combat_info,
             "game_status": self.status.name, "winner": self.winner,
+        }
+
+    def _begin_werbler_combat(self, player, log, old_pos, card_value):
+        """All arrivals, including Touchdown, use the same interactive fight."""
+        new_pos = 90
+        tile = self.board[new_pos]
+        werbler = self.player_werblers.get(player.player_id)
+        if werbler is None:
+            log.append("No werbler assigned \u2014 skipping.")
+            self._finish_post_encounter(player, log)
+            self._advance_turn()
+            return {
+                "phase": "done", "log": log,
+                "moved_from": old_pos, "moved_to": new_pos,
+                "card_played": card_value, "tile_type": tile.tile_type.name,
+                "combat_result": None, "game_status": self.status.name, "winner": self.winner,
+            }
+        self._prefight_str_bonus = 0
+        self._prefight_monster_str_bonus = 0
+        # Compute ability modifiers for pre-fight STR display
+        _ab_log: list[str] = []
+        _ab_player_mod, _ab_monster_mod = enc._apply_werbler_modifiers(
+            player, werbler, _ab_log, self.is_night)
+        self._pending_combat = {
+            "type": "werbler",
+            "monster": werbler,
+            "other_players": [p for p in self.players if p is not player],
+            "level": 3,
+            "log": log,
+            "old_pos": old_pos, "new_pos": new_pos,
+            "card_value": card_value, "tile_type": tile.tile_type.name,
+            "ability_player_mod": _ab_player_mod,
+            "ability_monster_mod": _ab_monster_mod,
+            "ability_breakdown": _ab_log,
+        }
+        combat_info = {
+            "monster_name": werbler.name,
+            "monster_strength": werbler.strength + _ab_monster_mod,
+            "player_strength": max(0, player.combat_strength(is_night=self.is_night) + _ab_player_mod),
+            "ability_player_mod": _ab_player_mod,
+            "ability_monster_mod": _ab_monster_mod,
+            "ability_breakdown": _ab_log,
+            "nice_hat_bonus": getattr(werbler, "_brady_nice_hat_bonus", 0),
+            "description": werbler.description,
+            "player_id": player.player_id,
+            "player_name": player.name,
+            "hero_id": player.hero.id.name if player.hero else None,
+            "category": "werbler",
+            "level": 3,
+            "result": None,
+        }
+        combat_info.update(self.combat_preview())
+        self._last_combat_info = combat_info
+        return {
+            "phase": "combat", "log": log,
+            "moved_from": old_pos, "moved_to": new_pos,
+            "card_played": card_value, "tile_type": tile.tile_type.name,
+            "combat_info": combat_info,
         }
 
     def use_ill_come_in_again(self) -> dict:
@@ -788,7 +846,7 @@ class InteractiveTurnMixin:
             "monster_name": new_monster.name,
             "monster_strength": new_monster.strength + _male_bonus3,
             "monster_bonus_vs_male": _male_bonus3,
-            "player_strength": player.combat_strength(),
+            "player_strength": player.combat_strength(is_night=self.is_night),
             "player_id": player.player_id,
             "player_name": player.name,
             "hero_id": player.hero.id.name if player.hero else None,
@@ -797,16 +855,57 @@ class InteractiveTurnMixin:
             "result": None,
             "ill_come_in_again_available": pc["ill_come_in_again_available"],
         }
+        combat_info.update(self.combat_preview())
         self._last_combat_info = combat_info
         return {"phase": "combat", "combat_info": combat_info}
 
     def fight(self) -> dict:
+        """Commit a fight only if all resolution steps succeed."""
+        before = _copy.deepcopy(self.__dict__)
+        try:
+            return self._fight()
+        except Exception:
+            self.__dict__.clear()
+            self.__dict__.update(before)
+            raise
+
+    def _queue_trait_loss(self, player, count):
+        self._pending_trait_loss = {
+            "id": self._next_trait_loss_id, "player_id": player.player_id,
+            "count": count,
+        }
+        self._next_trait_loss_id += 1
+
+    def resolve_trait_loss(self, choice_id, trait_indices):
+        """Finish Slurp! exactly once, after validating the entire selection."""
+        choice = self._pending_trait_loss
+        if choice is None or type(choice_id) is not int or choice_id != choice["id"]:
+            raise ValueError("That trait choice is no longer pending.")
+        player = self.players[choice["player_id"]]
+        if (not isinstance(trait_indices, list) or len(trait_indices) != choice["count"]
+                or any(type(i) is not int or not 0 <= i < len(player.traits) for i in trait_indices)
+                or len(set(trait_indices)) != len(trait_indices)):
+            raise ValueError(f"Choose exactly {choice['count']} different traits.")
+        log = list(choice["log"])
+        for index in sorted(trait_indices, reverse=True):
+            trait = player.traits.pop(index)
+            _fx.on_trait_lost(player, trait, log)
+            log.append(f"  Slurp!: lost {trait.name}.")
+        _fx.refresh_tokens(player)
+        self._pending_trait_loss = None
+        self._finish_post_encounter(player, log)
+        if not choice.get("summoned_monster"):
+            self._advance_turn()
+        return log
+
+    def _fight(self) -> dict:
         """Resolve the pending combat (monster, miniboss, or werbler) after the pre-fight phase."""
         if self._pending_combat is None:
             return {"error": "No pending combat", "phase": "error"}
 
         player = self.current_player  # turn has not advanced yet
         pc = self._pending_combat
+        resolved_totals = self.combat_preview()
         self._pending_combat = None
         # Defensive: clear any stale pending offer to prevent blocking future moves
         if self._pending_offer is not None and self._pending_offer.get("type") != "rake_it_in":
@@ -852,7 +951,7 @@ class InteractiveTurnMixin:
             other_players = pc["other_players"]
             ogre_player_mod = pc.get("ogre_player_mod", 0)
             ogre_monster_mod = pc.get("ogre_monster_mod", 0)
-            player_str_at_fight = player.combat_strength() + pc.get("ability_player_mod", 0) + ogre_player_mod
+            player_str_at_fight = player.combat_strength(is_night=self.is_night) + pc.get("ability_player_mod", 0) + ogre_player_mod
             # Build pre_run_ogre if pack was already discarded at fight-start
             pre_run_ogre: Optional[tuple[int, int]] = None
             if pc.get("ogre_player_mod") is not None or pc.get("ogre_monster_mod") is not None:
@@ -861,6 +960,7 @@ class InteractiveTurnMixin:
                 player, miniboss, self.item_decks[reward_deck_level],
                 GameContext(
                     log=log,
+                    combat_totals=resolved_totals,
                     is_night=self.is_night,
                     players=self.players,
                     decide_fn=_no_consumable_decide,
@@ -915,15 +1015,17 @@ class InteractiveTurnMixin:
         elif combat_type == "werbler":
             werbler = pc["monster"]
             other_players = pc["other_players"]
-            player_str_at_fight = player.combat_strength()
+            player_str_at_fight = player.combat_strength(is_night=self.is_night)
             combat_result, self.status = enc.encounter_werbler(
                 player, werbler,
                 GameContext(
                     log=log,
+                    combat_totals=resolved_totals,
                     is_night=self.is_night,
                     players=self.players,
                     decide_fn=_no_consumable_decide,
                     select_fn=self._select,
+                    defer_trait_loss_fn=self._queue_trait_loss,
                     trait_deck=self.trait_deck,
                     curse_deck=self.curse_deck,
                     item_decks=self.item_decks,
@@ -956,12 +1058,13 @@ class InteractiveTurnMixin:
                 monster.strength = max(0, monster.strength + monster_str_delta)
             effective_deck = pc["effective_deck"]
             other_players = pc["other_players"]
-            player_str_at_fight = player.combat_strength() + extra_str
+            player_str_at_fight = player.combat_strength(is_night=self.is_night) + extra_str
             combat_result = enc.encounter_monster(
                 player,
                 effective_deck,
                 GameContext(
                     log=log,
+                    combat_totals=resolved_totals,
                     is_night=self.is_night,
                     players=self.players,
                     decide_fn=_no_consumable_decide,
@@ -990,9 +1093,17 @@ class InteractiveTurnMixin:
             if pc.get("from_mystery"):
                 self._last_combat_info["from_mystery"] = True
 
+        self._last_combat_info.update(resolved_totals)
+
         # Extract trait/curse gained from new log entries
         _extract_gains(self._last_combat_info, log, log_start, C)
 
+        # Slurp! must be chosen before the next turn or other reactions begin.
+        if self._pending_trait_loss is not None:
+            self._pending_trait_loss.update(log=list(log), summoned_monster=pc.get("summoned_monster", False))
+            return {"phase": "trait_loss", "log": log, "combat_info": self._last_combat_info,
+                    "combat_result": combat_result.name, "game_status": self.status.name,
+                    "winner": self.winner}
         self._finish_post_encounter(player, log)
         if self.status == GameStatus.WON:
             log.append(f"\U0001f389 Game Over \u2014 {player.name} Wins!")
@@ -1108,7 +1219,7 @@ class InteractiveTurnMixin:
         combat_info = {
             "monster_name": monster.name,
             "monster_strength": monster.strength,
-            "player_strength": player.combat_strength(),
+            "player_strength": player.combat_strength(is_night=self.is_night),
             "player_id": player.player_id,
             "player_name": player.name,
             "hero_id": player.hero.id.name if player.hero else None,
@@ -1151,7 +1262,6 @@ class InteractiveTurnMixin:
             choices = {}
 
         pending = self._pending_offer
-        self._pending_offer = None
 
         if pending is None:
             return {"phase": "done", "log": ["No pending offer."],
@@ -1188,6 +1298,7 @@ class InteractiveTurnMixin:
 
         # Check for Rake It In — pause if player took an item and has unlocked equips
         # Skip if the item came from a mystery event (Rake It In should not trigger)
+        self._pending_offer = None
         from_mystery = pending.get("from_mystery", False)
         if took_item and not from_mystery and any(t.effect_id == "rake_it_in" for t in player.traits):
             all_equips = player.helmets + player.chest_armor + player.leg_armor + player.weapons
@@ -1272,15 +1383,26 @@ class InteractiveTurnMixin:
             return {"ok": False, "log": ["No removable curses."]}
         idx = max(0, min(curse_index, len(removable) - 1))
         removed = removable[idx]
-        player.curses.remove(removed)
+        player.discard_curse(removed)
         player.traits.remove(eight_lives)
         log: list[str] = []
         _fx.on_trait_lost(player, eight_lives, log)
         _fx.refresh_tokens(player)
         log.append(f"  Eight Lives: discarded trait, removed curse '{removed.name}'!")
+        self._collect_curse_discards(log)
         return {"ok": True, "log": log}
 
     def resolve_rake_it_in(
+        self, use_it: bool, discard_slot: str = "", discard_idx: int = 0,
+        second_item_choice: int = -1, placement_choices: Optional[dict] = None,
+    ) -> dict:
+        # Validate both the sacrifice and bonus placement before consuming either.
+        from copy import deepcopy
+        args = (use_it, discard_slot, discard_idx, second_item_choice, placement_choices)
+        deepcopy(self)._resolve_rake_it_in(*args)
+        return self._resolve_rake_it_in(*args)
+
+    def _resolve_rake_it_in(
         self,
         use_it: bool,
         discard_slot: str = "",
@@ -1336,7 +1458,8 @@ class InteractiveTurnMixin:
                 slot_list = slot_map.get(discard_slot, [])
                 if slot_list and 0 <= discard_idx < len(slot_list):
                     discarded = slot_list[discard_idx]
-                    player.unequip(discarded)
+                    if not player.unequip(discarded):
+                        raise ValueError(f"{discarded.name} is locked by a curse and cannot be removed.")
                     log.append(f"  Rake It In!: discarded {discarded.name}.")
                 else:
                     log.append("  Rake It In!: invalid discard choice \u2014 skipping.")
@@ -1382,6 +1505,14 @@ class InteractiveTurnMixin:
         }
 
     def _apply_item_to_player(
+        self, player: Player, item: Item, choices: dict, log: list[str],
+    ) -> None:
+        """Validate placement on a copy before committing inventory changes."""
+        from copy import deepcopy
+        self._place_item(deepcopy(player), deepcopy(item), choices, [])
+        self._place_item(player, item, choices, log)
+
+    def _place_item(
         self,
         player: Player,
         item: Item,
@@ -1389,6 +1520,11 @@ class InteractiveTurnMixin:
         log: list[str],
     ) -> None:
         """Apply item placement choices (mirrors _offer_item but choice-driven)."""
+        def evict_pack_slot(index):
+            name = player.evict_pack_slot(index)
+            if name is None:
+                raise ValueError("Choose a valid pack item to replace.")
+            return name
         # Consumable wrapper — add directly to consumables list
         if item.is_consumable:
             import copy as _copy
@@ -1400,7 +1536,7 @@ class InteractiveTurnMixin:
                     # Pack full — evict the chosen slot
                     discard_idx = int(choices.get("pack_discard_index", -1))
                     if discard_idx >= 0:
-                        evicted_name = player.evict_pack_slot(discard_idx)
+                        evicted_name = evict_pack_slot(discard_idx)
                         if evicted_name:
                             log.append(f"  {evicted_name} discarded from pack.")
                         player.consumables.append(_copy.copy(consumable))
@@ -1439,6 +1575,7 @@ class InteractiveTurnMixin:
                 else:
                     # 2H weapon with both weapon slots occupied — must clear both
                     if item.slot.value == "weapon" and item.hands == 2 and len(slot_list) >= 2:
+                        player.validate_equipment_replacement(item, slot_list[:2])
                         for act_key, pdi_key in [
                             ("equip_action", "pack_discard_index"),
                             ("equip_action_2", "pack_discard_index_2"),
@@ -1454,7 +1591,7 @@ class InteractiveTurnMixin:
                                     player.pack.append(w)
                                     log.append(f"  {w.name} moved to pack.")
                                 elif pdi >= 0:
-                                    evicted_name = player.evict_pack_slot(pdi)
+                                    evicted_name = evict_pack_slot(pdi)
                                     if evicted_name:
                                         log.append(f"  Pack full — {evicted_name} discarded.")
                                     player.unequip(w)
@@ -1474,6 +1611,7 @@ class InteractiveTurnMixin:
                             len(slot_list) - 1,
                         )
                         current = slot_list[cur_idx]
+                        player.validate_equipment_replacement(item, [current])
                         action = choices.get("equip_action", "swap")
                         if action == "swap":
                             if player.pack_slots_free > 0:
@@ -1485,7 +1623,7 @@ class InteractiveTurnMixin:
                                 )
                             else:
                                 discard_idx = int(choices.get("pack_discard_index", 0))
-                                evicted_name = player.evict_pack_slot(discard_idx)
+                                evicted_name = evict_pack_slot(discard_idx)
                                 if evicted_name:
                                     log.append(f"  Pack full — {evicted_name} discarded.")
                                 player.unequip(current)
@@ -1503,7 +1641,7 @@ class InteractiveTurnMixin:
                 log.append(f"  {item.name} added to pack.")
             else:
                 discard_idx = int(choices.get("pack_discard_index", 0))
-                evicted_name = player.evict_pack_slot(discard_idx)
+                evicted_name = evict_pack_slot(discard_idx)
                 if evicted_name:
                     log.append(f"  {evicted_name} discarded from pack.")
                 player.pack.append(item)
@@ -1634,7 +1772,7 @@ class InteractiveTurnMixin:
                 self._last_combat_info = {
                     "monster_name": monster_name,
                     "monster_strength": monster_str,
-                    "player_strength": player.combat_strength(),
+                    "player_strength": player.combat_strength(is_night=self.is_night),
                     "player_id": player.player_id,
                     "player_name": player.name,
                     "hero_id": player.hero.id.name if player.hero else None,
@@ -1654,20 +1792,4 @@ class InteractiveTurnMixin:
                 log.append(f"  Drew movement card {card} (pending draw).")
             player._pending_movement_draws -= 1
 
-        if len(self.players) > 1:
-            for other in self.players:
-                if other is player:
-                    continue
-                me_too = next(
-                    (t for t in other.traits if t.effect_id == "me_too"), None
-                )
-                if me_too and other.curses:
-                    if self._decide(
-                        f"Me Too!: {other.name}, discard a curse?", log
-                    ):
-                        removed = other.curses.pop(0)
-                        _fx.refresh_tokens(other)
-                        log.append(
-                            f"  Me Too!: {other.name} discarded curse '{removed.name}'."
-                        )
-
+        self._collect_curse_discards(log)

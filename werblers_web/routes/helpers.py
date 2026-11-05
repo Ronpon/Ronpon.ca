@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-from flask import session
+from flask import session, request, jsonify, g
 
 from werblers_web.serializers import (
     enrich_combat_info as _enrich_combat_info_impl,
@@ -65,6 +65,8 @@ def _get_state() -> dict:
     Returns a dummy empty state if no game session exists yet (so callers
     can safely check state["game"] is None without crashing).
     """
+    if hasattr(g, "werblers_room_state"):
+        return g.werblers_room_state
     sid = session.get("game_id")
     if not sid or sid not in _sessions:
         return {"game": None, "last_log": [], "pending_log": []}
@@ -86,3 +88,24 @@ def _enrich_combat_info(info: dict) -> dict:
 def _build_state() -> dict:
     """Thin wrapper that passes session getter to serializers.build_state."""
     return _build_state_impl(_get_state)
+
+
+def require_me_too_resolved():
+    """Keep actions from invalidating an outstanding loss or reaction choice."""
+    if request.method != "POST" or request.endpoint == "game.api_new_game":
+        return None
+    game = _get_state()["game"]
+    if game is None:
+        return None
+    if game._pending_trait_loss is not None and request.endpoint != "game.api_resolve_trait_loss":
+        return jsonify({"error": "Choose the traits to lose first.", "state": _build_state()}), 409
+    if game.pending_me_too() is not None and request.endpoint != "game.api_resolve_me_too":
+        return jsonify({"error": "Resolve Me Too! first.", "state": _build_state()}), 409
+
+
+def action_body():
+    """Room actions use the same handlers and rules as local games."""
+    if hasattr(g, "werblers_action_body"):
+        return g.werblers_action_body
+    from security import json_body
+    return json_body()

@@ -308,7 +308,7 @@ TRAIT_DESCRIPTIONS: dict[str, str] = {
     "I'm De Overlord Now.": "Gain a Minion Wrangler (+3 Str, buffs all other minions +2 Str each).",
     "New Lord in Town.": "Gain a Demon Spawn Minion Card (+6 Str).",
     "Meat's Back On the Menu!": "Force an opponent to discard a minion; gain +5 Str tokens.",
-    "Scavenger": "At chests/shops, may reject an item and draw another instead.",
+    "Scavenger": "Once per chest or shop, may replace one offered item with a new draw.",
     "Swiftness": "Flee any monster encounter at no cost (not the Werbler).",
 }
 
@@ -422,7 +422,7 @@ _TRAIT_REGISTRY: dict[str, dict] = {
     "Ball and Chain":          {"effect_id": "ball_and_chain"},
     "You Got a Birdie!":       {"effect_id": "birdie"},
     "Kapwing!":                {"effect_id": "kapwing"},
-    # Deferred (minion / special item)
+    # Minion / special-item effects (see effects.py and pending reward choices)
     "I'm a Grown-up Now!":          {"effect_id": "grown_up"},
     "Alpha":                        {"effect_id": "alpha"},
     "She's Melting!":               {"effect_id": "shes_melting"},
@@ -435,7 +435,7 @@ _TRAIT_REGISTRY: dict[str, dict] = {
     "Adorable":                {"effect_id": "adorable"},
     # Flat strength bonuses (already-registered entries: Hard Shell, Stomach of Steel, etc.)
     "Touchdown!":              {"effect_id": "touchdown", "strength_bonus": 3},
-    # Deferred — complex behaviour not yet wired to engine
+    # Special effects and interactive abilities (effects.py and turn.py)
     "Rake It In!":             {"effect_id": "rake_it_in"},
     "No More Charlie Work!":   {"effect_id": "no_more_charlie_work"},
     "Rat Smasher":             {"effect_id": "rat_smasher"},

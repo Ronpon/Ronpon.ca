@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from typing import TYPE_CHECKING, Optional
 
 from .types import Consumable, Curse, EquipSlot, Item, Minion, Monster, Trait
@@ -55,6 +56,7 @@ class Player:
 
     traits: list[Trait] = field(default_factory=list)
     curses: list[Curse] = field(default_factory=list)
+    _pending_curse_discards: int = 0
 
     movement_hand: list[int] = field(default_factory=list)
     max_hand_size: int = 4
@@ -98,8 +100,14 @@ class Player:
         self._base_helmet_slots = hero.base_helmet_slots
         self._base_legs_slots = hero.base_legs_slots
         # Equip starting items
-        for item in hero.starting_items:
+        for item in deepcopy(hero.starting_items):
             self.equip(item)
+
+    def discard_curse(self, curse: Curse) -> None:
+        """Record a discard separately from transfers such as Contagious Mutagen."""
+        self.curses.remove(curse)
+        self._pending_curse_discards += 1
+        _fx.refresh_tokens(self)
 
     @property
     def hero(self) -> Optional[Hero]:
@@ -283,6 +291,25 @@ class Player:
             return False
         self.pack.append(item)
         return True
+
+    def validate_equipment_replacement(self, item: Item, displaced: list[Item]) -> None:
+        """Check the entire replacement before removing or discarding anything."""
+        trial = deepcopy(self)
+        replacements = [
+            trial._slot_list(old.slot)[next(
+                i for i, equipped in enumerate(self._slot_list(old.slot)) if equipped is old
+            )]
+            for old in displaced
+        ]
+        for old, trial_old in zip(displaced, replacements):
+            if old.locked_by_curse_id and any(
+                c.effect_id == old.locked_by_curse_id for c in self.curses
+            ):
+                raise ValueError(f"{old.name} is locked by a curse and cannot be removed.")
+            if not trial.unequip(trial_old):
+                raise ValueError(f"{old.name} is no longer equipped.")
+        if not trial.can_equip(item):
+            raise ValueError(f"Cannot equip {item.name}: not enough equipment slots.")
 
     @property
     def pack_slots_used(self) -> int:

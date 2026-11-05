@@ -3,16 +3,22 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify
 
-from security import json_body
+from werblers_web.routes.helpers import action_body as json_body
 from werblers_engine import effects as _fx
 from werblers_web.serializers import (
     item_card_image as _item_card_image,
     item_to_dict_from_obj as _item_to_dict_from_obj,
     ser_item as _ser_item,
 )
-from werblers_web.routes.helpers import _get_state, _build_state
+from werblers_web.routes.helpers import _get_state, _build_state, require_me_too_resolved
 
 inventory_bp = Blueprint("inventory", __name__)
+inventory_bp.before_request(require_me_too_resolved)
+
+
+@inventory_bp.errorhandler(ValueError)
+def invalid_inventory_choice(error):
+    return jsonify({"error": str(error)}), 400
 
 
 @inventory_bp.route("/api/equip_from_pack", methods=["POST"])
@@ -55,6 +61,7 @@ def api_equip_from_pack():
                 freed += w.hands
 
             if len(items_to_displace) > 1:
+                player.validate_equipment_replacement(item, items_to_displace)
                 if displaced_actions is None:
                     displaced_data = [{
                         "name": w.name,
@@ -103,6 +110,7 @@ def api_equip_from_pack():
             existing_list = slot_map.get(item.slot.value, [])
             if existing_list:
                 displaced = existing_list[0]
+                player.validate_equipment_replacement(item, [displaced])
                 if to_pack:
                     if player.pack_slots_used - 1 >= player.pack_size:
                         if discard_pack_index >= 0:
@@ -172,6 +180,11 @@ def api_manage_item():
         return jsonify({"error": "Index out of range"}), 400
 
     item = item_list[idx]
+
+    if source != "pack" and item.locked_by_curse_id and any(
+        c.effect_id == item.locked_by_curse_id for c in player.curses
+    ):
+        return jsonify({"error": f"{item.name} is locked by a curse and cannot be removed."}), 400
 
     if action == "discard":
         if source == "pack":
@@ -247,32 +260,18 @@ def api_release_monster():
 
 @inventory_bp.route("/api/scavenger_swap", methods=["POST"])
 def api_scavenger_swap():
-    """Scavenger trait: put chest item back on bottom and draw a new one."""
+    """Replace one selected chest/shop offer, once per encounter."""
     _st = _get_state()
     _game = _st["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
+    data = json_body()
+    log = _game.scavenger_swap(data.get("item_index", 0))
+    _st["pending_log"] = _st["pending_log"] + log
+    _st["last_log"] = _st["last_log"] + log
     po = _game._pending_offer
-    if po is None or po.get("type") != "chest":
-        return jsonify({"error": "No pending chest offer"}), 400
-    player = _game.current_player
-    if not any(t.effect_id == "scavenger" for t in player.traits):
-        return jsonify({"error": "Player does not have Scavenger trait"}), 400
-    level = po["level"]
-    old_item = po["items"][0]
-    _game.item_decks[level].put_bottom(old_item)
-    new_item = _game.item_decks[level].draw()
-    if new_item is None:
-        new_item = _game.item_decks[level].draw()
-    if new_item is None:
-        return jsonify({"error": "Item deck is empty"}), 400
-    po["items"] = [new_item]
-    log_line = f"  Scavenger: put {old_item.name} back, drew {new_item.name}."
-    _st["pending_log"].append(log_line)
-    _st["last_log"].append(log_line)
-    enriched = _item_to_dict_from_obj(new_item)
     return jsonify({
-        "ok": True,
-        "offer": {"items": [enriched], "has_scavenger": False},
+        "ok": True, "phase": "offer_" + po["type"],
+        "offer": {"items": [_item_to_dict_from_obj(item) for item in po["items"]], "has_scavenger": False},
         "state": _build_state(),
     })

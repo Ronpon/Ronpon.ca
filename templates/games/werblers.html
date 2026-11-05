@@ -7,23 +7,26 @@
   <title>Werblers — Ronpon.ca</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/style.css') }}?v=20261104">
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/choices.css') }}?v=20261104">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/after-dark-games.css') }}?v=20261021">
   <meta name="theme-color" content="#202b26">
 </head>
 <body class="after-dark-game werblers-station">
 
 <!-- Back to Games link -->
+<header id="werblers-toolbar" aria-label="Game navigation">
 <a id="back-to-games" href="{{ url_for('games.index') }}" title="Back to Games">&larr; CH 01 / GAMES</a>
 
 <!-- Options button (always visible) -->
 <button id="options-btn" onclick="openOptionsModal()" title="Options">&#x2699;</button>
 
-<!-- In-game side buttons (below gear) -->
+<!-- Save and achievement controls in the game toolbar -->
 <div id="game-side-buttons" class="hidden">
   <button id="saveload-btn" onclick="openSaveLoadModal()" title="Save / Load">💾</button>
   <button id="achievements-btn-ingame" onclick="openAchievementsModal()" title="Achievements">🏆</button>
 </div>
+</header>
 
 <!-- Options modal -->
 <div id="options-modal" class="hidden">
@@ -360,6 +363,9 @@ if (!window.RONPON_FEATURES.achievements) {
   };
 })();
 </script>
-<script src="{{ url_for('static', filename='games/werblers/js/game.js') }}?v=20260418"></script>
+<script src="{{ url_for('static', filename='games/werblers/js/choices.js') }}?v=20261104"></script>
+<script src="{{ url_for('static', filename='games/werblers/js/game.js') }}?v=20261104"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/online.css') }}?v=20261104">
+<script src="{{ url_for('static', filename='games/werblers/js/online.js') }}?v=20261104"></script>
 </body>
 </html>

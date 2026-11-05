@@ -6,7 +6,7 @@ from typing import Callable, Optional
 
 from .types import CombatResult, GameContext, Item, Monster
 from .player import Player
-from .combat import resolve_combat
+from .combat import combat_totals, resolve_combat
 from .deck import Deck
 from . import effects as _fx
 
@@ -229,20 +229,20 @@ def encounter_miniboss(
     player_mod += ogre_player_mod_enc
 
     if auto_win:
+        ctx.combat_totals.update(combat_totals(player, miniboss, is_night=is_night,
+            extra_strength=extra_player_strength + player_mod,
+            monster_modifier=monster_mod + extra_monster_strength))
         result = CombatResult.WIN
         log.append("  AUTO-WIN triggered!")
     else:
         # Build effective monster with modified strength
         effective_strength = miniboss.strength + monster_mod + extra_monster_strength
-        # Player modifier applied via a temporary one-shot approach:
-        # We adjust monster strength in the opposite direction to avoid
-        # touching the player's real combat_strength calculation.
-        effective_strength -= player_mod
         effective_strength = max(0, effective_strength)
         effective_monster = Monster(
             miniboss.name, strength=effective_strength, level=miniboss.level,
         )
-        result = resolve_combat(player, effective_monster, is_night=is_night, extra_strength=extra_player_strength)
+        result = resolve_combat(player, effective_monster, is_night=is_night,
+                                extra_strength=extra_player_strength + player_mod, totals=ctx.combat_totals)
 
     if result == CombatResult.WIN:
         player.defeated_monsters.add(miniboss.name)

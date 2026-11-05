@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,7 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital@0;1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers-mobile/css/ios_style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers-mobile/css/ios_style.css') }}?v=20261104">
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/choices.css') }}?v=20261104">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/after-dark-games.css') }}?v=20261021">
   <meta name="theme-color" content="#202b26">
 </head>
@@ -103,6 +104,11 @@
       <div id="board-tab" class="tab-pane active">
         <div id="board-scroll">
           <div id="board-grid"></div>
+          <aside id="board-turn-summary" aria-label="Current hero">
+            <strong id="board-hero-summary"></strong>
+            <p id="board-goal-summary"></p>
+            <p>Choose a movement card below, then a direction.</p>
+          </aside>
         </div>
       </div>
 
@@ -314,6 +320,9 @@
     };
   })();
   </script>
-  <script src="{{ url_for('static', filename='games/werblers-mobile/js/ios_game.js') }}"></script>
+  <script src="{{ url_for('static', filename='games/werblers/js/choices.js') }}?v=20261104"></script>
+  <script src="{{ url_for('static', filename='games/werblers-mobile/js/ios_game.js') }}?v=20261104"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='games/werblers/css/online.css') }}?v=20261104">
+  <script src="{{ url_for('static', filename='games/werblers/js/online.js') }}?v=20261104"></script>
 </body>
 </html>

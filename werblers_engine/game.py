@@ -6,6 +6,7 @@ Supports 1-4 players in competitive mode with fixed turn rotation.
 from __future__ import annotations
 
 import random
+from copy import deepcopy
 from typing import Callable, Optional
 
 from .types import (
@@ -82,17 +83,17 @@ class Game(InteractiveTurnMixin):
 
         # --- Shared finite content decks (one per level) ---
         self.monster_decks: dict[int, Deck[Monster]] = {
-            1: Deck(list(C.MONSTER_POOL_L1), seed),
-            2: Deck(list(C.MONSTER_POOL_L2), seed),
-            3: Deck(list(C.MONSTER_POOL_L3), seed),
+            1: Deck(deepcopy(C.MONSTER_POOL_L1), seed),
+            2: Deck(deepcopy(C.MONSTER_POOL_L2), seed),
+            3: Deck(deepcopy(C.MONSTER_POOL_L3), seed),
         }
         self.item_decks: dict[int, Deck[Item]] = {
-            1: Deck(list(C.ITEM_POOL_L1), seed),
-            2: Deck(list(C.ITEM_POOL_L2), seed),
-            3: Deck(list(C.ITEM_POOL_L3), seed),
+            1: Deck(deepcopy(C.ITEM_POOL_L1), seed),
+            2: Deck(deepcopy(C.ITEM_POOL_L2), seed),
+            3: Deck(deepcopy(C.ITEM_POOL_L3), seed),
         }
-        self.trait_deck: Deck[Trait] = Deck(list(C.TRAIT_POOL), seed)
-        self.curse_deck: Deck[Curse] = Deck(list(C.CURSE_POOL), seed)
+        self.trait_deck: Deck[Trait] = Deck(deepcopy(C.TRAIT_POOL), seed)
+        self.curse_deck: Deck[Curse] = Deck(deepcopy(C.CURSE_POOL), seed)
 
         # Each player gets their own movement deck
         self.movement_decks: dict[int, Deck[int]] = {
@@ -101,14 +102,14 @@ class Game(InteractiveTurnMixin):
         }
 
         # --- Mini-boss decks (shuffled pools, one active per tier) ---
-        self.miniboss_deck_t1: Deck[Monster] = Deck(list(C.MINIBOSS_POOL_T1), seed)
-        self.miniboss_deck_t2: Deck[Monster] = Deck(list(C.MINIBOSS_POOL_T2), seed)
+        self.miniboss_deck_t1: Deck[Monster] = Deck(deepcopy(C.MINIBOSS_POOL_T1), seed)
+        self.miniboss_deck_t2: Deck[Monster] = Deck(deepcopy(C.MINIBOSS_POOL_T2), seed)
         self.active_miniboss_t1: Optional[Monster] = None
         self.active_miniboss_t2: Optional[Monster] = None
 
         # --- Werbler assignment (random, one per player, all different) ---
         rng = random.Random(seed)
-        werbler_pool = list(C.WERBLER_POOL)
+        werbler_pool = deepcopy(C.WERBLER_POOL)
         rng.shuffle(werbler_pool)
         self.player_werblers: dict[int, Monster] = {}
         for i, p in enumerate(self.players):
@@ -117,6 +118,10 @@ class Game(InteractiveTurnMixin):
         # Simulated yes/no decision toggle for "you may" item prompts.
         # Even counter = Yes, odd counter = No (alternates each prompt).
         self._decision_counter: int = 0
+        self._pending_me_too: list[dict] = []
+        self._next_me_too_id: int = 1
+        self._pending_trait_loss: Optional[dict] = None
+        self._next_trait_loss_id: int = 1
 
         # Pending offer state — set by begin_move(), consumed by resolve_offer()
         self._pending_offer: Optional[dict] = None
@@ -148,14 +153,14 @@ class Game(InteractiveTurnMixin):
         return self.players[self._current_player_idx]
 
     # ------------------------------------------------------------------
-    # Decision helper (simulated for v0.1 — no real UI yet)
+    # Decision helpers for legacy auto-play; interactive choices are queued.
     # ------------------------------------------------------------------
 
     def _decide(self, prompt: str, log: list[str]) -> bool:
         """Simulated player decision: alternates Yes/No each time it is called.
 
-        In v0.1 with no real UI, this stand-in lets us exercise both branches
-        of every 'you may' ability prompt during testing.
+        Retained for the legacy auto-resolver and effects that have not yet
+        acquired an interactive decision. Do not use for new player choices.
         """
         result = self._decision_counter % 2 == 0
         self._decision_counter += 1
@@ -281,7 +286,7 @@ class Game(InteractiveTurnMixin):
     # ------------------------------------------------------------------
 
     def _check_me_too(self, source_player: Player, log: list[str]) -> None:
-        """When a player discards a curse, other players with Me Too may discard one."""
+        """Queue a choice for each eligible opponent after an actual discard."""
         for p in self.players:
             if p is source_player:
                 continue
@@ -289,14 +294,45 @@ class Game(InteractiveTurnMixin):
                 (t for t in p.traits if t.effect_id == "me_too"), None
             )
             if me_too and p.curses:
-                if self._decide(
-                    f"Me Too!: {p.name}, discard a curse too?", log
-                ):
-                    removed = p.curses.pop(0)
-                    _fx.refresh_tokens(p)
-                    log.append(
-                        f"  Me Too!: {p.name} discarded curse '{removed.name}'!"
-                    )
+                self._pending_me_too.append({
+                    "id": self._next_me_too_id,
+                    "player_id": p.player_id,
+                    "source_player_id": source_player.player_id,
+                })
+                self._next_me_too_id += 1
+
+    def _collect_curse_discards(self, log: list[str]) -> None:
+        for source in self.players:
+            while source._pending_curse_discards:
+                source._pending_curse_discards -= 1
+                self._check_me_too(source, log)
+
+    def pending_me_too(self) -> Optional[dict]:
+        while self._pending_me_too:
+            pending = self._pending_me_too[0]
+            player = self.players[pending["player_id"]]
+            if player.curses and any(t.effect_id == "me_too" for t in player.traits):
+                return pending
+            self._pending_me_too.pop(0)
+        return None
+
+    def resolve_me_too(self, choice_id: int, curse_index: Optional[int] = None) -> list[str]:
+        pending = self.pending_me_too()
+        if pending is None or pending["id"] != choice_id:
+            raise ValueError("That Me Too! choice is no longer pending.")
+        player = self.players[pending["player_id"]]
+        if curse_index is not None and not 0 <= curse_index < len(player.curses):
+            raise ValueError("Choose a valid curse to discard.")
+        self._pending_me_too.pop(0)
+        log = []
+        if curse_index is None:
+            log.append(f"Me Too!: {player.name} declined.")
+        else:
+            curse = player.curses[curse_index]
+            player.discard_curse(curse)
+            log.append(f"Me Too!: {player.name} discarded '{curse.name}'.")
+            self._collect_curse_discards(log)
+        return log
 
     # ------------------------------------------------------------------
     # Turn execution
@@ -371,7 +407,7 @@ class Game(InteractiveTurnMixin):
             ]
             if removable:
                 removed = removable[0]
-                player.curses.remove(removed)
+                player.discard_curse(removed)
                 player.traits.remove(eight_lives)
                 _fx.on_trait_lost(player, eight_lives, log)
                 _fx.refresh_tokens(player)
@@ -728,25 +764,7 @@ class Game(InteractiveTurnMixin):
                 log.append(f"  Drew movement card {card} (pending draw).")
             player._pending_movement_draws -= 1
 
-        # --- Me Too: when an opponent loses a curse, player with Me Too may discard one ---
-        if len(self.players) > 1:
-            for other in self.players:
-                if other is player:
-                    continue
-                me_too = next(
-                    (t for t in other.traits if t.effect_id == "me_too"), None
-                )
-                if me_too and other.curses:
-                    # "When another player discards a curse, discard one of yours too"
-                    # For now, trigger once per turn if the active player lost any curse
-                    # (covers combat-loss curse removal via It's Not Your Fault, Kamikaze Gun, etc.)
-                    if self._decide(
-                        f"Me Too!: {other.name}, discard one of your curses? "
-                        f"(triggered by {player.name}'s turn)", log
-                    ):
-                        removed = other.curses.pop(0)
-                        _fx.refresh_tokens(other)
-                        log.append(f"  Me Too!: {other.name} discarded curse '{removed.name}'.")
+        self._collect_curse_discards(log)
 
         # Game-over message
         if self.status == GameStatus.WON:

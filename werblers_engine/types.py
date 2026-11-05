@@ -170,6 +170,8 @@ class GameContext:
     players: list = field(default_factory=list)
     decide_fn: Optional[Callable] = None
     select_fn: Optional[Callable] = None
+    defer_trait_loss_fn: Optional[Callable] = None
+    combat_totals: dict = field(default_factory=dict)
     trait_deck: Optional[object] = None   # Deck[Trait]
     curse_deck: Optional[object] = None   # Deck[Curse]
     item_decks: dict = field(default_factory=dict)    # {level: Deck[Item]}

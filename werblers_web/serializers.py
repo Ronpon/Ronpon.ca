@@ -166,6 +166,7 @@ def ser_item(item) -> dict:
         "tokens":         item.tokens,
         "card_image":     card_img,
         "is_consumable":  item.is_consumable,
+        "locked_by_curse_id": item.locked_by_curse_id,
     }
 
 
@@ -232,6 +233,9 @@ def enrich_combat_info(info: dict, game, get_state_fn) -> dict:
     get_state_fn : callable
         Returns the mutable session state dict (for pending_log access, etc.).
     """
+    info = dict(info)
+    if game is not None and info.get("result") is None:
+        info.update(game.combat_preview())
     category = info.get("category", "monster")
     name = info.get("monster_name", "")
     if category == "miniboss":
@@ -273,6 +277,9 @@ def enrich_combat_info(info: dict, game, get_state_fn) -> dict:
             other_players = game._pending_combat.get("other_players", [])
             queue = []
             for bp in other_players:
+                pending_queue = game._pending_combat.get("nearby_queue")
+                if pending_queue is not None and bp.player_id not in pending_queue:
+                    continue
                 if abs(bp.position - player.position) > _PROXIMITY:
                     continue
                 usable = [c for c in bp.consumables if c.effect_id == "monster_str_mod"]
@@ -374,12 +381,18 @@ def build_state(get_state_fn) -> dict:
             "beggar_completed":      getattr(p, "_beggar_completed", False),
             "ability_breakdown":     hero_ability_breakdown(p, g.is_night),
         })
+    from werblers_web.decisions import interaction
+    decision = interaction(g, online=False)
     return {
         "turn_number":       g.turn_number,
         "is_night":          g.is_night,
         "current_player_id": current.player_id,
         "game_status":       g.status.name,
         "winner":            g.winner,
+        "pending_me_too":    g.pending_me_too(),
+        "decision":          decision,
+        "pending_trait_loss": ({k: g._pending_trait_loss[k] for k in ("id", "player_id", "count")}
+                               if g._pending_trait_loss else None),
         "board":             board_data,
         "players":           players_data,
         "log":               _st["last_log"],

@@ -1,9 +1,9 @@
 /* ================================================================
-   Werblers Ã¢â‚¬â€œ iOS / Mobile Game Client
+   Werblers – iOS / Mobile Game Client
    Touch-first rewrite of the desktop game.js
    ================================================================ */
 
-// Ã¢â€â‚¬Ã¢â€â‚¬ Globals Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ── Globals ──────────────────────────────────────────────────────
 let gameState = null;
 let viewingPlayerId = null;
 let _lastKnownCurrentPlayerId = null;
@@ -250,6 +250,10 @@ function buildBoard() {
     img.className = 'tile-bg';
     img.alt = `Tile ${n}`;
     div.appendChild(img);
+    const number = document.createElement('span');
+    number.className = 'tile-number';
+    number.textContent = n;
+    div.appendChild(number);
     const tokenArea = document.createElement('div');
     tokenArea.className = 'tile-tokens';
     div.appendChild(tokenArea);
@@ -266,6 +270,13 @@ function updateBoard() {
   const viewP = gameState.players.find(x => x.player_id === viewingPlayerId) || gameState.players[0];
   const mb1Done = viewP ? viewP.miniboss1_defeated : false;
   const mb2Done = viewP ? viewP.miniboss2_defeated : false;
+  const active = gameState.players.find(p => p.is_current) || gameState.players[0];
+  if (active) {
+    document.getElementById('board-hero-summary').textContent = `${active.name} · STR ${active.strength}`;
+    document.getElementById('board-goal-summary').textContent = !active.miniboss1_defeated
+      ? 'Next goal: the guardian on tile 30.'
+      : !active.miniboss2_defeated ? 'Next goal: the guardian on tile 60.' : 'Next goal: your Werbler on tile 90.';
+  }
   // Update tile images
   for (const tile of (gameState.board || [])) {
     const el = _tileEls[tile.index];
@@ -280,6 +291,7 @@ function updateBoard() {
   // Clear all token areas
   for (let n = 1; n <= 90; n++) {
     _tileEls[n].querySelector('.tile-tokens').innerHTML = '';
+    _tileEls[n].classList.toggle('is-current-position', active?.position === n);
   }
   // Place player tokens
   const byPos = {};
@@ -359,7 +371,7 @@ function updatePlayerStats() {
   el.innerHTML = `
     <div class="player-header-ios">
       <div class="player-name-ios">${p.hero_name || p.name || 'Player'}</div>
-      <div class="player-str-ios" onclick="showStrBreakdown()">STR ${p.strength} <span class="str-info-icon">Ã¢â€œËœ</span></div>
+      <div class="player-str-ios" onclick="showStrBreakdown()">STR ${p.strength} <span class="str-info-icon">ⓘ</span></div>
     </div>
   `;
   // Store breakdown for the tap
@@ -433,11 +445,11 @@ function updateEquipSummary() {
     for (const t of traits) {
       const tokCount = t.effect_id === 'residuals' ? (t.strength_bonus || 0) : t.tokens;
       const tokBadge = tokCount > 0 ? ` <span class="tc-token-badge"><img src="/games/werblers/images/Assorted UI Images/+1 Token.png" style="height:14px;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'">${tokCount}</span>` : '';
-      html += `<div class="equip-row" onclick="showTcTooltip('${_esc(t.name)}','${_esc(t.description || '')}',this)"><span style="color:var(--trait)">Ã¢Å“Â¦ ${t.name}</span>${tokBadge}</div>`;
+      html += `<div class="equip-row" onclick="showTcTooltip('${_esc(t.name)}','${_esc(t.description || '')}',this)"><span style="color:var(--trait)">✦ ${t.name}</span>${tokBadge}</div>`;
     }
     for (const c of curses) {
       const tokBadge = c.tokens > 0 ? ` <span class="tc-token-badge"><img src="/games/werblers/images/Assorted UI Images/+1 Token.png" style="height:14px;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'">${c.tokens}</span>` : (c.tokens < 0 ? ` <span class="tc-token-badge"><img src="/games/werblers/images/Assorted UI Images/-1 Token.png" style="height:14px;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'">${Math.abs(c.tokens)}</span>` : '');
-      html += `<div class="equip-row" onclick="showTcTooltip('${_esc(c.name)}','${_esc(c.description || '')}',this)"><span style="color:var(--curse)">Ã¢Å“Â§ ${c.name}</span>${tokBadge}</div>`;
+      html += `<div class="equip-row" onclick="showTcTooltip('${_esc(c.name)}','${_esc(c.description || '')}',this)"><span style="color:var(--curse)">✧ ${c.name}</span>${tokBadge}</div>`;
     }
   }
 
@@ -589,7 +601,7 @@ function renderAbilities(abilities) {
       }
     } else if (ab.type === 'activate') {
       const rawVal = ab.value || 0;
-      actionHtml = `<button class="btn-primary ability-instant-btn" onclick="activateWheelies(${rawVal})">Ã°Å¸â€ºÅ¾ Use Wheelies!</button>`;
+      actionHtml = `<button class="btn-primary ability-instant-btn" onclick="activateWheelies(${rawVal})">🛞 Use Wheelies!</button>`;
     } else if (ab.type === 'toggle') {
       const cur = abilityChoices[ab.id] !== undefined ? abilityChoices[ab.id] : ab.default;
       actionHtml = `<div class="ability-toggle">
@@ -678,7 +690,7 @@ function showChestModal(offer, data) {
   const strSign = item.strength_bonus >= 0 ? '+' : '';
   const strText = item.strength_bonus !== 0 ? `${strSign}${item.strength_bonus} Str` : '';
   const scavengerBtn = offer.has_scavenger
-    ? `<button class="btn-secondary" onclick="scavengerSwap()">Ã°Å¸â€â€ž Scavenger: Swap</button>`
+    ? `<button class="btn-secondary" onclick="scavengerSwap()">🔄 Scavenger: Swap</button>`
     : '';
   content.innerHTML = `<h2 class="offer-title">Found Chest</h2>
     <div class="offer-items">
@@ -714,7 +726,7 @@ function showShopModal(offer, data) {
   const content = document.getElementById('offer-content');
   const items = offer.items || [];
   let html = `<h2 class="offer-title">Shop</h2>
-    <p class="modal-desc">Choose one item to take Ã¢â‚¬â€ it's free!</p>
+    <p class="modal-desc">Choose one item to take — it's free!</p>
     <div class="offer-items">`;
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -728,6 +740,7 @@ function showShopModal(offer, data) {
   }
   html += '</div>';
   html += `<div class="modal-btns">
+    ${offer.has_scavenger ? '<button class="btn-secondary" id="shop-scavenger-btn" onclick="scavengerSwap(_shopSelectedIndex)" disabled>Scavenger: Replace selected item</button>' : ''}
     <button class="btn-primary" id="shop-confirm-btn" onclick="confirmShopTake()" disabled>Take It</button>
     <button class="btn-secondary" onclick="openPlayerSheet()">View Inventory</button>
     <button class="btn-secondary" onclick="resolveOffer({take: false})">Leave Shop</button>
@@ -742,6 +755,8 @@ function selectShopItem(idx, el) {
   if (el) el.classList.add('selected');
   const btn = document.getElementById('shop-confirm-btn');
   if (btn) btn.disabled = false;
+  const swap = document.getElementById('shop-scavenger-btn');
+  if (swap) swap.disabled = false;
 }
 
 function confirmShopTake() {
@@ -754,18 +769,19 @@ function confirmShopTake() {
   });
 }
 
-async function scavengerSwap() {
+async function scavengerSwap(itemIndex = 0) {
   const resp = await fetch('/games/werblers/api/scavenger_swap', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: '{}',
+    body: JSON.stringify({item_index: itemIndex}),
   });
   const data = await resp.json();
   if (data.error) { alert(data.error); return; }
   if (data.state) { gameState = data.state; applyState(data.state); }
   if (data.offer) {
     _pendingOfferData = data.offer;
-    showChestModal(data.offer, {});
+    if (data.phase === 'offer_shop') showShopModal(data.offer, data.state, {});
+    else showChestModal(data.offer, {});
   }
 }
 
@@ -777,7 +793,11 @@ async function resolveOffer(choices) {
     body: JSON.stringify(choices),
   });
   const data = await resp.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) {
+    alert(data.error);
+    document.getElementById('offer-modal').classList.remove('hidden');
+    return;
+  }
   if (data.state) { gameState = data.state; applyState(data.state); }
   if (data.phase === 'rake_it_in') {
     showRakeItIn(data);
@@ -860,7 +880,7 @@ function _confirmPackReplace(unifiedIndex, itemName) {
 }
 
 // ================================================================
-// CARD ZOOM (tap-to-view) Ã¢â‚¬â€ with optional action buttons
+// CARD ZOOM (tap-to-view) — with optional action buttons
 // ================================================================
 function openCardZoom(imgSrc) {
   const modal = document.getElementById('card-zoom-modal');
@@ -903,7 +923,7 @@ function closeCardZoom() {
   document.getElementById('card-zoom-modal').classList.add('hidden');
 }
 
-// Use consumable from zoom Ã¢â‚¬â€ validates combat-only
+// Use consumable from zoom — validates combat-only
 function _useConsumableFromZoom(idx) {
   const p = gameState?.players?.find(x => x.is_current);
   if (!p) return;
@@ -1219,7 +1239,7 @@ function _renderPreFight(combat, state) {
     fleeHtml = `<button class="btn-flee-swiftness" onclick="swiftnessFlee()">Flee (Swiftness)</button>`;
   }
 
-  // Crossroads Demon Ã¢â‚¬â€ Fair Exchange section
+  // Crossroads Demon — Fair Exchange section
   let crossroadsHtml = '';
   if (combat.effect_id === 'crossroads_demon') {
     const allEquipped = [];
@@ -1231,7 +1251,7 @@ function _renderPreFight(combat, state) {
     }
     const alreadyDiscarded = combat.crossroads_discards_count || 0;
     if (allEquipped.length > 0) {
-      const itemsHtml = allEquipped.map(({item, source, index}) => {
+      const itemsHtml = allEquipped.filter(({item}) => !item.locked_by_curse_id || !p.curses.some(c => c.effect_id === item.locked_by_curse_id)).map(({item, source, index}) => {
         const selKey = `${source}:${index}`;
         const isSelected = _crossroadsSelectedSources.some(s => s.source === source && s.index === index);
         const img = item.card_image ? `/games/werblers/images/${item.card_image}` : '';
@@ -1239,12 +1259,12 @@ function _renderPreFight(combat, state) {
         return `<div class="prefight-consumable crossroads-item${isSelected ? ' crossroads-selected' : ''}" id="cditem-${source}-${index}" onclick="toggleCrossroadsItem('${source}',${index})">
           ${thumb}<div class="prefight-consumable-info"><div class="prefight-consumable-name">${item.name}</div>
           <div class="prefight-consumable-bonus" style="color:var(--text-dim);font-size:10px">${source.replace('equip_','').replace('_',' ')}</div></div>
-          <span class="crossroads-check">${isSelected ? 'Ã¢Å“â€' : 'Ã¢â€”â€¹'}</span></div>`;
+          <span class="crossroads-check">${isSelected ? '✔' : '○'}</span></div>`;
       }).join('');
       const selectedCount = _crossroadsSelectedSources.length;
       const confirmDisabled = selectedCount === 0 ? 'disabled' : '';
       crossroadsHtml = `<div class="prefight-consumables-section">
-        <div class="prefight-consumables-title" style="color:#e8c55a">Ã¢Å¡Â¡ Fair Exchange</div>
+        <div class="prefight-consumables-title" style="color:#e8c55a">⚡ Fair Exchange</div>
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">Select equipment to offer. On a win, draw 1 higher-tier item per piece offered.</div>
         ${alreadyDiscarded > 0 ? `<div style="font-size:11px;color:#e8c55a;margin-bottom:4px">${alreadyDiscarded} item(s) already offered.</div>` : ''}
         <div class="prefight-consumables-list">${itemsHtml}</div>
@@ -1321,6 +1341,11 @@ async function _performCrossroadsDiscard() {
 async function doFight() {
   const resp = await fetch('/games/werblers/api/fight', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
   const data = await resp.json();
+    if (data.phase === 'trait_loss') {
+      document.getElementById('battle-overlay').classList.add('hidden');
+      applyState(data.state);
+      return;
+    }
   if (data.error) { alert(data.error); return; }
   if (data.state) { gameState = data.state; }
   showBattleScene(data);
@@ -1465,7 +1490,7 @@ function _showGainsScreen() {
     if (cg.trait_gained) {
       const matching = (pState?.traits || []).find(t => t.name === cg.trait_gained);
       const tok = matching?.tokens || 0;
-      const tokHtml = tok > 0 ? `<div style="margin-top:4px"><img src="/games/werblers/images/Assorted UI Images/+1 Token.png" style="height:16px;vertical-align:middle" onerror="this.style.display='none'"> Ãƒâ€”${tok} Strength Token${tok > 1 ? 's' : ''}</div>` : '';
+      const tokHtml = tok > 0 ? `<div style="margin-top:4px"><img src="/games/werblers/images/Assorted UI Images/+1 Token.png" style="height:16px;vertical-align:middle" onerror="this.style.display='none'"> ×${tok} Strength Token${tok > 1 ? 's' : ''}</div>` : '';
       gainsHtml += `<div class="gain-modal-item is-trait"><div class="gain-modal-type">Trait Gained</div>
         <div class="gain-modal-name">${cg.trait_gained}</div>
         ${cg.trait_gained_desc ? `<div class="gain-modal-desc">${cg.trait_gained_desc}</div>` : ''}${tokHtml}</div>`;
@@ -1503,7 +1528,7 @@ function _showGainsScreen() {
       if (g.type === 'trait') {
         const matching = (pState?.traits || []).find(t => t.name === g.name);
         const tok = matching?.tokens || 0;
-        const tokHtml = tok > 0 ? `<div style="margin-top:4px"><img src="/games/werblers/images/Assorted UI Images/+1 Token.png" style="height:16px;vertical-align:middle" onerror="this.style.display='none'"> Ãƒâ€”${tok} Strength Token${tok > 1 ? 's' : ''}</div>` : '';
+        const tokHtml = tok > 0 ? `<div style="margin-top:4px"><img src="/games/werblers/images/Assorted UI Images/+1 Token.png" style="height:16px;vertical-align:middle" onerror="this.style.display='none'"> ×${tok} Strength Token${tok > 1 ? 's' : ''}</div>` : '';
         gainsHtml += `<div class="gain-modal-item is-trait"><div class="gain-modal-type">Trait Gained</div>
           <div class="gain-modal-name">${g.name}</div><div class="gain-modal-desc">${g.description || ''}</div>${tokHtml}</div>`;
       } else if (g.type === 'curse') {
@@ -1604,14 +1629,19 @@ async function _placePendingTraitItems() {
     });
     // Open placement screen
     await new Promise(resolve => {
-      showInventoryPopup(item, async (choices) => {
-        const body = { placement_choices: choices };
+      showInventoryPopup(item, async function place(choices) {
+        const body = { placement_choices: choices, player_id: p.player_id };
         const resp = await fetch('/games/werblers/api/place_trait_item', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
         const data = await resp.json();
+        if (data.error) {
+          alert(data.error);
+          showInventoryPopup(item, place);
+          return;
+        }
         if (data.state) { gameState = data.state; applyState(data.state); }
         resolve();
       });
@@ -1888,7 +1918,7 @@ function renderPlayerSheetFull(player, placementInfo) {
   const weaponHands = player.weapon_hands || 2;
   const hasChestAccess = (player.chest_slots ?? 1) > 0;
 
-  // Slot type Ã¢â€ â€™ manage_item source string mapping
+  // Slot type → manage_item source string mapping
   const _slotSrcMap = {helmet:'equip_helmet', chest:'equip_chest', legs:'equip_leg', weapon:'equip_weapon'};
 
   function slotHtml(item, label, slotKey, idx) {
@@ -1918,7 +1948,7 @@ function renderPlayerSheetFull(player, placementInfo) {
   }
 
   let html = `<div class="ps-header"><div class="ps-title">${player.hero_name || 'Player Sheet'}</div>
-    <button class="ps-close" onclick="closePlayerSheet()">Ã¢Å“â€¢</button></div>`;
+    <button class="ps-close" onclick="closePlayerSheet()">✕</button></div>`;
 
   // Placement banner
   if (isPlacement && itemToPlace) {
@@ -2495,7 +2525,7 @@ function _renderTheSmith(event, player) {
     const allItems = [...packItems.map((item, i) => ({name: item.name, img: item.card_image, idx: i})),
                       ...equipped.map((item, i) => ({name: item.name, img: item.card_image, idx: packItems.length + i}))];
     if (allItems.length < 3) return `<div style="text-align:center;padding:16px 0">
-      <div style="font-size:48px;margin-bottom:12px">Ã°Å¸â€Â¨</div>
+      <div style="font-size:48px;margin-bottom:12px">🔨</div>
       <div class="mystery-speech-bubble"><p>"Heh... sorry pal, you're gonna need at least 3 items before I can work my magic."</p></div>
       <p class="mystery-info" style="color:var(--text-dim)">You only have ${allItems.length} item${allItems.length === 1 ? '' : 's'}.</p>
       </div><div class="mystery-btn-row"><button class="btn-primary" onclick="_resolveMysterySkip()">Leave</button></div>`;
@@ -2511,7 +2541,7 @@ function _renderTheSmith(event, player) {
   } else {
     const equipped = _getAllEquipped(player);
     if (packItems.length < 3) return `<div style="text-align:center;padding:16px 0">
-      <div style="font-size:48px;margin-bottom:12px">Ã°Å¸â€Â¨</div>
+      <div style="font-size:48px;margin-bottom:12px">🔨</div>
       <div class="mystery-speech-bubble"><p>"Heh... sorry pal, you're gonna need at least 3 pack items before I can work my magic."</p></div>
       <p class="mystery-info" style="color:var(--text-dim)">You only have ${packItems.length} pack item${packItems.length === 1 ? '' : 's'}.</p>
       </div><div class="mystery-btn-row"><button class="btn-primary" onclick="_resolveMysterySkip()">Leave</button></div>`;
@@ -2822,12 +2852,12 @@ async function _showMysteryOutcome(data, onContinue, overrideAnimPlayer = null) 
   });
 }
 
-// Beggar thank-you phase Ã¢â‚¬â€ just show outcome and close (don't send extra 'skip')
+// Beggar thank-you phase — just show outcome and close (don't send extra 'skip')
 function _showBeggarThankYou(data, mysteryPlayer) {
   _showMysteryOutcome(data, () => _closeMysteryResult(), mysteryPlayer || null);
 }
 
-// Fairy King reveal Ã¢â‚¬â€ animated transformation from beggar to fairy king, then item selection
+// Fairy King reveal — animated transformation from beggar to fairy king, then item selection
 let _fkRewardIdx = -1;
 function _showFairyKingReveal(data) {
   const overlay = document.getElementById('battle-overlay');
@@ -3045,12 +3075,16 @@ async function _resolveRakeItIn() {
     body: JSON.stringify(body),
   });
   const data = await resp.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) {
+    alert(data.error);
+    document.getElementById('rake-it-in-modal').classList.remove('hidden');
+    return;
+  }
   if (data.state) { gameState = data.state; applyState(data.state); }
   _rakeItInData = null;
-  // For chest rake-it-in, the bonus item is in pending_trait_items Ã¢â‚¬â€ show popup + placement
+  // For chest rake-it-in, the bonus item is in pending_trait_items — show popup + placement
   await _placePendingTraitItems();
-  // After placement, the backend advances the turn Ã¢â‚¬â€ refresh state
+  // After placement, the backend advances the turn — refresh state
   if (gameState) { viewingPlayerId = gameState.current_player_id; applyState(gameState); }
   await loadAndRenderAbilities();
 }
@@ -3102,7 +3136,7 @@ function showItemActions(itemType, itemIndex, itemName) {
   document.body.appendChild(overlay);
 }
 
-// Convert a flat equip index (helmets Ã¢â€ â€™ chest Ã¢â€ â€™ legs Ã¢â€ â€™ weapons) to {source, index}
+// Convert a flat equip index (helmets → chest → legs → weapons) to {source, index}
 function _flatEquipToSource(flatIdx) {
   const p = gameState?.players?.find(x => x.is_current);
   if (!p) return null;
@@ -3220,10 +3254,10 @@ function _showIOSOccupiedSlot(packIndex, newItem, equippedItem, packSlotsFree) {
     sheet.innerHTML = `<div style="text-align:center;padding:8px 0;font-family:'Cinzel',serif;color:var(--gold);font-size:15px">Slot Occupied</div>
       <div style="display:flex;gap:16px;justify-content:center;padding:8px 16px">
         <div style="text-align:center;flex:1"><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Equipping</div>${newImg}<div style="font-size:12px;color:var(--text)">${newItem?.name||''}</div></div>
-        <div style="align-self:center;font-size:20px;color:var(--gold)">Ã¢â€¡Å’</div>
+        <div style="align-self:center;font-size:20px;color:var(--gold)">⇌</div>
         <div style="text-align:center;flex:1"><div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Replaces</div>${curImg}<div style="font-size:12px;color:var(--text)">${equippedItem?.name||'?'}</div></div>
       </div>
-      <div class="action-sheet-item" id="_occ-pack-btn">${packSlotsFree > 0 ? 'Move Replaced to Pack' : 'Move Replaced to Pack (Pack Full Ã¢â‚¬â€ Choose Discard)'}</div>
+      <div class="action-sheet-item" id="_occ-pack-btn">${packSlotsFree > 0 ? 'Move Replaced to Pack' : 'Move Replaced to Pack (Pack Full — Choose Discard)'}</div>
       <div class="action-sheet-item danger" id="_occ-discard-btn">Discard Replaced &amp; Equip</div>
       <div class="action-sheet-cancel" id="_occ-cancel">Cancel</div>`;
     sheet.querySelector('#_occ-pack-btn').onclick = async () => {
@@ -3375,11 +3409,11 @@ async function _showIOSMultiDisplace(packIndex, displacedItems, packSlotsFree) {
       actions.push({action: 'discard'});
     } else {
       if (slotsAvailable > 0) {
-        // Free pack slot available Ã¢â‚¬â€ just move it
+        // Free pack slot available — just move it
         actions.push({action: 'to_pack'});
         slotsAvailable--;
       } else {
-        // Pack is full Ã¢â‚¬â€ prompt to choose a pack item to drop first
+        // Pack is full — prompt to choose a pack item to drop first
         const packItems = p?.pack || [];
         const pickedIdx = await _pickPackItemToDiscard(packItems, item.name, i + 1, displacedItems.length);
         if (pickedIdx === null) return; // cancelled
@@ -3452,10 +3486,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ================================================================
-// APPLY STATE (central state Ã¢â€ â€™ UI sync)
+// APPLY STATE (central state → UI sync)
 // ================================================================
 function applyState(state) {
   gameState = state;
+  window.werblersChoices.render(state);
   // Auto-switch viewingPlayerId only when the current player actually changes (turn advance)
   const newCurrent = (state.players.find(p => p.is_current) || state.players[0]);
   if (newCurrent) {
@@ -3464,7 +3499,7 @@ function applyState(state) {
       viewingPlayerId = newCurrentId;
       _lastKnownCurrentPlayerId = newCurrentId;
     } else if (_lastKnownCurrentPlayerId !== newCurrentId) {
-      // Turn changed Ã¢â‚¬â€ switch view to the new current player
+      // Turn changed — switch view to the new current player
       viewingPlayerId = newCurrentId;
       _lastKnownCurrentPlayerId = newCurrentId;
     }
@@ -3480,8 +3515,12 @@ function applyState(state) {
   // Update turn banner (with night indicator)
   const p = state.players.find(x => x.is_current);
   if (p) {
-    const nightTag = state.is_night ? ' Ã°Å¸Å’â„¢' : ' Ã¢Ëœâ‚¬';
-    document.getElementById('turn-banner').textContent = `${p.hero_name || p.name}'s Turn Ã¢â‚¬â€ Tile ${p.position}${nightTag}`;
+    const banner = document.getElementById('turn-banner');
+    banner.textContent = `${p.hero_name || p.name}'s Turn`;
+    const position = document.createElement('span');
+    position.className = 'turn-position';
+    position.textContent = `Tile ${p.position} · ${state.is_night ? 'Night' : 'Day'}`;
+    banner.appendChild(position);
   }
 
   // Update log
@@ -3673,10 +3712,10 @@ function _renderSaveSlots(containerId) {
       const dt = new Date(save.saved_at);
       const timeStr = dt.toLocaleString();
       slot.innerHTML = `<span class="slot-label">Slot ${i}</span>
-        <span class="slot-info">${save.hero_names} Ã‚Â· ${save.num_players}P Ã‚Â· Turn ${save.turn_number}</span>
+        <span class="slot-info">${save.hero_names} · ${save.num_players}P · Turn ${save.turn_number}</span>
         <span class="slot-time">${timeStr}</span>`;
     } else {
-      slot.innerHTML = `<span class="slot-label">Slot ${i}</span><span class="slot-info slot-empty">Ã¢â‚¬â€ Empty Ã¢â‚¬â€</span>`;
+      slot.innerHTML = `<span class="slot-label">Slot ${i}</span><span class="slot-info slot-empty">— Empty —</span>`;
     }
     slot.addEventListener('click', () => {
       _selectedSlot = i;
@@ -3732,6 +3771,7 @@ async function _doLoad() {
     viewingPlayerId = data.state.current_player_id;
     buildBoard();
     applyState(data.state);
+    window.werblersChoices.resumeGame(data);
   }
 }
 
@@ -3766,6 +3806,7 @@ async function menuLoadGame() {
     viewingPlayerId = data.state.current_player_id;
     buildBoard();
     applyState(data.state);
+    window.werblersChoices.resumeGame(data);
   }
 }
 
@@ -3782,7 +3823,7 @@ async function openAchievementsModal() {
   for (const a of (data.achievements || [])) {
     const row = document.createElement('div');
     row.className = 'achievement-row' + (a.achieved ? ' achieved' : '');
-    row.innerHTML = `<span class="achievement-check">${a.achieved ? 'Ã¢Å“â€¦' : 'Ã¢Â¬Å“'}</span>
+    row.innerHTML = `<span class="achievement-check">${a.achieved ? '✅' : '⬜'}</span>
                      <span class="achievement-desc">${a.description}</span>`;
     list.appendChild(row);
   }

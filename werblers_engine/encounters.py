@@ -592,7 +592,8 @@ def encounter_monster(
         log.append("  Bonus: Creepy Hollywood Exec has been defeated \u2014 auto-win!")
         result = CombatResult.WIN
     else:
-        result = _resolve_with_pvp_penalties(player, monster, is_night, other_players, decide_fn, log, extra_player_strength=extra_player_strength)
+        result = _resolve_with_pvp_penalties(player, monster, is_night, other_players, decide_fn, log,
+                                            extra_player_strength=extra_player_strength, totals=ctx.combat_totals)
 
     # --- Freeze Ray: may discard a movement card to skip trait/curse ---
     freeze_ray_used = False
@@ -683,6 +684,7 @@ def _resolve_with_pvp_penalties(
     decide_fn: Optional[Callable],
     log: list[str],
     extra_player_strength: int = 0,
+    totals: Optional[dict] = None,
 ) -> CombatResult:
     """Resolve combat, applying Strong Schlong PvP penalties first."""
     schlong_penalty = 0
@@ -710,8 +712,8 @@ def _resolve_with_pvp_penalties(
         effective_monster = Monster(
             monster.name, strength=monster.strength + schlong_penalty, level=monster.level
         )
-        return resolve_combat(player, effective_monster, is_night=is_night, extra_strength=extra_player_strength)
-    return resolve_combat(player, monster, is_night=is_night, extra_strength=extra_player_strength)
+        return resolve_combat(player, effective_monster, is_night=is_night, extra_strength=extra_player_strength, totals=totals)
+    return resolve_combat(player, monster, is_night=is_night, extra_strength=extra_player_strength, totals=totals)
 
 
 def encounter_shop(

@@ -96,18 +96,22 @@ def legacy_pulse_redirect(subpath: str):
 # ── Werblers game blueprints (API routes under /games/werblers) ──
 from werblers_engine import database as werblers_db
 werblers_db.init_db()
+from werblers_web.rooms import init_tables as init_werblers_room_tables
+init_werblers_room_tables()
 
 from werblers_web.routes.game_routes import game_bp as werblers_game_bp
 from werblers_web.routes.combat_routes import combat_bp as werblers_combat_bp
 from werblers_web.routes.mystery_routes import mystery_bp as werblers_mystery_bp
 from werblers_web.routes.inventory_routes import inventory_bp as werblers_inventory_bp
 from werblers_web.routes.save_routes import save_bp as werblers_save_bp
+from werblers_web.routes.room_routes import room_bp as werblers_room_bp
 
 app.register_blueprint(werblers_game_bp, url_prefix="/games/werblers")
 app.register_blueprint(werblers_combat_bp, url_prefix="/games/werblers")
 app.register_blueprint(werblers_mystery_bp, url_prefix="/games/werblers")
 app.register_blueprint(werblers_inventory_bp, url_prefix="/games/werblers")
 app.register_blueprint(werblers_save_bp, url_prefix="/games/werblers")
+app.register_blueprint(werblers_room_bp, url_prefix="/games/werblers/api")
 
 # ── Werblers media serving ───────────────────────────────────────
 _WERBLERS_MEDIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "werblers_media")

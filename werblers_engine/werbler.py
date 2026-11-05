@@ -72,6 +72,7 @@ def _apply_werbler_loss(
     monster_deck_l3: Optional[Deck[Monster]] = None,
     curse_deck: Optional[Deck[Curse]] = None,
     select_fn: Optional[Callable] = None,
+    defer_trait_loss_fn: Optional[Callable] = None,
 ) -> None:
     """Apply a werbler's on-loss penalty."""
     wid = werbler.effect_id
@@ -135,21 +136,24 @@ def _apply_werbler_loss(
         if not player.traits:
             log.append("  Slurp!: no traits to lose.")
         elif len(player.traits) <= 2:
-            names = [t.name for t in player.traits]
-            player.traits.clear()
+            lost = list(player.traits)
+            names = [t.name for t in lost]
+            for trait in lost:
+                player.traits.remove(trait)
+                _fx.on_trait_lost(player, trait, log)
             _fx.refresh_tokens(player)
             log.append(f"  Slurp!: lost all traits: {', '.join(names)}.")
+        elif defer_trait_loss_fn:
+            defer_trait_loss_fn(player, 2)
+            log.append("  Slurp!: choose 2 traits to lose.")
         else:
-            # Interactive selection (via select_fn)
-            if select_fn:
-                chosen: list = select_fn(
-                    player.traits,
-                    min(2, len(player.traits)),
-                    "Choose 2 traits to lose (Slurp!):",
-                )
-            else:
-                # Fallback: lose the first 2 traits
-                chosen = player.traits[:2]
+            # Legacy auto-play uses the same single-index callback contract
+            # as other encounters. Interactive play queues a saved decision.
+            remaining = list(player.traits)
+            chosen = []
+            for _ in range(2):
+                index = select_fn("Choose a trait to lose (Slurp!):", [t.name for t in remaining], log) if select_fn else 0
+                chosen.append(remaining.pop(max(0, min(index, len(remaining) - 1))))
             removed_names = []
             for t in list(chosen):
                 if t in player.traits:
@@ -198,12 +202,13 @@ def encounter_werbler(
     monster_mod += kneel_bonus
 
     # Build effective monster
-    effective_strength = werbler.strength + monster_mod + extra_monster_strength - player_mod
+    effective_strength = werbler.strength + monster_mod + extra_monster_strength
     effective_strength = max(0, effective_strength)
     effective_werbler = Monster(
         werbler.name, strength=effective_strength, level=werbler.level,
     )
-    result = resolve_combat(player, effective_werbler, is_night=is_night, extra_strength=extra_player_strength)
+    result = resolve_combat(player, effective_werbler, is_night=is_night,
+                            extra_strength=extra_player_strength + player_mod, totals=ctx.combat_totals)
 
     if result == CombatResult.WIN:
         log.append("  VICTORY! You defeated your Werbler!")
@@ -219,7 +224,7 @@ def encounter_werbler(
         kneel_curses = [c for c in player.curses if c.effect_id == "kneel"]
         if kneel_curses:
             for kc in kneel_curses:
-                player.curses.remove(kc)
+                player.discard_curse(kc)
             log.append(
                 f"  KNEEL!: {len(kneel_curses)} curse(s) discarded after Werbler loss."
             )
@@ -229,6 +234,7 @@ def encounter_werbler(
             monster_deck_l3=monster_deck_l3,
             curse_deck=curse_deck,
             select_fn=select_fn,
+            defer_trait_loss_fn=ctx.defer_trait_loss_fn,
         )
         # --- Brunhilde: Skimpy Armour ---
         _fx.apply_brunhilde_combat_loss(player, log)

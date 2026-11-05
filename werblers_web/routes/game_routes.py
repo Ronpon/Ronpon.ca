@@ -5,7 +5,7 @@ from typing import Optional
 
 from flask import Blueprint, jsonify
 
-from security import json_body
+from werblers_web.routes.helpers import action_body as json_body
 from werblers_engine.game import Game
 from werblers_engine.heroes import HEROES, HeroId
 from werblers_engine import effects as _fx
@@ -17,9 +17,42 @@ from werblers_web.serializers import (
     consumable_card_image as _consumable_card_image,
     item_to_dict_from_obj as _item_to_dict_from_obj,
 )
-from werblers_web.routes.helpers import _get_state, _enrich_combat_info, _build_state, _set_game_state
+from werblers_web.routes.helpers import _get_state, _enrich_combat_info, _build_state, _set_game_state, require_me_too_resolved
 
 game_bp = Blueprint("game", __name__)
+game_bp.before_request(require_me_too_resolved)
+
+
+@game_bp.errorhandler(ValueError)
+def invalid_game_choice(error):
+    return jsonify({"error": str(error), "state": _build_state()}), 400
+
+
+@game_bp.route("/api/resolve_me_too", methods=["POST"])
+def api_resolve_me_too():
+    state = _get_state()
+    game = state["game"]
+    if game is None:
+        return jsonify({"error": "No game in progress"}), 400
+    data = json_body()
+    choice_id = data.get("choice_id")
+    curse_index = data.get("curse_index")
+    if type(choice_id) is not int or (curse_index is not None and type(curse_index) is not int):
+        return jsonify({"error": "Invalid Me Too! choice."}), 400
+    log = game.resolve_me_too(choice_id, curse_index)
+    state["last_log"] = state["last_log"] + log
+    return jsonify({"ok": True, "state": _build_state()})
+
+
+@game_bp.post("/api/resolve_trait_loss")
+def api_resolve_trait_loss():
+    state = _get_state()
+    game = state["game"]
+    if game is None:
+        return jsonify({"error": "No game in progress"}), 400
+    data = json_body()
+    state["last_log"] = game.resolve_trait_loss(data.get("choice_id"), data.get("trait_indices"))
+    return jsonify({"ok": True, "state": _build_state()})
 
 
 @game_bp.route("/api/heroes")
@@ -147,9 +180,7 @@ def api_begin_move():
         ]
         offer = {**raw_offer, "items": enriched_items}
         # Check if scavenger trait allows swapping the chest item
-        has_scavenger = result["phase"] == "offer_chest" and any(
-            t.effect_id == "scavenger" for t in _game.current_player.traits
-        )
+        has_scavenger = _game.can_scavenge()
         offer["has_scavenger"] = has_scavenger
         return jsonify({
             "phase":      result["phase"],
@@ -233,7 +264,10 @@ def api_resolve_rake_it_in():
     discard_slot = str(data.get("discard_slot", ""))
     discard_idx  = int(data.get("discard_idx", 0))
     second_item_choice = int(data.get("second_item_choice", -1))
-    placement_choices = {k: data[k] for k in ("placement", "equip_action", "equip_item_index") if k in data}
+    placement_choices = {k: data[k] for k in (
+        "placement", "equip_action", "equip_action_2", "equip_item_index",
+        "pack_discard_index", "pack_discard_index_2", "adaptable_blade_two_handed",
+    ) if k in data}
     result = _game.resolve_rake_it_in(
         use_it=use_it,
         discard_slot=discard_slot,
@@ -266,13 +300,14 @@ def api_place_trait_item():
         player = _game.current_player
     if not player.pending_trait_items:
         return jsonify({"error": "No pending trait items"}), 400
-    item = player.pending_trait_items.pop(0)
+    item = player.pending_trait_items[0]
     choices = data.get("placement_choices", {})
     log: list[str] = []
     if choices.get("discard"):
         log.append(f"  {item.name} discarded.")
     else:
         _game._apply_item_to_player(player, item, choices, log)
+    player.pending_trait_items.pop(0)
     _fx.refresh_tokens(player)
     if _game._rakeitin_pending_placement and not player.pending_trait_items:
         _game._rakeitin_pending_placement = False

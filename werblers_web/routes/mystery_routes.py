@@ -3,16 +3,17 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify
 
-from security import json_body
+from werblers_web.routes.helpers import action_body as json_body
 from werblers_engine import content as C
 from werblers_web.serializers import (
     item_card_image as _item_card_image,
     monster_card_image as _monster_card_image,
     item_to_dict_from_obj as _item_to_dict_from_obj,
 )
-from werblers_web.routes.helpers import _get_state, _build_state
+from werblers_web.routes.helpers import _get_state, _build_state, require_me_too_resolved
 
 mystery_bp = Blueprint("mystery", __name__)
+mystery_bp.before_request(require_me_too_resolved)
 
 
 @mystery_bp.route("/api/resolve_mystery", methods=["POST"])

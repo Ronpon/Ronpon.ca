@@ -898,7 +898,8 @@ function showShopModal(offer, state, tileScene) {
       ${offer.items.map((it, i) => renderOfferItemCard(it, i, false)).join('')}
     </div>
     <div class="offer-actions">
-      <button class="btn-primary" id="shop-confirm-btn" onclick="confirmShopTake()" disabled>
+      ${offer.has_scavenger ? '<button class="btn-secondary" id="shop-scavenger-btn" onclick="scavengerSwap(_shopSelectedIndex)" disabled>Scavenger: Replace selected item</button>' : ''}
+    <button class="btn-primary" id="shop-confirm-btn" onclick="confirmShopTake()" disabled>
         Take It
       </button>
       <button class="btn-secondary" onclick="resolveOffer({take: false})">Leave Shop</button>
@@ -909,6 +910,8 @@ function showShopModal(offer, state, tileScene) {
       card.classList.add('selected');
       _shopSelectedIndex = parseInt(card.dataset.index);
       document.getElementById('shop-confirm-btn').disabled = false;
+      const swap = document.getElementById('shop-scavenger-btn');
+      if (swap) swap.disabled = false;
     });
   });
   modal.classList.remove('hidden');
@@ -1592,18 +1595,19 @@ function invCancel() {
   if (_invOnConfirm) _invOnConfirm({ placement: 'pack', pack_discard_index: -999 });
 }
 // ================================================================ RESOLVE OFFER
-async function scavengerSwap() {
+async function scavengerSwap(itemIndex = 0) {
   const resp = await fetch('/games/werblers/api/scavenger_swap', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: '{}',
+    body: JSON.stringify({item_index: itemIndex}),
   });
   const data = await resp.json();
   if (data.error) { alert(data.error); return; }
   if (data.state) { gameState = data.state; applyState(data.state); }
   if (data.offer) {
     _pendingOfferData = data.offer;
-    showChestModal(data.offer, {});
+    if (data.phase === 'offer_shop') showShopModal(data.offer, data.state, {});
+    else showChestModal(data.offer, {});
   }
 }
 
@@ -1618,6 +1622,11 @@ async function resolveOffer(choices) {
     body: JSON.stringify(choices),
   });
   const data = await resp.json();
+  if (data.error) {
+    alert(data.error);
+    document.getElementById('offer-modal').classList.remove('hidden');
+    return;
+  }
   if (data.state) { gameState = data.state; applyState(data.state); }
   if (data.phase === 'rake_it_in') {
     showRakeItInModal(data);
@@ -1768,6 +1777,11 @@ async function resolveRakeItIn(useIt) {
     body: JSON.stringify(body),
   });
   const data = await resp.json();
+  if (data.error) {
+    alert(data.error);
+    document.getElementById('rake-it-in-modal').classList.remove('hidden');
+    return;
+  }
   _rakeItInData = null;
   // Save the current player before state update (turn may advance)
   const rakePlayerId = gameState ? gameState.current_player_id : viewingPlayerId;
@@ -1790,6 +1804,7 @@ async function resolveRakeItIn(useIt) {
 // ================================================================ APPLY STATE
 function applyState(state) {
   gameState = state;
+  window.werblersChoices.render(state);
   document.getElementById('turn-number').textContent = `Turn ${state.turn_number}`;
   const cur = state.players.find(p => p.is_current);
   document.getElementById('active-player-name').textContent = cur ? `${cur.name}'s Turn` : '';
@@ -2562,6 +2577,11 @@ async function doFight() {
       return;
     }
     const data = await resp.json();
+    if (data.phase === 'trait_loss') {
+      document.getElementById('battle-overlay').classList.add('hidden');
+      applyState(data.state);
+      return;
+    }
     if (data.state) gameState = data.state;
     _lastFightWasSummon = data.phase === 'summoned_done';
     _lastFightFromMystery = !!(data.combat_info && data.combat_info.from_mystery);
@@ -2719,7 +2739,7 @@ async function _placePendingMinions() {
 
 async function _placePendingTraitItems(forPlayerId) {
   if (!gameState) return;
-  const pid = forPlayerId || viewingPlayerId;
+  const pid = forPlayerId ?? viewingPlayerId;
   const p = gameState.players.find(x => x.player_id === pid);
   if (!p || !p.pending_trait_items || !p.pending_trait_items.length) return;
   for (let i = 0; i < p.pending_trait_items.length; i++) {
@@ -2740,15 +2760,20 @@ async function _placePendingTraitItems(forPlayerId) {
     });
     // Open placement screen
     await new Promise(resolve => {
-      showInventoryPopup(item, async (choices) => {
+      showInventoryPopup(item, async function place(choices) {
         const body = { placement_choices: choices };
-        if (forPlayerId) body.player_id = forPlayerId;
+        body.player_id = pid;
         const resp = await fetch('/games/werblers/api/place_trait_item', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
         const data = await resp.json();
+        if (data.error) {
+          alert(data.error);
+          showInventoryPopup(item, place);
+          return;
+        }
         if (data.state) {
           gameState = data.state;
           // Keep viewingPlayerId on the placing player during the loop;
@@ -4685,6 +4710,7 @@ async function _doLoad() {
     applyState(data.state);
     _resumeTierMusic(data.state);
     await loadAndRenderAbilities();
+    window.werblersChoices.resumeGame(data);
   }
 }
 
@@ -4721,6 +4747,7 @@ async function menuLoadGame() {
     applyState(data.state);
     _resumeTierMusic(data.state);
     await loadAndRenderAbilities();
+    window.werblersChoices.resumeGame(data);
   }
 }
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify
 
-from security import json_body
+from werblers_web.routes.helpers import action_body as json_body
 from werblers_engine import content as C
 from werblers_engine import effects as _fx
 from werblers_web.serializers import (
@@ -12,9 +12,15 @@ from werblers_web.serializers import (
     consumable_card_image as _consumable_card_image,
     monster_card_image as _monster_card_image,
 )
-from werblers_web.routes.helpers import _get_state, _enrich_combat_info, _build_state
+from werblers_web.routes.helpers import _get_state, _enrich_combat_info, _build_state, require_me_too_resolved
 
 combat_bp = Blueprint("combat", __name__)
+combat_bp.before_request(require_me_too_resolved)
+
+
+@combat_bp.errorhandler(ValueError)
+def invalid_combat_choice(error):
+    return jsonify({"error": str(error)}), 400
 
 
 @combat_bp.route("/api/fight", methods=["POST"])
@@ -33,7 +39,7 @@ def api_fight():
         combat_info = result.get("combat_info")
         if combat_info:
             combat_info = _enrich_combat_info(combat_info)
-        phase = "summoned_done" if result.get("summoned_monster") else "done"
+        phase = "summoned_done" if result.get("summoned_monster") else result.get("phase", "done")
         return jsonify({"phase": phase, "state": _build_state(), "combat_info": combat_info})
     except Exception:
         current_app.logger.exception("Werblers fight failed")
@@ -155,7 +161,7 @@ def api_summon_monster():
         "monster_name": monster.name,
         "monster_strength": monster.strength + _male_bonus,
         "monster_bonus_vs_male": _male_bonus,
-        "player_strength": player.combat_strength(),
+        "player_strength": player.combat_strength(is_night=_game.is_night),
         "player_id": player.player_id,
         "player_name": player.name,
         "hero_id": player.hero.id.name if player.hero else None,
@@ -176,44 +182,15 @@ def api_crossroads_discard():
     _game = _get_state()["game"]
     if _game is None:
         return jsonify({"error": "No game in progress"}), 400
-    if _game._pending_combat is None:
-        return jsonify({"error": "No pending combat"}), 400
-    miniboss = _game._pending_combat.get("monster")
-    if not miniboss or getattr(miniboss, "effect_id", "") != "crossroads_demon":
-        return jsonify({"error": "Not a Crossroads Demon encounter"}), 400
-    data: dict = json_body()
-    equip_sources: list[dict] = data.get("equip_sources", [])
+    data = json_body()
+    _game.crossroads_discard(data.get("equip_sources", []))
     player = _game.current_player
-    slot_map = {
-        "equip_helmet": player.helmets,
-        "equip_chest":  player.chest_armor,
-        "equip_leg":    player.leg_armor,
-        "equip_weapon": player.weapons,
-    }
-    sorted_sources = sorted(equip_sources, key=lambda x: x.get("index", 0), reverse=True)
-    discarded: list = []
-    for src_info in sorted_sources:
-        source = src_info.get("source", "")
-        idx = int(src_info.get("index", -1))
-        item_list = slot_map.get(source)
-        if item_list is not None and 0 <= idx < len(item_list):
-            item = item_list.pop(idx)
-            discarded.append(item)
-    if discarded:
-        _fx.refresh_tokens(player)
-        _game._pending_combat.setdefault("crossroads_discards", []).extend(discarded)
-        from werblers_engine import encounters as _enc
-        _ab_log: list[str] = []
-        _ab_player_mod, _ab_monster_mod, _ = _enc._apply_miniboss_modifiers(
-            player, miniboss, _ab_log, _game.is_night)
-        _game._pending_combat["ability_player_mod"] = _ab_player_mod
-        _game._pending_combat["ability_monster_mod"] = _ab_monster_mod
-        _game._pending_combat["ability_breakdown"] = _ab_log
+    miniboss = _game._pending_combat["monster"]
     pc = _game._pending_combat
     combat_info = {
         "monster_name": miniboss.name,
         "monster_strength": miniboss.strength + pc.get("ability_monster_mod", 0),
-        "player_strength": max(0, player.combat_strength() + pc.get("ability_player_mod", 0)),
+        "player_strength": max(0, player.combat_strength(is_night=_game.is_night) + pc.get("ability_player_mod", 0)),
         "ability_player_mod": pc.get("ability_player_mod", 0),
         "ability_monster_mod": pc.get("ability_monster_mod", 0),
         "ability_breakdown": pc.get("ability_breakdown", []),
@@ -278,7 +255,7 @@ def api_use_consumable():
             combat_info = {
                 "monster_name": monster.name,
                 "monster_strength": monster.strength,
-                "player_strength": player.combat_strength(),
+                "player_strength": player.combat_strength(is_night=_game.is_night),
                 "player_id": player.player_id,
                 "player_name": player.name,
                 "hero_id": player.hero.id.name if player.hero else None,
@@ -401,7 +378,7 @@ def api_use_consumable():
     # ------------------------------------------------------------------ Combat info update
     ability_mod = _game._last_combat_info.get("ability_player_mod", 0) if _game._last_combat_info else 0
     if _game._last_combat_info:
-        _game._last_combat_info["player_strength"] = max(0, player.combat_strength() + _game._prefight_str_bonus + ability_mod)
+        _game._last_combat_info["player_strength"] = max(0, player.combat_strength(is_night=_game.is_night) + _game._prefight_str_bonus + ability_mod)
         _game._last_combat_info["monster_strength"] = (
             _game._last_combat_info.get("monster_strength", 0)
             + (consumable.effect_value if consumable.effect_id == "monster_str_mod" else 0)

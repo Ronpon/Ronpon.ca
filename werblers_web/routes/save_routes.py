@@ -109,7 +109,11 @@ def api_load_game():
         return jsonify({"error": "Save not found"}), 404
     game = deserialize_game(game_json)
     _set_game_state(game, ["Game loaded!"])
-    return jsonify({"ok": True, "state": _build_state()})
+    state = _build_state()
+    resume = dict(state["decision"])
+    if resume["phase"] == "combat":
+        resume["combat_info"] = resume["combat"]  # compatibility with older clients
+    return jsonify({"ok": True, "state": state, "resume": resume})
 
 @save_bp.route("/api/achievements", methods=["GET"])
 def api_list_achievements():

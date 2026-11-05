@@ -1,0 +1,55 @@
+body.wo-open > :not(#wo-screen):not(script) { display: none !important; }
+#wo-screen { position: fixed; inset: 0; z-index: 20000; overflow-y: auto; background: #141e1a; color: #eee8d5; font: 17px/1.5 'Crimson Text', Georgia, serif; padding: 20px; box-sizing: border-box; }
+#wo-screen * { box-sizing: border-box; }
+#wo-screen [hidden] { display: none !important; }
+#wo-screen h1, #wo-screen h2, #wo-screen h3 { font-family: Cinzel, Georgia, serif; line-height: 1.25; margin: 0 0 12px; }
+#wo-screen h1 { font-size: clamp(24px, 4vw, 38px); }
+#wo-screen h2 { font-size: 23px; }
+#wo-screen h3 { font-size: 18px; }
+#wo-screen p { margin: 8px 0; }
+#wo-screen button, #wo-screen select, #wo-screen input { font: inherit; border-radius: 6px; border: 1px solid #65776a; color: #eee8d5; background: #283b30; padding: 9px 12px; min-height: 44px; max-width: 100%; }
+#wo-screen input[type=checkbox], #wo-screen input[type=radio] { min-height: 20px; width: 20px; vertical-align: middle; accent-color: #ddbc70; }
+#wo-screen button { cursor: pointer; }
+#wo-screen button:hover { background: #3b5341; }
+#wo-screen button:disabled { opacity: .45; cursor: default; }
+#wo-screen :focus-visible { outline: 3px solid #e2bd66; outline-offset: 3px; }
+#wo-screen label { display: block; margin: 8px 0; }
+#wo-screen label > select, #wo-screen label > input:not([type=checkbox]):not([type=radio]) { display: block; width: 100%; }
+#wo-screen a { color: #e2bd66; }
+.wo-wrap { max-width: 1320px; margin: auto; }
+.wo-top, .wo-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.wo-top { justify-content: space-between; margin-bottom: 16px; }
+.wo-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+.wo-panel { padding: 20px; border: 1px solid #526654; border-radius: 12px; background: #1d2b23; margin-bottom: 16px; min-width: 0; }
+.wo-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.wo-code { font: bold 28px/1.2 monospace; letter-spacing: .14em; color: #e2bd66; }
+.wo-muted { color: #b7c6b9; font-size: 15px; }
+.wo-pill { display: inline-block; padding: 3px 8px; border: 1px solid #586e5d; border-radius: 20px; font-size: 14px; }
+#wo-error { padding: 12px; border: 1px solid #d88c68; background: #492b23; margin-bottom: 16px; }
+.wo-seats { display: flex; flex-wrap: wrap; gap: 8px; }
+.wo-seat { flex: 1 1 180px; border: 1px solid #586e5d; border-radius: 8px; padding: 12px; }
+.wo-seat.is-you { border-color: #e2bd66; }
+.wo-board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; }
+.wo-tile { position: relative; aspect-ratio: 1; border-radius: 3px; background: #2c4932; border: 1px solid #58704a; overflow: hidden; }
+.wo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wo-tile > span { position: absolute; top: 0; left: 2px; font: 11px monospace; padding: 0 2px; background: #000a; color: white; }
+.wo-tokens { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 2px; flex-wrap: wrap; }
+.wo-token { background: #f0cc6b; color: #111; font: bold 12px monospace; border-radius: 50%; padding: 2px 4px; }
+.wo-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.wo-card { display: inline-flex; gap: 10px; align-items: center; padding: 8px; border: 1px solid #465c4b; border-radius: 8px; max-width: 100%; }
+.wo-card img { width: 72px; max-height: 110px; object-fit: contain; }
+.wo-item { border-top: 1px solid #405545; padding: 10px 0; }
+.wo-item .wo-row { margin-top: 6px; }
+#wo-screen details { margin: 8px 0; }
+#wo-screen summary { cursor: pointer; padding: 6px 0; font-weight: bold; }
+.wo-log { max-height: 240px; overflow: auto; }
+.wo-log p { border-bottom: 1px solid #344b3c; padding-bottom: 5px; }
+.wo-launch { display: block; margin: 16px auto; min-height: 44px; }
+@media(max-width: 760px) {
+  #wo-screen { padding: 12px; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .wo-grid { grid-template-columns: 1fr; }
+  .wo-panel { padding: 14px; }
+  .wo-top { gap: 12px; }
+  .wo-board { gap: 2px; }
+  .wo-form-grid { grid-template-columns: 1fr; }
+}

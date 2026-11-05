@@ -17,6 +17,7 @@ from .deck import Deck
 from .heroes import HEROES, HeroId
 from .player import Player
 from . import content as C
+from .mystery import MysteryEvent
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +62,8 @@ def _ser_monster(m: Monster) -> dict:
         "curse_text": m.curse_text, "bonus_text": m.bonus_text,
         "active": m.active, "effect_id": m.effect_id,
         "bonus_vs_male": m.bonus_vs_male,
+        "_brady_thefts": getattr(m, "_brady_thefts", 0),
+        "_brady_nice_hat_bonus": getattr(m, "_brady_nice_hat_bonus", 0),
     }
 
 
@@ -117,6 +120,7 @@ def _ser_deck(d: Deck) -> dict:
         "cards": [_card(c) for c in d._cards],
         "discard": [_card(c) for c in d._discard],
         "auto_reshuffle": d._auto_reshuffle,
+        "rng_state": d._rng.getstate(),
     }
 
 
@@ -144,6 +148,7 @@ def _ser_player(p: Player) -> dict:
         "_base_pack_size": p._base_pack_size,
         "traits": [_ser_trait(t) for t in p.traits],
         "curses": [_ser_curse(c) for c in p.curses],
+        "_pending_curse_discards": p._pending_curse_discards,
         "movement_hand": list(p.movement_hand),
         "max_hand_size": p.max_hand_size,
         "miniboss1_defeated": p.miniboss1_defeated,
@@ -159,33 +164,32 @@ def _ser_player(p: Player) -> dict:
     }
 
 
-def _ser_pending(d: Optional[dict]) -> Optional[dict]:
+def _ser_pending(d: Optional[dict], game=None) -> Optional[dict]:
     """Serialize _pending_offer or _pending_combat dict (contains Monster refs)."""
     if d is None:
         return None
-    out = {}
-    for k, v in d.items():
-        if isinstance(v, Monster):
-            out[k] = {"_type": "Monster", **_ser_monster(v)}
-        elif isinstance(v, Item):
-            out[k] = {"_type": "Item", **_ser_item(v)}
-        elif isinstance(v, Trait):
-            out[k] = {"_type": "Trait", **_ser_trait(v)}
-        elif isinstance(v, Curse):
-            out[k] = {"_type": "Curse", **_ser_curse(v)}
-        elif isinstance(v, Consumable):
-            out[k] = {"_type": "Consumable", **_ser_consumable(v)}
-        elif isinstance(v, list):
-            out[k] = [_ser_pending_value(x) for x in v]
-        elif isinstance(v, dict):
-            out[k] = _ser_pending(v)
-        else:
-            out[k] = v
-    return out
+    return {k: _ser_pending_value(v, game) for k, v in d.items()}
 
 
-def _ser_pending_value(v):
+def _ser_pending_value(v, game=None):
+    if isinstance(v, MysteryEvent):
+        from dataclasses import asdict
+        return {"_type": "MysteryEvent", **asdict(v)}
+    if isinstance(v, Player):
+        return {"_ref": "player", "id": v.player_id}
+    if isinstance(v, Deck):
+        for level, deck in game.monster_decks.items():
+            if v is deck:
+                return {"_ref": "monster_deck", "level": level}
+        raise ValueError("Unknown pending deck reference")
     if isinstance(v, Monster):
+        if game is not None:
+            for pid, boss in game.player_werblers.items():
+                if v is boss:
+                    return {"_ref": "werbler", "id": pid}
+            for tier in (1, 2):
+                if v is getattr(game, f"active_miniboss_t{tier}"):
+                    return {"_ref": "miniboss", "tier": tier}
         return {"_type": "Monster", **_ser_monster(v)}
     if isinstance(v, Item):
         return {"_type": "Item", **_ser_item(v)}
@@ -198,7 +202,9 @@ def _ser_pending_value(v):
     if isinstance(v, Minion):
         return {"_type": "Minion", **_ser_minion(v)}
     if isinstance(v, dict):
-        return _ser_pending(v)
+        return _ser_pending(v, game)
+    if isinstance(v, list):
+        return [_ser_pending_value(x, game) for x in v]
     return v
 
 
@@ -232,9 +238,13 @@ def serialize_game(game) -> str:
         "active_miniboss_t2": _ser_monster(g.active_miniboss_t2) if g.active_miniboss_t2 else None,
         "player_werblers": {str(k): _ser_monster(v) for k, v in g.player_werblers.items()},
         "_decision_counter": g._decision_counter,
-        "_pending_offer": _ser_pending(g._pending_offer),
+        "_pending_me_too": g._pending_me_too,
+        "_next_me_too_id": g._next_me_too_id,
+        "_pending_trait_loss": g._pending_trait_loss,
+        "_next_trait_loss_id": g._next_trait_loss_id,
+        "_pending_offer": _ser_pending(g._pending_offer, g),
         "_last_combat_info": g._last_combat_info,
-        "_pending_combat": _ser_pending(g._pending_combat),
+        "_pending_combat": _ser_pending(g._pending_combat, g),
         "_prefight_str_bonus": g._prefight_str_bonus,
         "_prefight_monster_str_bonus": g._prefight_monster_str_bonus,
         "_rakeitin_pending_placement": g._rakeitin_pending_placement,
@@ -264,7 +274,12 @@ def _de_minion(d: dict) -> Minion:
 
 def _de_monster(d: dict) -> Monster:
     dd = {k: v for k, v in d.items() if k != "_type"}
-    return Monster(**dd)
+    thefts = dd.pop("_brady_thefts", 0)
+    bonus = dd.pop("_brady_nice_hat_bonus", 0)
+    monster = Monster(**dd)
+    monster._brady_thefts = thefts
+    monster._brady_nice_hat_bonus = bonus
+    return monster
 
 
 def _de_trait(d: dict) -> Trait:
@@ -292,6 +307,8 @@ def _de_card(c):
         return c
     if isinstance(c, dict):
         t = c.get("_type")
+        if t == "MysteryEvent":
+            return MysteryEvent(**{k: v for k, v in c.items() if k != "_type"})
         if t == "Item":
             return _de_item(c)
         if t == "Monster":
@@ -314,6 +331,10 @@ def _de_deck(d: dict) -> Deck:
     deck._cards = [_de_card(c) for c in d["cards"]]
     deck._discard = [_de_card(c) for c in d["discard"]]
     deck._rng = random.Random()
+    if "rng_state" in d:
+        def as_tuple(value):
+            return tuple(as_tuple(v) for v in value) if isinstance(value, list) else value
+        deck._rng.setstate(as_tuple(d["rng_state"]))
     deck._auto_reshuffle = d.get("auto_reshuffle", False)
     return deck
 
@@ -343,6 +364,7 @@ def _de_player(d: dict) -> Player:
     p._base_pack_size = d.get("_base_pack_size", 3)
     p.traits = [_de_trait(t) for t in d["traits"]]
     p.curses = [_de_curse(c) for c in d["curses"]]
+    p._pending_curse_discards = d.get("_pending_curse_discards", 0)
     p.movement_hand = d["movement_hand"]
     p.max_hand_size = d["max_hand_size"]
     p.miniboss1_defeated = d["miniboss1_defeated"]
@@ -359,28 +381,30 @@ def _de_player(d: dict) -> Player:
     return p
 
 
-def _de_pending(d: Optional[dict]) -> Optional[dict]:
+def _de_pending(d: Optional[dict], game=None) -> Optional[dict]:
     """Deserialize _pending_offer / _pending_combat dict."""
     if d is None:
         return None
-    out = {}
-    for k, v in d.items():
-        if isinstance(v, dict) and "_type" in v:
-            out[k] = _de_card(v)
-        elif isinstance(v, list):
-            out[k] = [_de_pending_value(x) for x in v]
-        elif isinstance(v, dict):
-            out[k] = _de_pending(v)
-        else:
-            out[k] = v
-    return out
+    return {k: _de_pending_value(v, game) for k, v in d.items()}
 
 
-def _de_pending_value(v):
+def _de_pending_value(v, game=None):
+    if isinstance(v, dict) and "_ref" in v:
+        if v["_ref"] == "player":
+            return next(p for p in game.players if p.player_id == v["id"])
+        if v["_ref"] == "monster_deck":
+            return game.monster_decks[v["level"]]
+        if v["_ref"] == "werbler":
+            return game.player_werblers[v["id"]]
+        if v["_ref"] == "miniboss":
+            return getattr(game, f"active_miniboss_t{v['tier']}")
+        raise ValueError("Unknown pending reference")
     if isinstance(v, dict) and "_type" in v:
         return _de_card(v)
     if isinstance(v, dict):
-        return _de_pending(v)
+        return _de_pending(v, game)
+    if isinstance(v, list):
+        return [_de_pending_value(x, game) for x in v]
     return v
 
 
@@ -417,9 +441,21 @@ def deserialize_game(json_str: str):
     g.active_miniboss_t2 = _de_monster(data["active_miniboss_t2"]) if data["active_miniboss_t2"] else None
     g.player_werblers = {int(k): _de_monster(v) for k, v in data["player_werblers"].items()}
     g._decision_counter = data["_decision_counter"]
-    g._pending_offer = _de_pending(data["_pending_offer"])
+    g._pending_me_too = data.get("_pending_me_too", [])
+    g._next_me_too_id = data.get("_next_me_too_id", 1)
+    g._pending_trait_loss = data.get("_pending_trait_loss")
+    g._next_trait_loss_id = data.get("_next_trait_loss_id", 1)
+    g._pending_offer = _de_pending(data["_pending_offer"], g)
     g._last_combat_info = data["_last_combat_info"]
-    g._pending_combat = _de_pending(data["_pending_combat"])
+    g._pending_combat = _de_pending(data["_pending_combat"], g)
+    # Older saves embedded a second copy of the boss in the pending fight.
+    if g._pending_combat is not None:
+        kind = g._pending_combat.get("type")
+        if kind == "werbler":
+            g._pending_combat["monster"] = g.player_werblers[g.current_player.player_id]
+        elif kind == "miniboss":
+            tier = 1 if g._pending_combat["boss_tile"] == 30 else 2
+            g._pending_combat["monster"] = getattr(g, f"active_miniboss_t{tier}")
     g._prefight_str_bonus = data["_prefight_str_bonus"]
     g._prefight_monster_str_bonus = data["_prefight_monster_str_bonus"]
     g._rakeitin_pending_placement = data.get("_rakeitin_pending_placement", False)
